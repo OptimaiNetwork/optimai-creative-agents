@@ -61,6 +61,19 @@ const output = await runCanvasLab(CANVAS_LAB_AGENTS['poster-lab'], [], {
 
 `mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`. `glitch` displaces still-image bands with `amount: 0–100`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. These tools export PNGs, not video or model-generated artwork.
 
+To execute a saved composition recipe, normalize its fields before rendering:
+
+```js
+import { canvasLabRecipeSettings, runCanvasLab } from './src/canvas-lab.mjs';
+
+const settings = canvasLabRecipeSettings('poster-lab', {
+  title: 'A NEW PERSPECTIVE', format: 'wide banner', style: 'cinematic'
+});
+const output = await runCanvasLab(settings.operation, [], settings, controller.signal);
+```
+
+The normalizer merges source defaults, maps legacy poster `format` to `ratio`, letter `text` to `title`, `style` to `treatment` and glitch `intensity` to `amount`. Explicit canonical values win. It validates recipe values and the final engine settings. Do not merge defaults into supplied values before calling it: that would conceal whether a canonical setting was explicitly selected. Raw `runCanvasLab` remains available for applications using direct bounded engine settings.
+
 ## Browser writing
 
 Install the reviewed optional dependency in your isolated browser host:

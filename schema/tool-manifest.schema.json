@@ -220,6 +220,15 @@
                   "type": "string",
                   "maxLength": 2000,
                   "pattern": "^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$"
+                },
+                "layout": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "phone",
+                    "desktop",
+                    "gallery"
+                  ]
                 }
               }
             }
@@ -376,6 +385,21 @@
                     "manga",
                     "editorial"
                   ]
+                },
+                "ratio": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "1:1",
+                    "4:5",
+                    "16:9",
+                    "9:16"
+                  ]
+                },
+                "mix": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
                 }
               }
             }
@@ -547,6 +571,16 @@
                     "rhythmic",
                     "energetic"
                   ]
+                },
+                "ratio": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "1:1",
+                    "4:5",
+                    "16:9",
+                    "9:16"
+                  ]
                 }
               }
             }
@@ -594,6 +628,30 @@
                     "photographic",
                     "manga",
                     "editorial"
+                  ]
+                },
+                "ratio": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "1:1",
+                    "4:5",
+                    "16:9",
+                    "9:16"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "pattern": "^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$"
+                },
+                "treatment": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "editorial",
+                    "cinema",
+                    "minimal"
                   ]
                 }
               }
@@ -688,6 +746,21 @@
                     "gentle",
                     "slow cinematic"
                   ]
+                },
+                "ratio": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "1:1",
+                    "4:5",
+                    "16:9",
+                    "9:16"
+                  ]
+                },
+                "mix": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
                 }
               }
             }
@@ -1270,6 +1343,21 @@
                     "subtle",
                     "medium"
                   ]
+                },
+                "ratio": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "1:1",
+                    "4:5",
+                    "16:9",
+                    "9:16"
+                  ]
+                },
+                "amount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
                 }
               }
             }
@@ -1457,6 +1545,34 @@
                     "photographic",
                     "manga",
                     "editorial"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "ratio": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "1:1",
+                    "4:5",
+                    "16:9",
+                    "9:16"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "pattern": "^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$"
+                },
+                "treatment": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "editorial",
+                    "cinema",
+                    "minimal"
                   ]
                 }
               }

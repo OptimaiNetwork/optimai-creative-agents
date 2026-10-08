@@ -1,12 +1,12 @@
 import { getToolOutputSize, LOCAL_IMAGE_LIMITS, runLocalTool } from './browser-runtime.mjs';
+import { AGENT_CATALOG, getAgentTemplate, validateRecipeValues } from './index.mjs';
 
-export const CANVAS_LAB_AGENTS = Object.freeze({
-  'mockup-maker': 'mockup', 'poster-lab': 'poster', 'pixel-layout': 'bento',
-  'glitch-cut': 'glitch', 'letter-pose': 'letter', 'reference-blend': 'blend',
-  'transition-lab': 'transition',
-});
+const LAB_OPERATIONS = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition']);
+export const CANVAS_LAB_AGENTS = Object.freeze(Object.fromEntries(AGENT_CATALOG.flatMap(agent =>
+  agent.workspace.kind === 'canvas' && LAB_OPERATIONS.has(agent.workspace.operation) ? [[agent.id, agent.workspace.operation]] : [],
+)));
 export function canvasLabSettings(operation, values = {}) {
-  if (!Object.values(CANVAS_LAB_AGENTS).includes(operation)) throw new Error('Choose a supported canvas operation.');
+  if (!LAB_OPERATIONS.has(operation)) throw new Error('Choose a supported canvas operation.');
   const option = (name, fallback, allowed) => { const value = values[name] ?? fallback; if (!allowed.includes(value)) throw new Error(`Choose a supported ${name}.`); return value; };
   const number = (name, fallback, min, max) => { const value = Number(values[name] ?? fallback); if (!Number.isFinite(value) || value < min || value > max) throw new Error(`${name} must be between ${min} and ${max}.`); return value; };
   const text = String(values.title ?? 'MAKE SOMETHING\nREMARKABLE.').trim();
@@ -18,6 +18,28 @@ export function canvasLabSettings(operation, values = {}) {
     treatment: option('treatment', 'editorial', ['editorial', 'cinema', 'minimal']),
     amount: number('amount', 35, 0, 100), mix: number('mix', 50, 0, 100),
   };
+}
+/** Map portable recipe settings to the actual canvas engine, including v1 aliases. */
+export function canvasLabRecipeSettings(templateId, values = {}) {
+  const template = getAgentTemplate(templateId);
+  const operation = CANVAS_LAB_AGENTS[templateId];
+  if (!template || !operation) throw new Error('Choose a reviewed canvas composition template.');
+  const errors = validateRecipeValues(templateId, values);
+  if (errors.length) throw new Error(errors.join('\n'));
+  const defaults = Object.fromEntries(template.fields.map(field => [field.id, field.default]));
+  const settings = { ...defaults, ...values };
+  const has = key => Object.hasOwn(values, key);
+  const formats = { 'portrait poster': '4:5', 'square cover': '1:1', 'wide banner': '16:9' };
+  const ratio = has('ratio') ? values.ratio : has('format') ? formats[values.format] : settings.ratio ?? formats[settings.format] ?? '4:5';
+  const title = has('title') ? values.title : has('text') ? values.text : settings.title ?? settings.text ?? 'MAKE SOMETHING\nREMARKABLE.';
+  const treatment = has('treatment') ? values.treatment : has('style') ? values.style === 'cinematic' ? 'cinema' : 'editorial' : settings.treatment ?? 'editorial';
+  const amount = has('amount') ? values.amount : has('intensity') ? values.intensity === 'medium' ? 60 : 35 : settings.amount ?? 35;
+  const color = (settings.color ?? '#c6f87d').replace(/^#([a-f0-9])([a-f0-9])([a-f0-9])$/i, '#$1$1$2$2$3$3');
+  return canvasLabSettings(operation, {
+    title, color, ratio: ratio === 'original' ? '4:5' : ratio,
+    layout: operation === 'mockup' ? settings.layout ?? 'phone' : 'phone',
+    treatment, amount, mix: settings.mix ?? 50,
+  });
 }
 const abort = signal => { if (signal?.aborted) throw new DOMException('Cancelled.', 'AbortError'); };
 function abortable(work, signal, discard) {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CANVAS_LAB_AGENTS, canvasLabSettings, runCanvasLab } from '../src/canvas-lab.mjs';
+import { AGENT_CATALOG } from '../src/index.mjs';
+import { CANVAS_LAB_AGENTS, canvasLabRecipeSettings, canvasLabSettings, runCanvasLab } from '../src/canvas-lab.mjs';
 
 const image = (name = 'local.png', bytes = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]) => new File([new Uint8Array(bytes)], name, { type: 'image/png' });
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -57,6 +58,37 @@ test('canvas settings accept only bounded operations, colors, titles, mixes and 
   ]) assert.throws(() => canvasLabSettings(operation, values), pattern);
   assert.equal(canvasLabSettings('blend', { mix: '25' }).mix, 25);
 });
+test('composition dispatch follows public catalog descriptors, with supported operations owned by the engine', () => {
+  const operations = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition']);
+  assert.deepEqual(CANVAS_LAB_AGENTS, Object.fromEntries(AGENT_CATALOG.filter(agent => agent.workspace.kind === 'canvas' && operations.has(agent.workspace.operation)).map(agent => [agent.id, agent.workspace.operation])));
+  assert.throws(() => canvasLabRecipeSettings('image-finish'), /composition template/);
+  assert.throws(() => canvasLabRecipeSettings('unknown'), /composition template/);
+});
+test('portable canvas settings preserve legacy aliases and respect explicit canonical values', () => {
+  assert.equal(canvasLabRecipeSettings('poster-lab', { format: 'square cover' }).ratio, '1:1');
+  assert.equal(canvasLabRecipeSettings('poster-lab', { format: 'square cover', ratio: '16:9' }).ratio, '16:9');
+  assert.equal(canvasLabRecipeSettings('poster-lab', { style: 'cinematic' }).treatment, 'cinema');
+  assert.equal(canvasLabRecipeSettings('poster-lab', { style: 'cinematic', treatment: 'minimal' }).treatment, 'minimal');
+  assert.equal(canvasLabRecipeSettings('poster-lab', { color: '#abc' }).color, '#aabbcc');
+  assert.equal(canvasLabRecipeSettings('letter-pose', { text: 'LEGACY LETTERS' }).title, 'LEGACY LETTERS');
+  assert.equal(canvasLabRecipeSettings('letter-pose', { text: 'OLD', title: 'NEW' }).title, 'NEW');
+  assert.equal(canvasLabRecipeSettings('pixel-layout', { layout: 'four panels' }).layout, 'phone');
+  assert.equal(canvasLabRecipeSettings('mockup-maker', { layout: 'gallery', ratio: 'original' }).layout, 'gallery');
+  assert.equal(canvasLabRecipeSettings('mockup-maker', { ratio: 'original' }).ratio, '4:5');
+  assert.equal(canvasLabRecipeSettings('glitch-cut', { intensity: 'medium' }).amount, 60);
+  assert.equal(canvasLabRecipeSettings('glitch-cut', { intensity: 'medium', amount: 10 }).amount, 10);
+  assert.equal(canvasLabRecipeSettings('reference-blend', { mix: 23 }).mix, 23);
+  assert.equal(canvasLabRecipeSettings('transition-lab', { mix: 75 }).mix, 75);
+  assert.throws(() => canvasLabRecipeSettings('poster-lab', { workerUrl: 'https://example.test' }), /no such setting/);
+  assert.throws(() => canvasLabRecipeSettings('glitch-cut', { amount: 101 }), /whole number/);
+});
+test('saved recipe composition settings reach rendered dimensions and actual lettering', async () => canvasHarness(async h => {
+  const settings = canvasLabRecipeSettings('poster-lab', { format: 'wide banner', title: 'A saved creative direction', color: '#ace', style: 'cinematic' });
+  const output = await runCanvasLab(settings.operation, [], settings);
+  assert.deepEqual([output.width, output.height], [1200, 675]);
+  assert.ok(h.calls.text.map(call => call.args[0]).join(' ').includes('A saved creative direction'));
+  assert.equal(h.calls.network, 0);
+}));
 
 test('all seven compositions export actual canvas work with bounded dimensions and release every bitmap', async () => canvasHarness(async h => {
   for (const operation of Object.values(CANVAS_LAB_AGENTS)) {

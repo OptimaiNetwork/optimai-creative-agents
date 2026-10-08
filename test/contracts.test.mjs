@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { AGENT_CATALOG, AGENT_MANIFEST_SCHEMA, getAgentTemplate, getAgentExecutionKind, createAgentManifest, validateAgentManifest, compileAgentPrompt, TOOL_CATALOG, TOOL_MANIFEST_SCHEMA, MAX_PROMPT_LENGTH, getToolTemplate, createToolManifest, validateToolManifest, validateRecipeValues, compileToolPrompt, verifyRegistry } from '../src/index.mjs';
+import { AGENT_CATALOG, AGENT_MANIFEST_SCHEMA, AGENT_WORKSPACE_CONTRACT_VERSION, getAgentWorkspace, validateAgentWorkspace, getAgentTemplate, getAgentExecutionKind, createAgentManifest, validateAgentManifest, compileAgentPrompt, TOOL_CATALOG, TOOL_MANIFEST_SCHEMA, MAX_PROMPT_LENGTH, getToolTemplate, createToolManifest, validateToolManifest, validateRecipeValues, compileToolPrompt, verifyRegistry } from '../src/index.mjs';
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 function manifest(id = 'my-tool', templateId = 'story-seed') { return createToolManifest(templateId, { id, title: 'My Tool' }); }
 
@@ -32,6 +32,28 @@ test('primary Agent API preserves saved v1 Tool recipes and truthful execution k
   assert.deepEqual(saved.properties, TOOL_MANIFEST_SCHEMA.properties);
   assert.deepEqual(saved.allOf, TOOL_MANIFEST_SCHEMA.allOf);
   assert.equal(getAgentExecutionKind('unknown'), undefined);
+});
+test('workspace metadata resolves actual bundled capabilities and stays separate from recipe privileges', () => {
+  assert.equal(AGENT_WORKSPACE_CONTRACT_VERSION, '1.0');
+  assert.deepEqual(Object.fromEntries(['canvas', 'vision', 'writing', 'sketch', 'workflow'].map(kind => [kind, AGENT_CATALOG.filter(agent => getAgentWorkspace(agent.id)?.kind === kind).length])), { canvas: 10, vision: 3, writing: 5, sketch: 2, workflow: 14 });
+  assert.deepEqual(getAgentWorkspace('motion-pose'), { kind: 'vision', operation: 'pose-reference' });
+  assert.equal(getAgentWorkspace('poster-lab').operation, 'poster');
+  assert.ok(Object.isFrozen(getAgentWorkspace('poster-lab')));
+  assert.equal(getAgentWorkspace('unknown'), undefined);
+  for (const agent of AGENT_CATALOG) assert.deepEqual(validateAgentWorkspace(agent.workspace), []);
+  assert.equal(validateAgentManifest({ ...manifest(), workspace: { kind: 'canvas', operation: 'poster' } }).success, false);
+  for (const values of [{ format: 'square cover', style: 'manga', title: 'Saved poster' }, { ratio: '16:9', treatment: 'minimal', color: '#abc' }]) {
+    const saved = createAgentManifest('poster-lab', { id: 'saved-poster', title: 'Saved poster' });
+    saved.recipe.values = values;
+    assert.equal(validateAgentManifest(saved).success, true, 'Legacy and new bounded settings both remain valid.');
+  }
+});
+test('workspace contract rejects unknown engines, executable URLs and getters before reading them', () => {
+  for (const workspace of [null, { kind: 'remote', operation: 'run' }, { kind: 'canvas', operation: 'script' }, { kind: 'vision', operation: 'face-swap' }, { kind: 'writing', operation: 'unimplemented-writer' }, { kind: 'workflow', operation: 'renderer' }, { kind: 'sketch', operation: 'draw', workerUrl: 'https://example.test/code.js' }, { kind: 'canvas', operation: 'poster', headline: 'x'.repeat(161) }]) assert.ok(validateAgentWorkspace(workspace).length);
+  let read = false;
+  const workspace = { kind: 'canvas', get operation() { read = true; return 'poster'; } };
+  assert.ok(validateAgentWorkspace(workspace).length);
+  assert.equal(read, false);
 });
 test('every recipe round-trips through the versioned contract and compiles defaults', () => {
   for (const tool of TOOL_CATALOG) {

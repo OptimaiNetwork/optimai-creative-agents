@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 import { AGENT_CATALOG, validateAgentManifest, verifyRegistry } from '../src/index.mjs';
 import { readAgentManifest } from './cli-input.mjs';
-import { CANVAS_LAB_AGENTS } from '../src/canvas-lab.mjs';
-const visionAgents = { 'select-and-replace': 'person-cutout', 'motion-pose': 'pose-reference', 'face-performance': 'face-reference' };
-const capability = agent => Object.hasOwn(CANVAS_LAB_AGENTS, agent.id) ? `browser canvas ${CANVAS_LAB_AGENTS[agent.id]}`
-  : Object.hasOwn(visionAgents, agent.id) ? `browser vision ${visionAgents[agent.id]} (explicit model download)`
-  : agent.executionKind === 'local-model' ? 'browser writing AI or installed Ollama model'
-  : agent.executionKind === 'browser' ? `browser canvas ${agent.localOperation}` : `${agent.studioMode} Studio guided workflow`;
+const capability = agent => agent.workspace.kind === 'canvas' ? `browser canvas ${agent.workspace.operation}`
+  : agent.workspace.kind === 'vision' ? `browser vision ${agent.workspace.operation} (explicit model download)`
+  : agent.workspace.kind === 'writing' ? 'browser writing AI or installed Ollama model'
+  : agent.workspace.kind === 'sketch' ? `browser drawing + ${agent.studioMode} Studio guided workflow`
+  : `${agent.studioMode} Studio guided workflow`;
 const path = process.argv[2];
 try {
   const registry = verifyRegistry();

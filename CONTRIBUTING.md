@@ -54,6 +54,7 @@ This second contribution track covers SDK and runtime source changes. These intr
 For a catalog or contract change:
 
 - Use a unique slug, original title and description, category, runtime, destination, bounded settings, complete prompt template and relevant tags. Every placeholder must correspond to a declared field.
+- Declare a truthful `workspace` binding to an implemented operation. Reuse a compatible canvas, vision, drawing or guided adapter where possible. Custom engines and new writing output contracts need source and host integration changes; a new ID alone does not implement execution.
 - Update both checked-in manifest schemas when their generated contracts change. Preserve the saved v1 Tool aliases and strict validation. Breaking contract changes need an explicit schema-version decision; do not silently accept extra permissions or properties.
 - Add meaningful coverage for defaults, malformed and oversized inputs, declared settings and privilege boundaries. Include an original self-contained `480 × 270` SVG thumbnail for a new catalog template.
 
@@ -77,7 +78,7 @@ For an engine change, cover the behavior specific to that engine:
 | Writing | Task-specific output contract, required headings and section counts, content validation, bounded repair, cancellation and timeouts; browser writing reuses the shared task contract |
 | CLI or MCP | Validated inputs, explicit installed-model selection for execution, bounded responses, loopback-only inference and useful errors |
 
-The v1 catalog's `executionKind` is a legacy dispatch hint. Hosts resolve additional reviewed canvas and vision capabilities by ID; changing a catalog label alone does not implement an engine. See [host integration](./docs/host-integration.md) for the consumer's responsibilities.
+The catalog's versioned `workspace` descriptor drives current dispatch; `executionKind` stays available as a legacy hint. Titles, descriptions, workspace headlines, settings and original artwork ship from this source. Preserve existing IDs and settings so saved v1 recipes reopen; additive fields and explicit alias normalization can evolve the interface without silently dropping a builder's choices. See [host integration](./docs/host-integration.md) for the consumer's compatibility gate and release responsibilities.
 
 Model downloads must remain explicit host actions. Recipes cannot choose executable, worker or model URLs. The reviewed optional browser peers are WebLLM `0.2.85` and MediaPipe Tasks Vision `1.1.0`; dependency or model changes require their own review and license notices. Never silently fall back to a cloud model or install an Ollama model. Arbitrary network, filesystem, account and background access are outside the v1 recipe contract.
 

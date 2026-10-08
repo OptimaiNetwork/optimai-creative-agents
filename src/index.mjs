@@ -1,6 +1,9 @@
 import { catalog } from './catalog.mjs';
 
 export const MANIFEST_VERSION = '1.0';
+// Bundled workspace metadata is separate from the portable recipe format.
+// Hosts keep their own adapter allowlist and promote reviewed source revisions.
+export const AGENT_WORKSPACE_CONTRACT_VERSION = '1.0';
 export const MAX_PROMPT_LENGTH = 12000;
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const DANGEROUS_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
@@ -19,6 +22,28 @@ const byId = new Map(TOOL_CATALOG.map((tool) => [tool.id, tool]));
 export function getToolTemplate(id) { return typeof id === 'string' ? byId.get(id) : undefined; }
 export const getAgentTemplate = getToolTemplate;
 export function getAgentExecutionKind(id) { return getAgentTemplate(id)?.executionKind; }
+export function getAgentWorkspace(id) { return getAgentTemplate(id)?.workspace; }
+const WORKSPACE_OPERATIONS = Object.freeze({
+  canvas: ['image-filter', 'image-resize', 'image-grid', 'type-overlay', 'mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition'],
+  vision: ['person-cutout', 'pose-reference', 'face-reference'],
+  writing: ['cast-notes', 'style-brief', 'storyboard-builder', 'prompt-branches', 'story-seed'],
+  sketch: ['draw'],
+  workflow: [],
+});
+/** Check source-owned workspace data without accepting code, URLs or privileges. */
+export function validateAgentWorkspace(workspace) {
+  const errors = [];
+  inspectData(workspace, 'workspace', errors);
+  if (errors.length) return errors;
+  if (!plain(workspace)) return ['workspace: expected a plain object.'];
+  for (const key of Object.keys(workspace)) if (!['kind', 'operation', 'headline'].includes(key)) errors.push(`workspace.${key}: unsupported property.`);
+  if (!Object.hasOwn(WORKSPACE_OPERATIONS, workspace.kind)) errors.push('workspace.kind: choose a reviewed workspace.');
+  else if (workspace.kind === 'workflow') {
+    if (Object.hasOwn(workspace, 'operation')) errors.push('workspace.operation: guided workflows do not execute a local operation.');
+  } else if (!WORKSPACE_OPERATIONS[workspace.kind].includes(workspace.operation)) errors.push('workspace.operation: choose an implemented operation for this workspace.');
+  if (Object.hasOwn(workspace, 'headline')) boundedString(workspace.headline, 'workspace.headline', 160, errors);
+  return errors;
+}
 
 // This module never executes recipes. A plain-data contract rejects accessors and
 // prototype-shaped keys before reading them, including in direct JS callers.
@@ -186,6 +211,11 @@ export function verifyRegistry() {
       || (tool.executionKind === 'local-model' && (tool.category !== 'writing' || tool.localOperation !== 'prompt-builder'))
       || (tool.executionKind === 'browser' && (tool.runtime !== 'local' || tool.localOperation === 'prompt-builder'))
       || (tool.executionKind === 'studio-guided' && tool.runtime !== 'studio')) errors.push(`${tool.id}: execution kind does not match its reviewed capability.`);
+    errors.push(...validateAgentWorkspace(tool.workspace).map(error => `${tool.id}: ${error}`));
+    if (tool.workspace?.kind === 'writing' && (tool.executionKind !== 'local-model' || tool.workspace.operation !== tool.id)
+      || tool.executionKind === 'local-model' && tool.workspace?.kind !== 'writing') errors.push(`${tool.id}: writing workspace must match its implemented output contract.`);
+    if (['image-filter', 'image-resize', 'image-grid', 'type-overlay'].includes(tool.workspace?.operation)
+      && (tool.executionKind !== 'browser' || tool.localOperation !== tool.workspace.operation)) errors.push(`${tool.id}: image workspace must match its implemented local operation.`);
     const fieldIds = new Set(tool.fields.map((field) => field.id));
     if (fieldIds.size !== tool.fields.length) errors.push(`${tool.id}: duplicate setting id.`);
     for (const key of tool.promptTemplate.matchAll(/\{\{(.*?)\}\}/g)) if (!fieldIds.has(key[1])) errors.push(`${tool.id}: undefined placeholder ${key[1]}.`);

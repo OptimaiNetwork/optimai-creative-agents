@@ -2,7 +2,7 @@
 
 Choose a template by the result its reviewed implementation produces. The current catalog has **34 templates: 10 canvas, 3 browser vision, 5 writing and 16 guided workflows**. Every template can prepare a prompt; execution uses the runtime listed below.
 
-These groups follow the implemented image operations, `CANVAS_LAB_AGENTS`, the reviewed vision map and the five writing contracts. A template's display category or legacy `runtime` and `executionKind` metadata may describe its original Studio workflow rather than a later browser implementation. Use a reviewed dispatch map as shown in [host integration](./host-integration.md).
+These groups follow each template's versioned `workspace` descriptor. The SDK exposes `getAgentWorkspace(id)` for dispatch and derives `CANVAS_LAB_AGENTS` from the same catalog. The two sketch workspaces include browser drawing before guided production; the other 14 guided templates prepare direction directly. Display categories and legacy `runtime` and `executionKind` metadata remain compatible with older recipes. Hosts maintain their own supported-operation allowlist as described in [host integration](./host-integration.md).
 
 ## Canvas tools
 
@@ -25,7 +25,7 @@ Inputs must be selected PNG, JPEG or WebP files, each at most 20 MiB and 4096 pi
 
 Canvas tools render supplied artwork and text. A blend preview is not a synthesized scene, and a static layout or transition preview is not an encoded video. Mockup Maker's two operations are alternative host workspaces, counted as one template.
 
-The direct composition settings differ from some recipe fields. For example, Poster Lab's recipe declares `format` and `style`, while the canvas operation expects `ratio` and `treatment`. Map the intended values explicitly in your host. Try the [browser example](../examples/browser/README.md) for a complete image resize/filter workflow.
+Use `canvasLabRecipeSettings(id, values)` to normalize recipe fields into direct composition settings. Canonical `ratio`, `treatment`, `title`, `color`, `amount` and `mix` settings take precedence over saved legacy aliases when explicitly supplied. Old `format`, `text`, `style`, `intensity` and bento layout fields remain accepted; no saved v1 field is removed. Try the [browser example](../examples/browser/README.md) for a complete image resize/filter workflow.
 
 ## Browser vision
 

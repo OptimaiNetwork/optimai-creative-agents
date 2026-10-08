@@ -21,7 +21,7 @@ Build image workspaces, design utilities, story treatments and creative workflow
 
 ## What works today
 
-Version `0.1.0` contains **34 agent templates**. They expose different kinds of capability; a production brief and an executed image processor have different outputs.
+Version `0.2.0` contains **34 agent templates**. They expose different kinds of capability; a production brief and an executed image processor have different outputs.
 
 | Capability | Agents | What you receive | Setup |
 | --- | ---: | --- | --- |
@@ -128,6 +128,8 @@ Replace the path with your checkout, then import from `@optimai/creative-agents`
 
 See the [full catalog](./docs/catalog.md) for all 34 IDs, their execution paths and output limits. Every agent ships with original, reusable [SVG artwork](./artwork/).
 
+Try the agents at [optimai.studio/agents](https://optimai.studio/agents), or read the [Studio builder docs](https://optimai.studio/agents/docs). The local guides below also work without a Studio account.
+
 ## Integrate with your workflow
 
 **Browser applications.** Bundle the canvas, writing or vision entry points into your own workspace. Let users select inputs, run, review, cancel and export. Optional models download only after an explicit action. [Runtime setup →](./docs/runtimes.md)
@@ -135,6 +137,8 @@ See the [full catalog](./docs/catalog.md) for all 34 IDs, their execution paths 
 **MCP clients.** Launch the local stdio adapter with Node. It exposes all 34 recipes for preparation; writing agents can run only when explicitly requested with an installed model. The adapter implements protocol version `2025-11-25`. [MCP guide →](./docs/mcp.md)
 
 **OptimAI Studio.** Import a valid JSON recipe through the local AI Agents builder, or use a reviewed host handoff. Studio's account, generation, billing, persistence and publishing services are separate from this MIT SDK. Importing a recipe does not publish a community listing. [Host integration →](./docs/host-integration.md)
+
+**From a source contribution to Studio.** Catalog presentation, supported workspace bindings and processors live in this package. A reviewed SDK revision passes Studio's compatibility checks before its frontend is deployed. Compatible new catalog templates then appear automatically from the bundled source; new engines or custom interfaces need a host adapter first. A public merge alone does not change the live site. [Source promotion →](./docs/host-integration.md#promote-a-source-release-into-studio)
 
 Public source contributions happen through GitHub pull requests. Automated community submissions, featured placement and contributor rewards are not live services in this release. [Contribution and release workflow →](./docs/release-and-feature.md)
 

@@ -44,7 +44,7 @@ async function handle(message) {
     if (lifecycle !== 'new') { error(id, -32600, 'Server has already initialized.'); return; }
     if (typeof params.protocolVersion !== 'string' || !object(params.capabilities) || !object(params.clientInfo) || typeof params.clientInfo.name !== 'string' || typeof params.clientInfo.version !== 'string') { error(id, -32602, 'Provide protocolVersion, capabilities and clientInfo.'); return; }
     lifecycle = 'initializing';
-    response(id, { protocolVersion: PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'optimai-creative-agents', version: '0.1.0' }, instructions: 'Creative agents prepare bounded recipes. Five writing agents can execute an explicitly selected installed Ollama model. Media generation and spending remain in the authorized host workflow.' });
+    response(id, { protocolVersion: PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'optimai-creative-agents', version: '0.2.0' }, instructions: 'Creative agents prepare bounded recipes. Five writing agents can execute an explicitly selected installed Ollama model. Media generation and spending remain in the authorized host workflow.' });
     return;
   }
   if (lifecycle !== 'ready') { error(id, -32600, 'Initialize and send notifications/initialized before using tools.'); return; }
@@ -79,7 +79,7 @@ async function handle(message) {
         } finally { activeRuns.delete(id); }
         return;
       }
-      const structuredContent = { templateId: tool.id, runtime: tool.runtime, studioMode: tool.studioMode, ...(tool.localOperation ? { localOperation: tool.localOperation } : {}), values: Object.fromEntries(tool.fields.map((field) => [field.id, Object.hasOwn(values, field.id) ? values[field.id] : field.default])), prompt };
+      const structuredContent = { templateId: tool.id, runtime: tool.runtime, workspace: tool.workspace, studioMode: tool.studioMode, ...(tool.localOperation ? { localOperation: tool.localOperation } : {}), values: Object.fromEntries(tool.fields.map((field) => [field.id, Object.hasOwn(values, field.id) ? values[field.id] : field.default])), prompt };
       response(id, { content: [{ type: 'text', text: JSON.stringify(structuredContent) }], structuredContent, isError: false });
     } catch (problem) { response(id, { content: [{ type: 'text', text: problem.message }], isError: true }); }
     return;

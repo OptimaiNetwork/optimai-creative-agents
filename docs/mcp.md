@@ -49,7 +49,7 @@ In a connected client, the equivalent tool-call parameters are:
 }
 ```
 
-Preparation returns validated settings, a prompt and a Studio destination. It does not read media, generate a storybook, modify an image or publish a project. The returned `runtime` and `localOperation` are catalog metadata; use a reviewed host dispatch map for actual browser capabilities as described in [host integration](./host-integration.md).
+Preparation returns validated settings, a prompt, a Studio destination and the source template's `workspace` descriptor. It does not read media, generate a storybook, modify an image or publish a project. The returned `runtime` and `localOperation` remain legacy catalog metadata; use a supported workspace adapter as described in [host integration](./host-integration.md).
 
 ## Run local writing explicitly
 

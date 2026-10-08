@@ -41,33 +41,31 @@ Treat recipe metadata, compiled prompts and model output as untrusted plain text
 
 ## Dispatch a reviewed operation
 
-Choose operations by an explicit implementation map. Category, title and generated prose are display data. The catalog's legacy `executionKind` and `runtime` hints do not identify every added canvas and vision capability, so they are insufficient as a universal dispatcher.
+Use the source catalog's versioned `workspace` descriptor to select an adapter your application already bundles. `getAgentWorkspace(id)` returns its `kind`, reviewed `operation` and optional presentation `headline`; `AGENT_WORKSPACE_CONTRACT_VERSION` is `1.0`. Template titles, descriptions, fields and artwork remain public presentation data. Legacy `executionKind` and `runtime` exports are retained for older consumers.
+
+Keep a host-owned allowlist of supported workspace versions and operations. The catalog can describe an operation, but it cannot install an adapter in a running application. A new template that reuses a supported operation can appear and open its workspace after a reviewed SDK upgrade; a new operation or custom interface needs integration and testing first.
 
 For example, this host deliberately exposes the four original still-image processors:
 
 ```js
-import { getAgentTemplate, validateAgentManifest } from './src/index.mjs';
+import { getAgentTemplate, getAgentWorkspace, validateAgentManifest } from './src/index.mjs';
 import { runLocalTool } from './src/browser-runtime.mjs';
 
-const IMAGE_OPERATIONS = Object.freeze({
-  'image-finish': 'image-filter',
-  'mockup-maker': 'image-resize',
-  'image-grid': 'image-grid',
-  'title-frame': 'type-overlay'
-});
+const IMAGE_OPERATIONS = new Set(['image-filter', 'image-resize', 'image-grid', 'type-overlay']);
 
 export async function runImageRecipe(candidate, files, signal) {
   const checked = validateAgentManifest(candidate);
   if (!checked.success) throw new Error(checked.errors.join('\n'));
   const manifest = checked.manifest;
   const templateId = manifest.recipe.templateId;
-  if (!Object.hasOwn(IMAGE_OPERATIONS, templateId)) {
+  const workspace = getAgentWorkspace(templateId);
+  if (workspace?.kind !== 'canvas' || !IMAGE_OPERATIONS.has(workspace.operation)) {
     throw new Error('This host does not run this recipe. Choose an installed image tool.');
   }
   const template = getAgentTemplate(templateId);
   const values = Object.fromEntries(template.fields.map(field => [field.id, field.default]));
   Object.assign(values, manifest.recipe.values);
-  return runLocalTool(IMAGE_OPERATIONS[templateId], files, values, signal);
+  return runLocalTool(workspace.operation, files, values, signal);
 }
 ```
 
@@ -78,15 +76,23 @@ A broader host can add these reviewed runtime adapters:
 | Capability | SDK entry and dispatch | Output and host requirements |
 | --- | --- | --- |
 | Original image processing | `browser-runtime` → `runLocalTool` | PNG; selected PNG/JPEG/WebP files and bounded settings |
-| Additional composition | `canvas-lab` → `CANVAS_LAB_AGENTS`, `runCanvasLab` | PNG; map recipe settings to the operation's settings explicitly |
+| Additional composition | `canvas-lab` → `canvasLabRecipeSettings`, `runCanvasLab` | PNG; normalize defaults, canonical settings and saved v1 aliases |
 | Browser vision | `vision-runtime` → `downloadVisionModel`, `runBrowserVision` | PNG and analysis; explicit model download, reviewed local worker and WASM assets |
 | Browser writing | `browser-writing-runtime` → `createBrowserAgentRuntime` | Validated written artifact; explicit download, supported WebGPU device and local worker |
 | Local Ollama writing | `agent-runtime` → `runCreativeAgent` | Validated written artifact; explicitly selected eligible installed model and loopback service |
 | Guided production | `compileAgentPrompt` and a host handoff | Prepared direction; the destination host runs Image, Video, Story, Character or Editor production |
 
-The vision template map is `select-and-replace` → `person-cutout`, `motion-pose` → `pose-reference`, and `face-performance` → `face-reference`. `CANVAS_LAB_AGENTS` declares the additional composition map. Mockup Maker supports both original resizing and added device composition; expose the workspace you intend to support.
+Vision workspace descriptors identify `person-cutout`, `pose-reference` or `face-reference`. `CANVAS_LAB_AGENTS` derives its composition map from the same catalog. Writing descriptors use the five implemented output-contract IDs; declaring an unknown writer does not implement its output validation. Sketch descriptors identify a browser drawing workspace followed by a separate Studio production step.
 
-Recipe fields and direct engine settings can differ. Poster Lab's recipe uses `format` and `style`, while its canvas engine uses `ratio` and `treatment`. A host must map supported fields explicitly and validate the resulting engine settings; forwarding recipe values blindly can ignore the builder's intent. See [runtime APIs and limits](./runtimes.md) for the exact options, dependencies and browser requirements.
+Recipe fields and direct engine settings can differ. Use `canvasLabRecipeSettings(templateId, manifest.recipe.values)` for compositions: it merges template defaults, preserves legacy `format`, `text`, `style` and `intensity` aliases, and gives explicit canonical settings priority. Pass the resulting settings to `runCanvasLab(settings.operation, files, settings, signal)`. The engine validates its bounded settings again. Mockup Maker keeps its original image-resize recipe fields for compatibility, while its default workspace now selects device composition. See [runtime APIs and limits](./runtimes.md) for exact options and requirements.
+
+## Promote a source release into Studio
+
+OptimAI Studio bundles a reviewed, pinned SDK commit. Public pull-request checks validate the SDK; Studio integration additionally checks its own adapters and build. Approved title, description, settings, artwork and processor changes ship with that frontend release. Compatible new source catalog templates are listed from the bundled catalog without adding a second host ID map.
+
+Merging the public repository does not alter the live site immediately. Maintainers promote the reviewed source revision through Studio integration checks and deploy its frontend. An incompatible new operation must wait for a host adapter; it should fail the compatibility gate rather than appear as a working agent. Account, billing, project and production API changes remain separate host work and may need a backend release.
+
+Portable JSON recipes customize existing templates. Adding an example recipe to a GitHub pull request does not automatically turn it into a built-in catalog template or featured listing. Contribute the source catalog entry, implementation or supported operation binding, original artwork, declarations, schemas and relevant tests when proposing a new built-in agent. Editorial featuring remains a separate decision.
 
 ## Keep model setup explicit
 

@@ -14,8 +14,10 @@ test('stdio MCP initializes, lists exactly 34 tools and prepares a structured re
   const results = run([initialize, ready, { jsonrpc: '2.0', id: 2, method: 'tools/list' }, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'optimai.image-finish', arguments: { values: { preset: 'noir', intensity: 80 }, brief: 'A calm portrait.' } } }]);
   assert.equal(results.length, 3, 'notifications have no response');
   assert.equal(results[0].result.protocolVersion, '2025-11-25');
+  assert.equal(results[0].result.serverInfo.version, '0.2.0');
   assert.equal(results[1].result.tools.length, 34);
   assert.equal(results[2].result.structuredContent.localOperation, 'image-filter');
+  assert.deepEqual(results[2].result.structuredContent.workspace, { kind: 'canvas', operation: 'image-filter' });
   assert.equal(results[2].result.structuredContent.values.preset, 'noir');
   assert.equal(results[2].result.isError, false);
   assert.deepEqual(JSON.parse(results[2].result.content[0].text), results[2].result.structuredContent);

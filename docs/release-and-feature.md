@@ -57,6 +57,14 @@ Open a pull request from your branch to `main` in [OptimaiNetwork/optimai-creati
 
 A recipe PR reuses reviewed code. A new operation needs SDK source, declarations, contract and schema updates, meaningful tests and documentation. Merging source does not automatically deploy it to every host; a host must ship the reviewed version before the capability can execute there.
 
+## SDK 0.2.0 and Studio promotion
+
+This release introduces a versioned public `workspace` descriptor for actual canvas, vision, writing, sketch and guided capabilities. Titles, descriptions, workspace headlines, fields and artwork ship from the reviewed package. Canvas composition defaults now honor saved recipe values and normalize legacy aliases; existing v1 fields and Tool aliases remain accepted. MCP preparation includes the workspace descriptor alongside its legacy metadata.
+
+A built-in agent must be a reviewed source catalog entry with an implemented or supported operation binding, original artwork, matching declarations and schemas, and meaningful tests. Adding a standalone recipe example does not create a built-in listing.
+
+Studio promotes an exact SDK source revision through its own integration checks before deploying the frontend. Compatible new catalog entries then appear from that bundled catalog. An unsupported engine, model, writing output contract or custom interface needs a host integration change first. Source review, frontend deployment and editorial featuring remain distinct decisions. See [the host release boundary](./host-integration.md#promote-a-source-release-into-studio).
+
 ## Share a standalone recipe or application
 
 You can distribute a recipe JSON file or publish your own repository with its documentation. Use a name that identifies your work and explain which reviewed template and SDK revision it uses. Recipients validate the JSON and import it into a compatible host. Studio's **Saved** library remains scoped to the browser and account, so export a copy for transfer or backup.

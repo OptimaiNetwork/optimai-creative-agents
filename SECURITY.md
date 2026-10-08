@@ -2,7 +2,7 @@
 
 ## Scope and supported revisions
 
-This policy covers the public OptimAI Creative Agents SDK: manifest validation, reviewed runtimes, CLI tools and the stdio MCP adapter. The package currently carries version `0.1.0`. Report the affected commit or version and, when safe, check whether the issue remains on `main`. No maintenance window for older snapshots is promised.
+This policy covers the public OptimAI Creative Agents SDK: manifest validation, reviewed runtimes, CLI tools and the stdio MCP adapter. The package currently carries version `0.2.0`. Report the affected commit or version and, when safe, check whether the issue remains on `main`. No maintenance window for older snapshots is promised.
 
 Issues in a consuming application or an upstream model/library should also be reported to that project's maintainers. Include the integration boundary when an SDK issue affects a host application.
 

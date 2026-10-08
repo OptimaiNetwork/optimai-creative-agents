@@ -4,6 +4,14 @@ export type LocalOperation = 'image-filter' | 'image-resize' | 'image-grid' | 't
 export type RecipeValues = Record<string, string | number>;
 export type AgentCategory = ToolCategory;
 export type AgentExecutionKind = 'browser' | 'local-model' | 'studio-guided';
+export type CanvasLabOperation = 'mockup' | 'poster' | 'bento' | 'glitch' | 'letter' | 'blend' | 'transition';
+export type AgentWorkspace = (
+  | { readonly kind: 'canvas'; readonly operation: Exclude<LocalOperation, 'prompt-builder'> | CanvasLabOperation }
+  | { readonly kind: 'vision'; readonly operation: 'person-cutout' | 'pose-reference' | 'face-reference' }
+  | { readonly kind: 'writing'; readonly operation: 'cast-notes' | 'style-brief' | 'storyboard-builder' | 'prompt-branches' | 'story-seed' }
+  | { readonly kind: 'sketch'; readonly operation: 'draw' }
+  | { readonly kind: 'workflow' }
+) & { readonly headline?: string };
 export interface ToolField {
   readonly id: string;
   readonly label: string;
@@ -28,6 +36,7 @@ export interface ToolTemplate {
   readonly fields: readonly ToolField[];
   readonly tags: readonly string[];
   readonly executionKind: AgentExecutionKind;
+  readonly workspace: AgentWorkspace;
 }
 export interface ToolManifest {
   schemaVersion: '1.0';
@@ -46,6 +55,7 @@ export type AgentTemplate = ToolTemplate;
 export type AgentManifest = ToolManifest;
 export type AgentManifestValidation = ManifestValidation;
 export declare const MANIFEST_VERSION: '1.0';
+export declare const AGENT_WORKSPACE_CONTRACT_VERSION: '1.0';
 export declare const MAX_PROMPT_LENGTH: number;
 export declare const TOOL_CATALOG: readonly ToolTemplate[];
 export declare const AGENT_CATALOG: readonly AgentTemplate[];
@@ -53,6 +63,8 @@ export declare const TOOL_MANIFEST_SCHEMA: Readonly<Record<string, unknown>>;
 export declare const AGENT_MANIFEST_SCHEMA: Readonly<Record<string, unknown>>;
 export declare const getAgentTemplate: typeof getToolTemplate;
 export declare const getAgentExecutionKind: (id: string) => AgentExecutionKind | undefined;
+export declare function getAgentWorkspace(id: string): AgentWorkspace | undefined;
+export declare function validateAgentWorkspace(workspace: unknown): string[];
 export declare function getToolTemplate(id: string): ToolTemplate | undefined;
 export declare function validateRecipeValues(toolId: string, values: unknown): string[];
 export declare function validateToolManifest(value: unknown): ManifestValidation;
