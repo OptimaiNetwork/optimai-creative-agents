@@ -1,0 +1,87 @@
+{
+  "name": "@optimai/creative-agents",
+  "version": "0.1.0",
+  "description": "OptimAI Creative Agents: local-first browser AI, creative workflows and a community builder SDK",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OptimaiNetwork/optimai-creative-agents.git"
+  },
+  "homepage": "https://github.com/OptimaiNetwork/optimai-creative-agents#readme",
+  "bugs": {
+    "url": "https://github.com/OptimaiNetwork/optimai-creative-agents/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.mts",
+      "import": "./src/index.mjs"
+    },
+    "./browser-runtime": {
+      "types": "./src/browser-runtime.d.mts",
+      "import": "./src/browser-runtime.mjs"
+    },
+    "./canvas-lab": {
+      "types": "./src/canvas-lab.d.mts",
+      "import": "./src/canvas-lab.mjs"
+    },
+    "./agent-runtime": {
+      "types": "./src/agent-runtime.d.mts",
+      "import": "./src/agent-runtime.mjs"
+    },
+    "./browser-writing-runtime": {
+      "types": "./src/browser-writing-runtime.d.mts",
+      "import": "./src/browser-writing-runtime.mjs"
+    },
+    "./browser-writing-worker": {
+      "types": "./src/browser-writing-worker.d.mts",
+      "import": "./src/browser-writing-worker.mjs"
+    },
+    "./vision-runtime": {
+      "types": "./src/vision-runtime.d.mts",
+      "import": "./src/vision-runtime.mjs"
+    },
+    "./vision-processor": {
+      "types": "./src/vision-processor.d.mts",
+      "import": "./src/vision-processor.mjs"
+    },
+    "./schema": "./schema/agent-manifest.schema.json",
+    "./legacy-tool-schema": "./schema/tool-manifest.schema.json"
+  },
+  "files": [
+    "src",
+    "schema",
+    "examples",
+    "scripts",
+    "test",
+    "docs",
+    "README.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "artwork"
+  ],
+  "peerDependencies": {
+    "@mlc-ai/web-llm": "0.2.85",
+    "@mediapipe/tasks-vision": "1.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@mlc-ai/web-llm": {
+      "optional": true
+    },
+    "@mediapipe/tasks-vision": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "verify": "node scripts/verify.mjs",
+    "create": "node scripts/create.mjs",
+    "run": "node scripts/run.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "mcp": "node src/mcp-server.mjs"
+  }
+}

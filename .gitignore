@@ -1,0 +1,23 @@
+# Local dependencies and generated output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Credentials and private local configuration
+.env
+.env.*
+*.pem
+*.key
+
+# Editors and OS files
+.DS_Store
+.vscode/
+.idea/
+
+# Local model/output caches
+.cache/
+models/
+outputs/
+*.tgz
+npm-debug.log*

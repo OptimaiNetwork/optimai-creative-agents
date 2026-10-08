@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1.0",
+  "id": "quiet-noir",
+  "version": "1.0.0",
+  "title": "Quiet Noir",
+  "description": "Give an image a restrained color finish with a live preview and local export.",
+  "category": "image",
+  "license": "MIT",
+  "capabilities": {
+    "network": "none",
+    "execution": "declarative",
+    "dataAccess": "selected-inputs"
+  },
+  "recipe": {
+    "templateId": "image-finish",
+    "values": {
+      "preset": "noir",
+      "intensity": 70
+    },
+    "brief": ""
+  }
+}

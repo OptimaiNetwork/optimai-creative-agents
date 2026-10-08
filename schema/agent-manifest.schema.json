@@ -1,0 +1,2400 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://optimai.studio/schemas/agent-manifest/1.0",
+  "title": "OptimAI declarative agent recipe v1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "version",
+    "title",
+    "description",
+    "category",
+    "license",
+    "capabilities",
+    "recipe"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "version": {
+      "type": "string",
+      "maxLength": 24,
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 600
+    },
+    "category": {
+      "enum": [
+        "image",
+        "video",
+        "writing",
+        "experimental"
+      ]
+    },
+    "license": {
+      "const": "MIT"
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "network",
+        "execution",
+        "dataAccess"
+      ],
+      "properties": {
+        "network": {
+          "const": "none"
+        },
+        "execution": {
+          "const": "declarative"
+        },
+        "dataAccess": {
+          "const": "selected-inputs"
+        }
+      }
+    },
+    "recipe": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "sketch-to-scene"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "style": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "cinematic",
+                    "illustrated",
+                    "photographic",
+                    "manga",
+                    "editorial"
+                  ]
+                },
+                "material": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "world-finder"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "time": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "golden hour",
+                    "daylight",
+                    "blue hour",
+                    "night"
+                  ]
+                },
+                "mood": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "playful",
+                    "calm",
+                    "dramatic",
+                    "dreamlike",
+                    "bold"
+                  ]
+                },
+                "style": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "cinematic",
+                    "illustrated",
+                    "photographic",
+                    "manga",
+                    "editorial"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "mockup-maker"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ratio": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "4:5",
+                    "original"
+                  ]
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4096
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4096
+                },
+                "fit": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "contain",
+                    "cover"
+                  ]
+                },
+                "background": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "pattern": "^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "image-finish"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "preset": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "original",
+                    "noir",
+                    "warm",
+                    "cool",
+                    "punchy"
+                  ]
+                },
+                "intensity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "shot-atlas"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "shot": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "wide",
+                    "medium",
+                    "close-up",
+                    "low angle",
+                    "overhead"
+                  ]
+                },
+                "lens": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "35mm",
+                    "50mm",
+                    "85mm",
+                    "wide cinematic"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "select-and-replace"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "region": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "replacement": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "reference-blend"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "priority": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "style": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "cinematic",
+                    "illustrated",
+                    "photographic",
+                    "manga",
+                    "editorial"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "image-grid"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "columns": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                },
+                "gap": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 80
+                },
+                "background": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "pattern": "^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "motion-finish"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "effect": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "film grain",
+                    "soft bloom",
+                    "chromatic fringe",
+                    "halftone"
+                  ]
+                },
+                "intensity": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "subtle",
+                    "medium",
+                    "bold"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "title-frame"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "fontSize": {
+                  "type": "integer",
+                  "minimum": 12,
+                  "maximum": 240
+                },
+                "color": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "pattern": "^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$"
+                },
+                "position": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "top",
+                    "center",
+                    "bottom"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "pixel-layout"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "layout": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "three panels",
+                    "four panels",
+                    "hero and details"
+                  ]
+                },
+                "pace": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "gentle",
+                    "rhythmic",
+                    "energetic"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "poster-lab"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "format": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "portrait poster",
+                    "square cover",
+                    "wide banner"
+                  ]
+                },
+                "style": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "cinematic",
+                    "illustrated",
+                    "photographic",
+                    "manga",
+                    "editorial"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "sketch-to-motion"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "camera": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "locked",
+                    "slow push",
+                    "orbit",
+                    "tracking",
+                    "handheld"
+                  ]
+                },
+                "style": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "cinematic",
+                    "illustrated",
+                    "photographic",
+                    "manga",
+                    "editorial"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "transition-lab"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "transition": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "match cut",
+                    "camera move",
+                    "light wipe",
+                    "morph"
+                  ]
+                },
+                "pace": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "quick",
+                    "gentle",
+                    "slow cinematic"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "dream-signal"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "motif": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "mood": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "playful",
+                    "calm",
+                    "dramatic",
+                    "dreamlike",
+                    "bold"
+                  ]
+                },
+                "camera": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "locked",
+                    "slow push",
+                    "orbit",
+                    "tracking",
+                    "handheld"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "frame-fit"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ratio": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "9:16",
+                    "16:9",
+                    "1:1",
+                    "4:5"
+                  ]
+                },
+                "fit": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "subject-aware crop",
+                    "letterbox",
+                    "blurred background"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "rough-cut"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "structure": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "chronological",
+                    "setup reveal payoff",
+                    "montage"
+                  ]
+                },
+                "pace": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "calm",
+                    "balanced",
+                    "fast"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "rhythm-cut"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "rhythm": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "even pulse",
+                    "rising energy",
+                    "syncopated"
+                  ]
+                },
+                "length": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "short",
+                    "medium",
+                    "mixed"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "cast-notes"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "character": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "role": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "protagonist",
+                    "supporting character",
+                    "antagonist",
+                    "ensemble"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "style-brief"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "subject": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "style": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "cinematic",
+                    "illustrated",
+                    "photographic",
+                    "manga",
+                    "editorial"
+                  ]
+                },
+                "mood": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "playful",
+                    "calm",
+                    "dramatic",
+                    "dreamlike",
+                    "bold"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "storyboard-builder"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "scenes": {
+                  "type": "integer",
+                  "minimum": 2,
+                  "maximum": 12
+                },
+                "form": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "short film",
+                    "comic chapter",
+                    "animated storybook"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "prompt-branches"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "branches": {
+                  "type": "integer",
+                  "minimum": 2,
+                  "maximum": 6
+                },
+                "axis": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "visual style",
+                    "setting",
+                    "tone",
+                    "camera framing"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "story-seed"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "form": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "manga",
+                    "colour storybook",
+                    "western comic",
+                    "animated storybook"
+                  ]
+                },
+                "audience": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "style": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "cinematic",
+                    "illustrated",
+                    "photographic",
+                    "manga",
+                    "editorial"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "frame-study"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "detail": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "concise",
+                    "detailed",
+                    "production notes"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "motion-tracker"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "subject": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "overlay": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "label",
+                    "trail",
+                    "outline"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "depth-motion"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "depth": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "subtle",
+                    "medium"
+                  ]
+                },
+                "camera": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "locked",
+                    "slow push",
+                    "orbit",
+                    "tracking",
+                    "handheld"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "camera-stage"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "set": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "lighting": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "soft daylight",
+                    "studio key light",
+                    "warm practical lights"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "glitch-cut"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "effect": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "block displacement",
+                    "colour trails",
+                    "frame echoes"
+                  ]
+                },
+                "intensity": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "subtle",
+                    "medium"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "model-turntable"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "subject": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "material": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "scene-scout"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "setting": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "time": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "morning",
+                    "afternoon",
+                    "night"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "motion-pose"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "energy": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "gentle",
+                    "animated",
+                    "dynamic"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "scene-remix"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "setting": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "style": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "cinematic",
+                    "illustrated",
+                    "photographic",
+                    "manga",
+                    "editorial"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "letter-pose"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "pose": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "style": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "cinematic",
+                    "illustrated",
+                    "photographic",
+                    "manga",
+                    "editorial"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "face-performance"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "expression": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "joy",
+                    "curiosity",
+                    "surprise",
+                    "determination"
+                  ]
+                },
+                "style": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "cinematic",
+                    "illustrated",
+                    "photographic",
+                    "manga",
+                    "editorial"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "sketch-to-scene"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "image"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "world-finder"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "image"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "mockup-maker"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "image"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "image-finish"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "image"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "shot-atlas"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "image"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "select-and-replace"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "image"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "reference-blend"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "image"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "image-grid"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "image"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "motion-finish"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "video"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "title-frame"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "video"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "pixel-layout"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "video"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "poster-lab"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "video"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "sketch-to-motion"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "video"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "transition-lab"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "video"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "dream-signal"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "video"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "frame-fit"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "video"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "rough-cut"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "video"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "rhythm-cut"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "video"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "cast-notes"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "writing"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "style-brief"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "writing"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "storyboard-builder"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "writing"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "prompt-branches"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "writing"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "story-seed"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "writing"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "frame-study"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "motion-tracker"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "depth-motion"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "camera-stage"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "glitch-cut"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "model-turntable"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "scene-scout"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "motion-pose"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "scene-remix"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "letter-pose"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "face-performance"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    }
+  ]
+}

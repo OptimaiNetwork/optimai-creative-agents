@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0",
+  "id": "creator-grid",
+  "version": "1.0.0",
+  "title": "Creator Grid",
+  "description": "Arrange up to eight selected images into a polished contact sheet on your device.",
+  "category": "image",
+  "license": "MIT",
+  "capabilities": {
+    "network": "none",
+    "execution": "declarative",
+    "dataAccess": "selected-inputs"
+  },
+  "recipe": {
+    "templateId": "image-grid",
+    "values": {},
+    "brief": ""
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0",
+  "id": "gentle-manga",
+  "version": "1.0.0",
+  "title": "Gentle Manga",
+  "description": "Develop a first idea into cast, chapters and an achievable production plan.",
+  "category": "writing",
+  "license": "MIT",
+  "capabilities": {
+    "network": "none",
+    "execution": "declarative",
+    "dataAccess": "selected-inputs"
+  },
+  "recipe": {
+    "templateId": "story-seed",
+    "values": {
+      "form": "manga",
+      "style": "manga",
+      "audience": "all ages"
+    },
+    "brief": ""
+  }
+}
