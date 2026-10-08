@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <title>Browser workspace · OptimAI Creative Agents</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <header class="header">
+    <a class="brand" href="../../"><span class="brand-mark" aria-hidden="true">O/</span> OptimAI <span class="brand-detail">Creative Agents</span></a>
+    <a class="source-link" href="https://github.com/OptimaiNetwork/optimai-creative-agents" target="_blank" rel="noopener noreferrer">View source <span aria-hidden="true">↗</span></a>
+  </header>
+  <main>
+    <div class="intro">
+      <p class="eyebrow"><span aria-hidden="true">●</span> A working example, ready to make your own.</p>
+      <h1>Your next idea.<br><span>On your canvas.</span></h1>
+      <p>Compose, resize and finish images with the real SDK.<br class="desktop-break"> Everything in this workspace runs in your browser.</p>
+    </div>
+    <div class="workspace">
+      <form id="workspace-form" class="controls" aria-label="Creative workspace settings">
+        <div class="section-heading"><span class="step">01</span><h2>Choose your agent</h2></div>
+        <label for="operation">Workspace</label>
+        <select id="operation">
+          <option value="poster">Poster Lab · editorial composition</option>
+          <option value="mockup">Mockup Maker · device composition</option>
+          <option value="resize">Mockup Maker · resize an image</option>
+          <option value="filter">Image Finish · color treatment</option>
+        </select>
+        <p id="operation-hint" class="hint">Start with typography, or add your own background image.</p>
+        <div class="input-heading"><label for="image-input">Source image <span id="image-requirement">optional</span></label><button id="clear-input" class="text-button" type="button" hidden>Clear</button></div>
+        <input id="image-input" type="file" accept="image/png,image/jpeg,image/webp">
+        <p id="input-name" class="hint">PNG, JPEG or WebP · up to 20 MiB / 4096 px per side</p>
+        <div id="poster-settings" class="settings">
+          <label for="title">Poster title</label>
+          <textarea id="title" rows="3" maxlength="180">CREATE
+SOMETHING
+NEW.</textarea>
+          <div class="field-pair">
+            <div><label for="color">Accent</label><input id="color" type="color" value="#b8ef72"></div>
+            <div><label for="treatment">Treatment</label><select id="treatment"><option value="editorial">Editorial</option><option value="cinema">Cinema</option><option value="minimal">Minimal</option></select></div>
+          </div>
+        </div>
+        <div id="composition-settings" class="settings" hidden>
+          <label for="layout">Frame</label><select id="layout"><option value="phone">Phone</option><option value="desktop">Desktop</option><option value="gallery">Gallery</option></select>
+        </div>
+        <div id="ratio-settings" class="settings">
+          <label for="ratio">Canvas ratio</label><select id="ratio"><option value="4:5">4:5 · portrait</option><option value="1:1">1:1 · square</option><option value="16:9">16:9 · landscape</option><option value="9:16">9:16 · vertical</option></select>
+        </div>
+        <div id="resize-settings" class="settings" hidden>
+          <div class="field-pair">
+            <div><label for="width">Output width</label><input id="width" type="number" value="1200" min="1" max="4096" step="1"></div>
+            <div><label for="fit">Image fit</label><select id="fit"><option value="contain">Contain</option><option value="cover">Cover</option></select></div>
+          </div>
+          <p class="hint">Height follows the ratio. Contain keeps the whole image.</p>
+        </div>
+        <div id="filter-settings" class="settings" hidden>
+          <label for="preset">Color treatment</label><select id="preset"><option value="noir">Noir</option><option value="warm">Warm</option><option value="cool">Cool</option><option value="punchy">Punchy</option><option value="original">Original</option></select>
+          <label for="intensity">Intensity <output id="intensity-value" for="intensity">75%</output></label><input id="intensity" type="range" min="0" max="100" value="75">
+        </div>
+        <div class="run-actions"><button id="run" class="primary" type="submit">Create poster <span aria-hidden="true">↗</span></button><button id="cancel" class="secondary" type="button" hidden>Stop</button></div>
+        <p id="status" class="status" role="status" aria-live="polite" aria-atomic="true">Ready. No account, model or API key needed.</p>
+      </form>
+      <section class="preview-panel" aria-labelledby="preview-heading">
+        <div class="preview-heading"><div class="section-heading"><span class="step">02</span><h2 id="preview-heading">Review your result</h2></div><span class="local-label">Local processing</span></div>
+        <div id="preview-stage" class="preview-stage" aria-busy="false">
+          <div id="empty-preview" class="empty-preview"><img src="../../artwork/poster-lab.svg" alt="Poster Lab illustration" width="480" height="270"><p>Start with a poster.<br><span>Then explore a new treatment.</span></p></div>
+          <img id="preview" alt="" hidden>
+        </div>
+        <div class="result-bar"><p id="output-detail">Your exported PNG will appear here.</p><div class="export-actions"><button id="use-result" class="secondary" type="button" hidden>Use as input</button><a id="download" class="primary" hidden>Export PNG <span aria-hidden="true">↓</span></a></div></div>
+      </section>
+    </div>
+    <footer><p>Canvas utilities are deterministic image processors. This demo does not invoke an AI model.</p><p>Build on this example: <a href="../browser/README.md">Guide</a> <span aria-hidden="true">·</span> <a href="../../docs/runtimes.md">Runtime APIs</a> <span aria-hidden="true">·</span> <a href="../../LICENSE">MIT license</a></p></footer>
+    <noscript><p class="status error">Enable JavaScript to run this browser workspace.</p></noscript>
+  </main>
+</body>
+</html>

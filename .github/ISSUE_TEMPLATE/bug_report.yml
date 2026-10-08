@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a reproducible problem in a recipe, SDK engine, CLI or documentation.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please use synthetic or public inputs. Do not include secrets, private prompts, user media or exploitable security details. For vulnerabilities, follow [the security policy](https://github.com/OptimaiNetwork/optimai-creative-agents/security/policy).
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Manifest or catalog
+        - Browser canvas
+        - Browser vision
+        - Browser writing
+        - Ollama runtime or CLI
+        - MCP adapter
+        - Documentation or examples
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Revision or version
+      description: Include the commit SHA or source/package version you tested.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node.js or browser version, and relevant engine/model version. Include GPU details only if relevant.
+      placeholder: Node.js 24 on Linux, or browser/version on OS with the reviewed browser engine.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include a minimal command, input or manifest and the settings needed to reproduce the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the error and relevant sanitized output. Explain what happened before the error.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: This report contains no secrets, private content or vulnerability details.
+          required: true

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -10,9 +10,9 @@ import { createAgentManifest } from '../src/index.mjs';
 import { parseOptions, readAgentManifest } from '../scripts/cli-input.mjs';
 const MODEL = 'qwen3.5:0.8b';
 const pathTo = (file) => fileURLToPath(new URL(`../${file}`, import.meta.url));
-function command(file, args = [], baseUrl = 'http://127.0.0.1:1', stdin) {
+function command(file, args = [], baseUrl = 'http://127.0.0.1:1', stdin, cwd) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [pathTo(file), ...args], { env: { ...process.env, OPTIMAI_OLLAMA_URL: baseUrl }, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [pathTo(file), ...args], { cwd, env: { ...process.env, OPTIMAI_OLLAMA_URL: baseUrl }, stdio: ['pipe', 'pipe', 'pipe'] });
     let stdout = '', stderr = '';
     const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('CLI subprocess timed out.')); }, 15000);
     child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
@@ -86,6 +86,28 @@ test('CLI options and explicitly selected JSON manifests are bounded and reject 
     const manifest = createAgentManifest('story-seed', { id: 'my-agent', title: 'My Agent' });
     await writeFile(join(directory, 'agent.json'), JSON.stringify(manifest));
     assert.deepEqual(await readAgentManifest(join(directory, 'agent.json')), manifest);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+test('scaffold CLI accepts default and explicit templates while rejecting incomplete or unexpected arguments', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'optimai-agent-create-cli-'));
+  try {
+    const execute = (args) => command('scripts/create.mjs', args, undefined, undefined, directory);
+    for (const [args, templateId] of [[['my-story'], 'story-seed'], [['my-grid', '--template', 'image-grid'], 'image-grid']]) {
+      const result = await execute(args);
+      assert.equal(result.code, 0, result.stderr);
+      const manifest = await readAgentManifest(join(directory, 'agents', args[0], 'agent.json'));
+      assert.equal(manifest.id, args[0]);
+      assert.equal(manifest.recipe.templateId, templateId);
+      const verified = await command('scripts/verify.mjs', [join(directory, 'agents', args[0], 'agent.json')]);
+      assert.equal(verified.code, 0, verified.stderr);
+      assert.match(verified.stdout, new RegExp(`Validated ${args[0]} \\(${templateId}\\)`));
+    }
+    for (const args of [[], ['invalid', '--unknown', 'story-seed'], ['invalid', '--template'], ['invalid', '--template', 'story-seed', 'extra'], ['invalid', '--template', 'unknown']]) {
+      const result = await execute(args);
+      assert.notEqual(result.code, 0);
+      assert.match(result.stderr, /Usage:|Unknown template:/);
+    }
+    assert.deepEqual((await readdir(join(directory, 'agents'))).sort(), ['my-grid', 'my-story']);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 test('standalone CLI runs a real SDK pipeline from a manifest against a controlled loopback provider', async () => {

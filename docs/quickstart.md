@@ -1,30 +1,29 @@
-# Build your first agent
+# Create your first recipe
 
-This guide creates a reusable manga-planning recipe based on **Story Seed**. It customizes a reviewed writing agent; it does not install a new model or implement a manga renderer. The recipe produces a written treatment when run with writing AI, and it can prepare direction for a separate Story Studio build.
+This guide creates **Cloud Companion**, a manga-planning recipe based on the reviewed **Story Seed** template. You will scaffold it, customize its settings, validate it and prepare a prompt locally. Those steps need no account, API key, model or dependency installation. Optional writing inference produces a written treatment; rendering a manga remains a separate production step.
 
-## 1. Open an isolated copy of the kit
+## 1. Clone the public repository
 
-Download the builder kit from OptimAI Studio's AI Agents page and extract it. In its standalone directory:
+Install Node.js 20 or newer and Git, then run:
 
 ```sh
+git clone https://github.com/OptimaiNetwork/optimai-creative-agents.git
 cd optimai-creative-agents
 node --version
 npm run verify
 ```
 
-Node.js 20 or newer is required. No dependency installation, account or API key is needed to scaffold and validate recipes. The package is prepared locally for release; do not assume it is already installable from npm or a public GitHub URL.
+Verification should begin with `Validated 34 reviewed agent templates.` and list each template's actual capability. These commands run from the repository root throughout this guide. You do not need the Studio source repository. The package is not currently published to npm; `npm install @optimai/creative-agents` is not the onboarding path.
 
-In the private Studio workspace, the same directory is `packages/optimai-agents/`. Copy only that isolated kit for a source release; do not publish the parent repository or its Git history.
-
-## 2. Scaffold a recipe
+## 2. Scaffold Cloud Companion
 
 ```sh
 npm run create -- cloud-companion --template story-seed
 ```
 
-This creates `agents/cloud-companion/agent.json` and a README. The command refuses to overwrite an existing agent. Use a new lowercase slug if you have already run it.
+The command creates `agents/cloud-companion/agent.json` and `agents/cloud-companion/README.md`. It refuses to overwrite an existing directory. On a repeat run, choose a fresh lowercase slug and use that ID and path throughout the guide. Omitting `--template` selects `story-seed` by default.
 
-Replace the generated JSON with this complete valid manifest:
+Replace the contents of `agents/cloud-companion/agent.json` with:
 
 ```json
 {
@@ -52,45 +51,28 @@ Replace the generated JSON with this complete valid manifest:
 }
 ```
 
-The template ID determines the settings you may supply. Inspect `getAgentTemplate('story-seed').fields` or the manifest schema for the allowed fields and select values. Do not add a `script`, `url`, model endpoint, API key or arbitrary custom property; validation rejects them.
+`templateId` selects an existing implementation. `values` overrides its declared defaults, and `brief` supplies creative direction. Change the title, description and brief to make your own recipe. Keep the category consistent with the template and the v1 capability values as shown.
 
-## 3. Validate before importing
+To discover supported settings before editing:
+
+```sh
+node --input-type=module -e 'import { getAgentTemplate } from "./src/index.mjs"; console.log(JSON.stringify(getAgentTemplate("story-seed").fields, null, 2));'
+```
+
+The [manifest schema](../schema/agent-manifest.schema.json) is useful for editor validation. The runtime validator also checks the selected template's fields. Unknown settings, unsupported select values and extra properties are errors. Author/contact details and repository links belong in the README; executable scripts, model endpoints and credentials do not belong in the manifest.
+
+## 3. Validate and prepare the prompt
 
 ```sh
 node scripts/verify.mjs agents/cloud-companion/agent.json
-npm test
-npm run verify
 ```
 
-The first command should print `Validated cloud-companion (story-seed).` The test suite uses controlled fixtures and a local mock provider, not a paid service or a downloaded model. CLI and MCP integration tests need permission to start a temporary loopback listener.
+Expected output: `Validated cloud-companion (story-seed).`
 
-Keep the distinction between these checks clear: manifest validation checks your recipe; the package tests check SDK behavior. Neither assesses your story's creative quality. Try a realistic short brief, a long brief, an empty optional brief and invalid settings, then review the generated result yourself.
-
-## 4. Import into OptimAI Studio
-
-1. Open **AI Agents → Saved → Import agent**.
-2. Choose `agents/cloud-companion/agent.json`.
-3. Open **Cloud Companion**, inspect its settings and try a short creative brief.
-4. For writing AI, explicitly load the browser model or select an already installed local Ollama model from the workspace's supported controls.
-5. Review the written artifact before continuing to Story Studio. Generation and any credit confirmation remain a separate Studio action.
-
-The **Saved** library is stored in this browser and account scope. It is not a server-published project or a community listing. Export a copy before clearing browser storage or moving to another device. Use the agent workspace's **Export agent manifest** action to download the JSON.
-
-The optional compact browser writer requires WebGPU and an explicit first download of approximately 453 MB. Model files are kept in the browser's site storage for reuse; the recipe is not a model download. Some devices will need a different supported route. See [browser writing requirements](../README.md#browser-writing-with-an-explicit-model-download).
-
-## 5. Run writing locally from the CLI, if needed
-
-This is optional. First start your own Ollama service and install an eligible model outside this kit. Substitute its installed name for `installed-model`:
+Run this complete command to read your recipe and print its prepared prompt:
 
 ```sh
-node scripts/run.mjs --manifest agents/cloud-companion/agent.json --model installed-model
-```
-
-The default endpoint is `http://127.0.0.1:11434`. The SDK checks the installed model metadata and validates the generated document, with one bounded repair for malformed output. It does not install a model or fall back to a cloud provider. Ctrl+C cancels the request.
-
-For a preparation-only check that needs no model:
-
-```js
+node --input-type=module <<'JS'
 import { readFile } from 'node:fs/promises';
 import { validateAgentManifest, compileAgentPrompt } from './src/index.mjs';
 
@@ -98,8 +80,44 @@ const source = JSON.parse(await readFile('agents/cloud-companion/agent.json', 'u
 const result = validateAgentManifest(source);
 if (!result.success) throw new Error(result.errors.join('\n'));
 console.log(compileAgentPrompt(result.manifest));
+JS
 ```
 
-## Next steps
+The output names **Story Seed**, includes manga direction, the audience and your cloud-adventure brief, and describes the eventual Story Studio handoff. It prepares text; it does not invoke a model or generate artwork. You have now completed a working recipe authoring flow.
 
-Read [host integration](./host-integration.md) to embed the runtime in an application, or [release and featuring](./release-and-feature.md) to prepare a portable source release and a future catalog review package.
+Check the package before contributing changes:
+
+```sh
+npm test
+npm run verify
+```
+
+The tests use controlled fixtures and a local mock provider; they need no paid service or downloaded model. CLI and MCP integration tests start a temporary loopback listener, so a restricted sandbox must permit that listener. Manifest validation checks your recipe's contract; package tests check SDK behavior. Review actual creative output separately when you run a writer.
+
+## 4. Use the recipe
+
+**In your own host:** validate the JSON, choose the reviewed runtime and supply only selected inputs. [Host integration](./host-integration.md) covers this boundary; the [runtime guide](./runtimes.md) covers execution. For a first browser integration without AI downloads, try the [browser example](../examples/browser/):
+
+```sh
+python3 -m http.server 8080 --bind 127.0.0.1
+```
+
+From the repository root, this serves the example at [http://127.0.0.1:8080/examples/browser/](http://127.0.0.1:8080/examples/browser/). Python 3 is needed only for this optional static server. Open the page in a browser, use the sample artwork or choose your own image, then preview and export a PNG. The example demonstrates the canvas SDK; Story Seed uses a writing runtime instead.
+
+**In OptimAI Studio:** open **AI Agents → Saved → Import agent**, select `agents/cloud-companion/agent.json`, then open Cloud Companion. Choose a supported browser writing model or an eligible installed local Ollama model through the workspace controls and review the written result. Continue to Story Studio as a separate action when you want production. The recipe JSON alone does not download a model or authorize spending.
+
+Saved recipes stay in this browser and account scope. Use **Export agent manifest** to keep a portable copy before clearing browser storage or moving devices. Importing or exporting does not publish a community listing.
+
+**From the CLI, optionally:** start your own Ollama service and install a supported model outside this kit. Replace `installed-model` with its exact installed name:
+
+```sh
+node scripts/run.mjs --manifest agents/cloud-companion/agent.json --model installed-model
+```
+
+The default endpoint is `http://127.0.0.1:11434`. The SDK checks installed model metadata, requests a structured document and validates its output, with one bounded repair attempt. It prints the written artifact as JSON; Ctrl+C cancels the request. It never installs a model or falls back to a cloud provider. See the [runtime guide](./runtimes.md) for eligibility, limits and host configuration.
+
+## 5. Share or contribute
+
+You can share `agent.json` with anyone using a compatible host. Add reproducible input and expected-behavior notes to the generated README so another builder can assess the result. For an upstream change, fork the [public repository](https://github.com/OptimaiNetwork/optimai-creative-agents), work on a branch, run the checks and open a pull request against `main` following [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+A recipe contribution reuses an existing runtime. A new renderer, model or operation requires reviewed SDK source and a host integration; a new JSON field or template ID cannot install it. Public catalog acceptance and editorial featuring are separate processes that have not launched. See [release and review](./release-and-feature.md).

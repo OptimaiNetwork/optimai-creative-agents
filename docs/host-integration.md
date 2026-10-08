@@ -1,103 +1,117 @@
-# Manifest and host integration
+# Integrate agents into your application
 
-The agent manifest is plain data. The host application validates it, resolves an implementation that the host already trusts and supplies only the user-selected inputs. A manifest cannot install JavaScript, choose a worker URL, select a remote model service or grant itself Studio permissions.
+A host reads a recipe, validates it, resolves a reviewed implementation and supplies the user's selected inputs. The SDK works independently of OptimAI Studio. Start with the [browser example](../examples/browser/) for a complete canvas input → preview → export flow, then use the [runtime guide](./runtimes.md) for optional writing and vision engines.
 
-## Understand the three extension paths
+A recipe is configuration for code you have already chosen to ship. It cannot install JavaScript, select a worker URL, add a new model service or grant itself account access.
 
-| Path | What a builder supplies | What the host does |
-| --- | --- | --- |
-| Recipe remix | Known template ID, typed defaults, creative brief and metadata | Validates and dispatches an existing reviewed capability |
-| New engine or template | SDK source, declarations, tests and documentation for review | Reviews and bundles a versioned implementation before exposing it |
-| MCP client integration | Local stdio adapter configuration | Authorizes each prepared recipe or explicit local writing run |
+## Use the SDK from source
 
-Importing a recipe is not a plugin installation. Adding an unknown `templateId` does not create a capability. The fixed v1 contract rejects it. New operations require reviewed source changes and host integration; remote MCP installation and a public package registry are outside the current release.
+Clone the [public repository](https://github.com/OptimaiNetwork/optimai-creative-agents) to use its modules directly. The snippets below assume a JavaScript module at the repository root; adjust relative imports for your application's layout. A host that installs the checkout from a local path can use package exports such as `@optimai/creative-agents` and `@optimai/creative-agents/browser-runtime`. The package is not currently published to npm.
 
-## Validate at every boundary
+## Import and export validated JSON
 
 ```js
-import {
-  getAgentTemplate,
-  validateAgentManifest,
-  compileAgentPrompt
-} from './src/index.mjs';
+import { validateAgentManifest, compileAgentPrompt } from './src/index.mjs';
 
-// Read JSON from an explicit file selection. Bound its size before parsing.
-if (file.size > 64_000) throw new Error('Choose a manifest smaller than 64 KB.');
-const parsed = JSON.parse(await file.text());
-const validated = validateAgentManifest(parsed);
-if (!validated.success) throw new Error(validated.errors.join('\n'));
+export async function readRecipe(file) {
+  if (file.size > 65_536) throw new Error('Choose a manifest no larger than 64 KiB.');
+  const result = validateAgentManifest(JSON.parse(await file.text()));
+  if (!result.success) throw new Error(result.errors.join('\n'));
+  return result.manifest;
+}
 
-const manifest = validated.manifest;
-const template = getAgentTemplate(manifest.recipe.templateId);
-if (!template) throw new Error('This template is not installed in this host.');
-const preparedPrompt = compileAgentPrompt(manifest);
-```
+export function serializeRecipe(candidate) {
+  const result = validateAgentManifest(candidate);
+  if (!result.success) throw new Error(result.errors.join('\n'));
+  return JSON.stringify(result.manifest, null, 2) + '\n';
+}
 
-Use the detached `validated.manifest` result rather than continuing to read the source object. Validate again after editing settings and before dispatch. Treat title, description, brief, prompt and model output as plain untrusted text. Render with text nodes or your framework's escaped text rendering, never raw HTML or executable templates.
-
-The static schema is [agent-manifest.schema.json](../schema/agent-manifest.schema.json), JSON Schema 2020-12. The runtime validator additionally checks plain-data structure and rejects accessors, hidden keys, prototype-shaped data, circular objects and excessive nesting in direct JavaScript calls. Unknown fields are rejected rather than silently ignored.
-
-The recipe's `network: "none"` describes its privileges. A trusted host can separately download fixed public model assets after an explicit user action or run inference on a validated literal-loopback endpoint. That does not allow a recipe to request arbitrary network access.
-
-## Resolve the real runtime
-
-Use an explicit reviewed map, not a title, category or model-generated instruction, to dispatch operations. The catalog's v1 `executionKind` and `runtime` are legacy hints and do not describe every later canvas and vision addition.
-
-```js
-import { CANVAS_LAB_AGENTS } from './src/canvas-lab.mjs';
-import { getAgentTemplate } from './src/index.mjs';
-
-const vision = Object.freeze({
-  'select-and-replace': 'person-cutout',
-  'motion-pose': 'pose-reference',
-  'face-performance': 'face-reference'
-});
-
-function capabilityFor(templateId) {
-  const template = getAgentTemplate(templateId);
-  if (!template) throw new Error('Unknown reviewed template.');
-  if (Object.hasOwn(CANVAS_LAB_AGENTS, templateId)) {
-    return { kind: 'canvas-lab', operation: CANVAS_LAB_AGENTS[templateId] };
-  }
-  if (Object.hasOwn(vision, templateId)) {
-    return { kind: 'vision', operation: vision[templateId] };
-  }
-  if (template.executionKind === 'local-model') return { kind: 'writing' };
-  if (template.executionKind === 'browser') {
-    return { kind: 'image', operation: template.localOperation };
-  }
-  return { kind: 'studio-guided', destination: template.studioMode };
+export function prepareRecipe(candidate) {
+  const result = validateAgentManifest(candidate);
+  if (!result.success) throw new Error(result.errors.join('\n'));
+  return compileAgentPrompt(result.manifest);
 }
 ```
 
-This resolver distinguishes the package's four original image processors, additional canvas engines, three vision engines, five writers and guided workflows. Mockup Maker supports both the original resize operation and the added device composition; choose that workspace intentionally. A prepared production brief is not an executed renderer, tracker or video codec.
+Wire `readRecipe` to an explicit file picker. Show parse and validation failures in the UI, and validate again after editing settings and before execution. Save the detached `result.manifest` rather than retaining the original mutable object. `serializeRecipe` produces portable JSON for a download or host-owned storage; persistence is a host decision. Preparing a prompt performs no inference or media processing.
 
-Dispatch also needs a reviewed settings adapter. Catalog recipe fields and direct engine settings are not always identical: Poster Lab's recipe has `format` and `style`, while the canvas operation expects settings such as `ratio` and `treatment`. Do not blindly forward a manifest's values into an unrelated engine. Map the supported fields explicitly, apply the operation's validator and let the workspace expose any additional trusted controls.
+The static [manifest schema](../schema/agent-manifest.schema.json) uses JSON Schema 2020-12. The SDK additionally checks plain-data structure, the chosen template's category and fields, string limits and privilege values. It rejects unknown properties, accessors, hidden keys, prototype-shaped data and excessive nesting in direct JavaScript calls. Recipe briefs allow up to 4,000 characters; individual runtimes can enforce a smaller limit.
 
-## Run the reviewed engines
+Treat recipe metadata, compiled prompts and model output as untrusted plain text. Use text nodes or your framework's escaped text rendering. Do not evaluate them or render them as raw HTML.
 
-| Result needed | SDK entry | Host responsibilities |
+## Dispatch a reviewed operation
+
+Choose operations by an explicit implementation map. Category, title and generated prose are display data. The catalog's legacy `executionKind` and `runtime` hints do not identify every added canvas and vision capability, so they are insufficient as a universal dispatcher.
+
+For example, this host deliberately exposes the four original still-image processors:
+
+```js
+import { getAgentTemplate, validateAgentManifest } from './src/index.mjs';
+import { runLocalTool } from './src/browser-runtime.mjs';
+
+const IMAGE_OPERATIONS = Object.freeze({
+  'image-finish': 'image-filter',
+  'mockup-maker': 'image-resize',
+  'image-grid': 'image-grid',
+  'title-frame': 'type-overlay'
+});
+
+export async function runImageRecipe(candidate, files, signal) {
+  const checked = validateAgentManifest(candidate);
+  if (!checked.success) throw new Error(checked.errors.join('\n'));
+  const manifest = checked.manifest;
+  const templateId = manifest.recipe.templateId;
+  if (!Object.hasOwn(IMAGE_OPERATIONS, templateId)) {
+    throw new Error('This host does not run this recipe. Choose an installed image tool.');
+  }
+  const template = getAgentTemplate(templateId);
+  const values = Object.fromEntries(template.fields.map(field => [field.id, field.default]));
+  Object.assign(values, manifest.recipe.values);
+  return runLocalTool(IMAGE_OPERATIONS[templateId], files, values, signal);
+}
+```
+
+Supply selected browser `File` objects, pass an `AbortSignal` from your Stop control and show the returned `{ blob, width, height, filename }` as a PNG preview. The engine validates actual image signatures, dimensions and resource limits. No recipe can supply a media URL or cause this processor to fetch it. Revoke object URLs your application creates when a preview is replaced or removed.
+
+A broader host can add these reviewed runtime adapters:
+
+| Capability | SDK entry and dispatch | Output and host requirements |
 | --- | --- | --- |
-| Filter, resize, contact sheet or title on a still image | `browser-runtime` → `runLocalTool` | Supply selected `File` objects and reviewed settings; show the returned PNG |
-| Mockup, bento, blend, transition preview, glitch, poster or letter artboard | `canvas-lab` → `runCanvasLab` | Map the template to the reviewed operation; describe still-image output accurately |
-| Person cutout, pose or face landmarks | `vision-runtime` → `downloadVisionModel`, `runBrowserVision` | Explicit download, pinned dependency, same-origin reviewed worker and WASM assets |
-| Written treatment, cast notes, style brief, storyboard or prompt branches | `browser-writing-runtime` or `agent-runtime` | Explicit local model choice/download, progress, cancellation and review of the validated document |
-| Production in Image, Video, Story, Character or Editor Studio | `compileAgentPrompt` plus a trusted host handoff | Preview direction, selected references, destination and separate spending controls |
+| Original image processing | `browser-runtime` → `runLocalTool` | PNG; selected PNG/JPEG/WebP files and bounded settings |
+| Additional composition | `canvas-lab` → `CANVAS_LAB_AGENTS`, `runCanvasLab` | PNG; map recipe settings to the operation's settings explicitly |
+| Browser vision | `vision-runtime` → `downloadVisionModel`, `runBrowserVision` | PNG and analysis; explicit model download, reviewed local worker and WASM assets |
+| Browser writing | `browser-writing-runtime` → `createBrowserAgentRuntime` | Validated written artifact; explicit download, supported WebGPU device and local worker |
+| Local Ollama writing | `agent-runtime` → `runCreativeAgent` | Validated written artifact; explicitly selected eligible installed model and loopback service |
+| Guided production | `compileAgentPrompt` and a host handoff | Prepared direction; the destination host runs Image, Video, Story, Character or Editor production |
 
-See the [main README](../README.md) for executable API examples, operation settings, file and pixel limits, browser requirements and model versions. Keep `AbortSignal` wired through every asynchronous operation. Release workers, decoded images, canvases, GPU sessions and temporary object URLs when a job stops or its preview is replaced. The SDK returns owned results; object URLs created by your application remain your responsibility to revoke.
+The vision template map is `select-and-replace` → `person-cutout`, `motion-pose` → `pose-reference`, and `face-performance` → `face-reference`. `CANVAS_LAB_AGENTS` declares the additional composition map. Mockup Maker supports both original resizing and added device composition; expose the workspace you intend to support.
 
-Browser engines do not need a Studio account. Paid Studio generation, account access, project persistence, domains and publishing belong to the host, outside this kit. Do not infer approval to spend credits or publish from an agent's prose.
+Recipe fields and direct engine settings can differ. Poster Lab's recipe uses `format` and `style`, while its canvas engine uses `ratio` and `treatment`. A host must map supported fields explicitly and validate the resulting engine settings; forwarding recipe values blindly can ignore the builder's intent. See [runtime APIs and limits](./runtimes.md) for the exact options, dependencies and browser requirements.
 
-## Design the workspace around the result
+## Keep model setup explicit
 
-Use a clear input → run → preview → export sequence. Keep one primary action for the current step and name the actual output, such as **Export PNG**, **Create storyboard** or **Continue in Story Studio**.
+`network: "none"` and `execution: "declarative"` describe the recipe's privileges. A trusted host can separately download fixed public model assets after a user action or run inference against a validated literal-loopback service. Model configuration stays in host code or host environment settings; it is never read from a recipe.
 
-Show model size and local storage requirements before a download. Keep downloads optional and let people browse other agents while preparation runs. During inference, expose meaningful progress and a Stop action. Preserve the input after a failure and explain the recovery action without substituting fabricated output. A no-person result from a pose model should say that a suitable person was not detected.
+Before a download, show its size, device requirements and browser storage behavior. Keep downloads optional and allow users to browse other tools while preparation runs. Run writing jobs sequentially, expose progress and cancellation, and display model failures without substituting canned creative output. Vision work should report a missing subject when detection fails.
 
-Support keyboard operation, visible focus, labeled inputs, readable text, reduced motion and narrow screens. Avoid relying on a hover tooltip or color alone to explain a required step. Verify export, cancellation, retry and no-subject flows on real browser devices, in addition to controlled unit tests.
+Connect cancellation and cleanup to every asynchronous operation. Release workers, decoded images, canvases, GPU sessions and temporary URLs after completion, failure or cancellation. The [runtime guide](./runtimes.md) explains each engine's ownership and disposal API.
 
-## Evolve without breaking saved recipes
+## Design around the actual result
 
-Keep stable agent IDs and increment the manifest version for a new recipe revision. A breaking format needs a new `schemaVersion` and a deliberate migration. Legacy Tool-named APIs and manifests remain aliases of the v1 Agent contract; renaming the product does not require rewriting saved recipes.
+Use one clear primary action for each step: choose input, run, review and export. Name the output accurately, for example **Export PNG**, **Write storyboard**, or **Continue in Story Studio**. A still-image transition preview is a PNG, and a prepared video brief is direction for an editor.
 
-For a new reviewed operation, update the implementation, matching TypeScript declarations, catalog metadata, generated schema and meaningful tests together. Document the real capability, constraints, model/dependency licenses and hardware requirements. See [CONTRIBUTING.md](../CONTRIBUTING.md#new-reviewed-operations) for the source contribution checklist.
+Preserve user inputs after a failure and explain the next recovery step. Support labeled controls, keyboard use, visible focus, readable text, reduced motion and small screens. Verify export, retry, cancellation and no-subject flows in a real browser in addition to controlled tests.
+
+Canvas and model runtimes do not need a Studio account. If your application hands off paid production or publishing, display the selected references, destination, preview and applicable cost before that action. Account access, billing, project persistence and publishing belong to the host; an agent's prose cannot authorize them.
+
+## Extend the contract deliberately
+
+| Change | Required work |
+| --- | --- |
+| Remix a reviewed recipe | Keep a known template ID, approved values and v1 capability fields; validate and share JSON |
+| Add a new operation or model | Contribute implementation, declarations, contract changes, tests and documentation; release and integrate reviewed source |
+| Add MCP client support | Configure the local [stdio adapter](./mcp.md); authorize prepared direction and explicit writing runs in the client |
+
+Keep stable agent IDs and increment a recipe's `version` when releasing a revision. A breaking manifest format needs a new `schemaVersion` and a deliberate migration. Legacy Tool-named exports and manifests remain aliases of the v1 Agent contract, so saved recipes can reopen.
+
+Unknown template IDs are rejected. JSON import cannot install a new capability; new source requires maintainer review and a host that bundles it. Follow [CONTRIBUTING.md](../CONTRIBUTING.md#new-reviewed-operations) for source changes, including generated schemas, model/dependency licenses and hardware requirements.

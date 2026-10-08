@@ -1,12 +1,12 @@
-# Release, review and featuring
+# Share, contribute and prepare for review
 
-**Current availability:** local import, remixing and JSON export work today. Public community submissions, automatic GitHub integration, a registry endpoint and applications for featuring are not launched. This guide prepares reviewable material; it does not submit or publish anything.
+The SDK source is public at [OptimaiNetwork/optimai-creative-agents](https://github.com/OptimaiNetwork/optimai-creative-agents). You can share recipe files, embed the SDK in an application and propose changes through GitHub pull requests today. A public community catalog submission service, automatic GitHub import and applications for featured placement have not launched.
 
-An agent can be useful in your own Studio library before it is publicly listed. Source publication, Studio integration and editorial featuring are distinct steps.
+Source collaboration, local recipe import, catalog acceptance and editorial featuring are separate steps. A useful recipe can run in a compatible host before any public listing exists.
 
-## 1. Prepare a portable recipe
+## Package a recipe people can reproduce
 
-Include these files in a new agent's directory:
+Keep the manifest and usage notes together. For the [quickstart recipe](./quickstart.md), a useful contribution looks like:
 
 ```text
 agents/cloud-companion/
@@ -17,9 +17,11 @@ agents/cloud-companion/
     expected-behavior.md
 ```
 
-`agent.json` is the only imported recipe. The README explains the intended input, output, supported runtime and limitations. Example notes describe reproducible, non-private inputs and the behavior a reviewer should verify. Media examples must have a license that permits their distribution; the recipe's MIT license does not relicense them.
+Only `agent.json` is imported as a recipe. The README should explain the input, actual result, selected template, runtime requirements, settings, limitations and how to validate or run it. Example notes give a short reproducible input, expected behavior and any remaining production step. Include example media only when you have redistribution rights; the recipe's MIT license does not relicense those assets.
 
-Run these commands from the kit root:
+Keep author/contact details, repository links and review metadata in the README or another document. The strict v1 manifest rejects these extra fields, including a submission status, remote runtime or model endpoint.
+
+From the repository root, run:
 
 ```sh
 node scripts/verify.mjs agents/cloud-companion/agent.json
@@ -27,44 +29,62 @@ npm test
 npm run verify
 ```
 
-For a writing-engine contribution, also test real inference with a model you have deliberately installed. `npm run smoke -- --model installed-model` exercises all five reviewed writing contracts using public example text. A controlled mock-provider test is useful, but it is not evidence of creative quality or speed on a real device.
+Validation checks that your recipe uses a reviewed template and approved settings. Tests check SDK behavior. Neither proves that a model produced a useful creative result on your device. For a writing contribution, include representative output from an eligible model you deliberately installed, along with its name and relevant device details. `npm run smoke -- --model installed-model` exercises all five writing contracts with public example text when your local Ollama service is ready.
 
-## 2. Keep the source release isolated
+## Open a source pull request
 
-Use the repository name **`optimai-creative-agents`** and display name **OptimAI Creative Agents** for the isolated kit. Start from the downloaded starter archive or copy only this package's reviewed contents into a fresh directory. Initialize new Git history there if you choose to publish later.
+Fork the public repository using GitHub, then clone your fork. Replace `YOUR-USERNAME` with the owner of that fork:
 
-Never copy the parent Studio repository, its Git history, frontend, backend, environment files, credentials, database dumps, account code, billing code, selected user media or private project prompts into that release. The MIT license in this kit covers this kit's own code and documentation; it does not apply to the proprietary application.
+```sh
+git clone https://github.com/YOUR-USERNAME/optimai-creative-agents.git
+cd optimai-creative-agents
+git switch -c recipe/cloud-companion
+```
 
-Review the exact files in your new standalone directory before any external publication. The kit is intentionally marked `private: true`; this allows a public source repository while preventing accidental npm publication. A future npm release is a separate deliberate action.
+Scaffold and edit your recipe following the [quickstart](./quickstart.md), add reproducible notes, and run the checks above. Review the exact files you intend to contribute, then commit and push them to your fork:
 
-The starter archive includes original SVG artwork. Third-party models and libraries retain their upstream licenses. Do not copy a reference product's source, branding or assets into an agent submission. Clearly distinguish inspiration from affiliation.
+```sh
+git diff --check
+git status --short
+git add agents/cloud-companion
+git diff --cached
 
-## 3. Prepare a review package
+git commit -m "Add Cloud Companion story recipe"
+git push -u origin recipe/cloud-companion
+```
 
-Until a submission channel launches, keep the following material locally with your agent. A GitHub repository alone does not install or list an agent in OptimAI Studio.
+Open a pull request from your branch to `main` in [OptimaiNetwork/optimai-creative-agents](https://github.com/OptimaiNetwork/optimai-creative-agents). Describe the problem the recipe solves, its actual output, a reproducible example and your validation results. Source implementation changes should also explain behavior, limits and relevant tests. Follow [CONTRIBUTING.md](../CONTRIBUTING.md) and the repository's pull request template.
 
-| Review material | What it should demonstrate |
+A recipe PR reuses reviewed code. A new operation needs SDK source, declarations, contract and schema updates, meaningful tests and documentation. Merging source does not automatically deploy it to every host; a host must ship the reviewed version before the capability can execute there.
+
+## Share a standalone recipe or application
+
+You can distribute a recipe JSON file or publish your own repository with its documentation. Use a name that identifies your work and explain which reviewed template and SDK revision it uses. Recipients validate the JSON and import it into a compatible host. Studio's **Saved** library remains scoped to the browser and account, so export a copy for transfer or backup.
+
+You can also embed the MIT-licensed SDK in your own application. Keep its license notice with redistributed source. Third-party models, libraries and assets retain their own licenses, and the kit's license does not cover the proprietary OptimAI Studio application. The public SDK repository is the source boundary for this work; no Studio checkout is needed.
+
+The SDK package currently has `private: true` to prevent npm publication. Publishing an application or source fork does not require changing that flag. An official npm package release would be a separate maintainer action.
+
+## Prepare material for a future catalog review
+
+Until an official submission channel launches, keep review evidence with your project:
+
+| Material | What a reviewer should be able to check |
 | --- | --- |
-| Identity and version | Stable ID, descriptive title, version, author/contact details outside the strict v1 manifest |
-| Capability and limits | The concrete result, selected inputs, runtime, device/model requirements and steps that still need Studio |
-| Valid contract | Passing manifest validation and a known reviewed template ID |
-| Reproducible examples | Clear original inputs, expected behavior and rights to any included media |
-| Quality evidence | Successful output plus empty, malformed, oversized, failure and cancellation cases |
-| Source and licenses | Reviewed source revision, MIT contribution rights and third-party dependency/model notices |
-| Integration notes | Preview/export behavior, accessibility, mobile layout and separate credit or publishing handoffs |
+| Identity and revision | Stable recipe ID, version, author/contact notes and exact source revision |
+| Capability and limits | Selected inputs, actual output, supported runtime and remaining host steps |
+| Valid contract | Passing validation, reviewed template and approved values |
+| Reproducible examples | Original inputs, expected behavior and distribution rights for included media |
+| Quality evidence | Useful results plus relevant invalid-input, failure, cancellation and no-subject cases |
+| Source and licenses | Contribution rights, SDK revision and third-party model/dependency notices |
+| Host behavior | Clear preview/export, accessible controls, mobile layout and explicit paid production or publishing handoffs |
 
-Do not add author, repository URL, submission status or remote runtime fields to `agent.json`; v1 rejects unknown fields. Put release and review metadata in the README or a separate document until a versioned submission contract exists.
+A future catalog review would need to assess behavior, licenses, source provenance and the selected-input boundary. A repository link, popularity or MCP annotation does not establish execution trust. New operations need a reviewed source release and host integration; recipe-only contributions reuse an installed operation. Automatic execution of arbitrary repository code is outside the v1 manifest contract.
 
-## 4. Understand what review would cover
+## Understand featuring
 
-A future catalog review should establish that the agent does what it claims, has an appropriate license, uses reviewed code and model assets, respects selected-input boundaries and has reproducible tests. New source operations require a versioned SDK and host release before they can run in Studio. Recipe-only submissions reuse a reviewed operation.
+Featured placement is an editorial decision beyond validation or catalog acceptance. There is no active application channel, automatic placement, promised response time or selection guarantee in this kit.
 
-Automatic execution of arbitrary repository code is outside v1. GitHub popularity, a license badge or an MCP `readOnlyHint` is not a substitute for a runtime review. Any future registry should use reviewed releases, pinned revisions/content hashes, provenance, deprecation notices and an explicit host capability policy.
+Prepare a clear useful outcome, original presentation, honest capability labels and examples another person can reproduce. Make the first run understandable, state optional download requirements, preserve inputs after a failure and support stopping a job. Controls should work by keyboard and on small screens, and the result should be easy to inspect and export.
 
-## 5. Prepare for possible featuring
-
-Featured placement is an editorial decision, separate from validation or acceptance into a catalog. No automatic placement, response time or selection guarantee is offered by this kit.
-
-A strong candidate has a clear useful outcome, original presentation, honest capability labels, excellent first-run behavior and examples people can reproduce. Its controls work by keyboard and on small screens. It explains an optional model download before starting it, handles cancellation and failures clearly, preserves user inputs, and avoids unnecessary privileges. The result should be easy to inspect, export and carry into the next creative step.
-
-Release locally now; publish or submit only through an official channel that OptimAI explicitly launches later. Follow [CONTRIBUTING.md](../CONTRIBUTING.md) for current code contribution requirements.
+Contribute through the public source workflow now. Treat any future catalog or featuring process as available only when OptimAI announces its official channel and requirements.

@@ -1,0 +1,52 @@
+name: Proposal
+description: Propose a recipe, reviewed operation, integration improvement or documentation change.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe a concrete outcome another builder can reproduce. Proposals are source collaboration, not applications for Studio catalog placement, featuring or rewards.
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Proposed scope
+      options:
+        - Recipe or example using an existing template
+        - Reviewed runtime or catalog change
+        - Host integration
+        - Documentation or contributor experience
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Who needs this and what is difficult with the current kit?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Proposed behavior
+      description: Describe the inputs, output, runtime requirements and user-visible limits. For a recipe, name its reviewed template.
+    validations:
+      required: true
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation and validation
+      description: If known, describe the implementation, dependencies/model assets, resource limits, licenses and how the result could be tested.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing recipes, host behavior or smaller changes that could address the need.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this proposal.
+          required: true
+        - label: Examples and attachments are suitable for a public repository and I have the rights to share them.
+          required: true

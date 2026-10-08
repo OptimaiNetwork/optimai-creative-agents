@@ -1,32 +1,31 @@
-# Build for OptimAI Studio
+# Builder guides
 
-OptimAI Creative Agents is a local-first builder kit for focused creative tasks. Start with a declarative recipe that configures one of the reviewed agents. A recipe can be inspected, validated, saved in the Studio's browser library and exported as JSON without installing new executable code.
+Build a focused creative tool, remix an existing agent, or embed a reviewed runtime in your own application. OptimAI Creative Agents is an MIT-licensed SDK with a public source repository; you can use it without the OptimAI Studio application.
 
-**Current status:** the kit and local recipe workflow work today. A public community submission service, public registry and featured-agent application process have not launched. Nothing is uploaded, submitted or published by these guides.
+Start with a **recipe** when an existing template already does the job. A recipe is JSON containing a reviewed template ID, approved setting values and a creative brief. It can be validated, shared as a file and imported by a compatible host. A **runtime contribution** adds the implementation for a new operation and needs source review, tests and a host release.
 
-## Choose your path
+## Choose a starting point
 
-| Your goal | Start here | Integration boundary |
+| Goal | Guide | What you will finish with |
 | --- | --- | --- |
-| Make an existing agent suit a particular creative task | [Quickstart](./quickstart.md) | Customize a reviewed template's brief and approved values |
-| Embed reviewed agent capabilities in your own application | [Host integration](./host-integration.md) | The host selects and bundles the SDK runtime |
-| Add a genuinely new algorithm, model or operation | [CONTRIBUTING.md](../CONTRIBUTING.md#new-reviewed-operations) | Contribute source and tests for maintainer review; JSON import cannot install an engine |
-| Use the recipe catalog from an MCP client | [MCP adapter](./mcp.md) | Launch the local stdio adapter; media processing remains in the browser host |
-| Prepare an agent for source release or future featuring | [Release and featuring](./release-and-feature.md) | Separate source publication from catalog review and editorial selection |
+| Choose a capability | [Agent catalog](./catalog.md) | All 34 templates, their execution paths and actual outputs |
+| Create your first recipe | [Quickstart](./quickstart.md) | A validated manga-planning recipe and its prepared prompt, with no model required |
+| Run a browser tool or add optional local AI | [Runtime guide](./runtimes.md) | The correct API, requirements and output for each runtime |
+| Embed recipes in your own application | [Host integration](./host-integration.md) | Validation, reviewed dispatch, selected inputs and portable export |
+| Connect an MCP client | [MCP adapter](./mcp.md) | A local stdio server that prepares recipes and can explicitly run local writing |
+| Share your work or contribute it upstream | [Release and review](./release-and-feature.md) | Reproducible examples and a reviewable pull request |
+| Implement a new capability | [Contributing](../CONTRIBUTING.md#new-reviewed-operations) | Source, declarations, contract updates and meaningful tests |
 
-## What is in the kit
+## What runs today
 
-The reviewed library has 34 agent templates: 10 canvas agents, 3 browser vision agents, 5 writing agents and 16 guided Studio workflows. Some are local utilities; some need an explicit browser-model download; others prepare a brief for a Studio generation or editing workflow. A successful prompt preparation is not proof that media was generated.
+The catalog contains 34 reviewed templates: 10 have canvas implementations, 3 have browser vision implementations, 5 have writing implementations, and 16 prepare direction for a separate Studio workflow. Canvas tools export still-image PNGs. Vision and browser writing require an explicit model download; writing can also use an eligible model already installed in a local Ollama service. A guided workflow prepares a brief rather than generating its final media.
 
-The kit includes versioned manifests, validation, typed settings, browser processors, optional local AI runtimes, a scaffold, examples, tests, original SVG artwork and a local MCP adapter. It contains no Studio account system, billing implementation, project database, private asset library or proprietary application source.
+The core manifest, canvas and Ollama SDKs use no package dependencies. Browser writing and vision use pinned optional dependencies installed by the host. The package has no Studio account system, billing, project database or private asset library.
 
-## Recommended building sequence
+Clone [OptimaiNetwork/optimai-creative-agents](https://github.com/OptimaiNetwork/optimai-creative-agents) and follow the quickstart with Node.js 20 or newer. The source is public; `private: true` in `package.json` currently prevents npm publication. Use the checkout directly or install it from a local path as described in the [main README](../README.md).
 
-1. Define the selected input, concrete result and supported limits.
-2. Scaffold a recipe and validate its JSON against the reviewed template.
-3. Import it into the Studio's **Saved** collection and test realistic inputs.
-4. Show useful loading, failure, cancellation and empty states in your host integration.
-5. Export the recipe and prepare reproducible examples using media you own.
-6. Keep your source release separate from any future catalog submission or featuring decision.
+## Share locally, contribute publicly
 
-See the [SDK reference in the main README](../README.md) for the exact current runtime APIs and limits. [CONTRIBUTING.md](../CONTRIBUTING.md) covers implementation contributions and ownership requirements.
+Recipe files and public source contributions are available now. A compatible host, including OptimAI Studio's **Saved** library, can import and export recipe JSON. Studio saves that library in the browser and account scope; export your recipes before moving devices or clearing browser storage.
+
+A public community catalog submission service and applications for featured placement have not launched. Opening a pull request proposes a source change; importing a file saves a local recipe. Neither action creates a catalog listing or guarantees featuring. The [release guide](./release-and-feature.md) explains those boundaries and the material to prepare for review.

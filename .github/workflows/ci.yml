@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22', '24']
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ matrix.node }}
+      # Core checks need no npm install, optional browser peers or model weights.
+      - name: Test SDK and CLI
+        run: npm test
+      - name: Verify reviewed catalog
+        run: npm run verify
+      - name: Validate example recipes
+        run: |
+          for manifest in examples/*.agent.json; do
+            node scripts/verify.mjs "$manifest"
+          done
+      - name: Scaffold and validate a recipe
+        run: |
+          npm run create -- ci-recipe --template story-seed
+          node scripts/verify.mjs agents/ci-recipe/agent.json
