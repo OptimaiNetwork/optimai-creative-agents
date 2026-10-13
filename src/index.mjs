@@ -3,7 +3,7 @@ import { catalog } from './catalog.mjs';
 export const MANIFEST_VERSION = '1.0';
 // Bundled workspace metadata is separate from the portable recipe format.
 // Hosts keep their own adapter allowlist and promote reviewed source revisions.
-export const AGENT_WORKSPACE_CONTRACT_VERSION = '1.0';
+export const AGENT_WORKSPACE_CONTRACT_VERSION = '1.1';
 export const MAX_PROMPT_LENGTH = 12000;
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const DANGEROUS_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
@@ -28,6 +28,8 @@ const WORKSPACE_OPERATIONS = Object.freeze({
   vision: ['person-cutout', 'pose-reference', 'face-reference'],
   writing: ['cast-notes', 'style-brief', 'storyboard-builder', 'prompt-branches', 'story-seed'],
   sketch: ['draw'],
+  '3d': ['scene'],
+  camera: ['effects', 'avatar'],
   workflow: [],
 });
 /** Check source-owned workspace data without accepting code, URLs or privileges. */
@@ -206,11 +208,13 @@ export function verifyRegistry() {
     ids.add(tool.id);
     if (!categories.includes(tool.category) || !/^#[0-9a-fA-F]{6}$/.test(tool.accent)) errors.push(`${tool.id}: invalid category or accent.`);
     if (!['local', 'studio'].includes(tool.runtime) || !['image', 'video', 'story', 'character', 'editor'].includes(tool.studioMode)) errors.push(`${tool.id}: unsupported runtime or studio mode.`);
-    if (tool.runtime === 'local' && !operations.has(tool.localOperation)) errors.push(`${tool.id}: missing reviewed local operation.`);
-    if (!['browser', 'local-model', 'studio-guided'].includes(tool.executionKind)
+    if (tool.runtime === 'local' && tool.executionKind !== 'browser-interactive' && !operations.has(tool.localOperation)) errors.push(`${tool.id}: missing reviewed local operation.`);
+    if (!['browser', 'browser-interactive', 'local-model', 'studio-guided'].includes(tool.executionKind)
       || (tool.executionKind === 'local-model' && (tool.category !== 'writing' || tool.localOperation !== 'prompt-builder'))
       || (tool.executionKind === 'browser' && (tool.runtime !== 'local' || tool.localOperation === 'prompt-builder'))
-      || (tool.executionKind === 'studio-guided' && tool.runtime !== 'studio')) errors.push(`${tool.id}: execution kind does not match its reviewed capability.`);
+      || (tool.executionKind === 'studio-guided' && tool.runtime !== 'studio')
+      || (tool.executionKind === 'browser-interactive' && (tool.runtime !== 'local' || !['3d', 'camera'].includes(tool.workspace?.kind) || tool.localOperation !== undefined))) errors.push(`${tool.id}: execution kind does not match its reviewed capability.`);
+    if (['3d', 'camera'].includes(tool.workspace?.kind) && tool.executionKind !== 'browser-interactive') errors.push(`${tool.id}: interactive workspace requires its browser engine.`);
     errors.push(...validateAgentWorkspace(tool.workspace).map(error => `${tool.id}: ${error}`));
     if (tool.workspace?.kind === 'writing' && (tool.executionKind !== 'local-model' || tool.workspace.operation !== tool.id)
       || tool.executionKind === 'local-model' && tool.workspace?.kind !== 'writing') errors.push(`${tool.id}: writing workspace must match its implemented output contract.`);

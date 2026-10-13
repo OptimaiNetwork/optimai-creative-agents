@@ -9,11 +9,11 @@ import { AGENT_CATALOG, AGENT_MANIFEST_SCHEMA, AGENT_WORKSPACE_CONTRACT_VERSION,
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 function manifest(id = 'my-tool', templateId = 'story-seed') { return createToolManifest(templateId, { id, title: 'My Tool' }); }
 
-test('all 34 original recipes cover the researched function inventory', () => {
-  assert.equal(TOOL_CATALOG.length, 34);
-  assert.deepEqual(Object.fromEntries(['image', 'video', 'writing', 'experimental'].map((category) => [category, TOOL_CATALOG.filter((tool) => tool.category === category).length])), { image: 8, video: 10, writing: 5, experimental: 11 });
-  assert.equal(new Set(TOOL_CATALOG.map((tool) => tool.sourceTemplate)).size, 34);
-  assert.deepEqual(verifyRegistry(), { success: true, errors: [], count: 34 });
+test('all 36 original recipes cover the researched function inventory', () => {
+  assert.equal(TOOL_CATALOG.length, 36);
+  assert.deepEqual(Object.fromEntries(['image', 'video', 'writing', 'experimental'].map((category) => [category, TOOL_CATALOG.filter((tool) => tool.category === category).length])), { image: 8, video: 10, writing: 5, experimental: 13 });
+  assert.equal(new Set(TOOL_CATALOG.map((tool) => tool.sourceTemplate)).size, 36);
+  assert.deepEqual(verifyRegistry(), { success: true, errors: [], count: 36 });
   assert.ok(Object.isFrozen(TOOL_CATALOG));
   assert.ok(TOOL_CATALOG.every((tool) => tool.title !== tool.sourceTemplate));
 });
@@ -23,7 +23,7 @@ test('primary Agent API preserves saved v1 Tool recipes and truthful execution k
   assert.equal(createAgentManifest, createToolManifest);
   assert.equal(validateAgentManifest, validateToolManifest);
   assert.equal(compileAgentPrompt, compileToolPrompt);
-  assert.deepEqual(Object.fromEntries(['browser', 'local-model', 'studio-guided'].map((kind) => [kind, AGENT_CATALOG.filter((agent) => getAgentExecutionKind(agent.id) === kind).length])), { browser: 4, 'local-model': 5, 'studio-guided': 25 });
+  assert.deepEqual(Object.fromEntries(['browser', 'browser-interactive', 'local-model', 'studio-guided'].map((kind) => [kind, AGENT_CATALOG.filter((agent) => getAgentExecutionKind(agent.id) === kind).length])), { browser: 4, 'browser-interactive': 4, 'local-model': 5, 'studio-guided': 23 });
   const old = manifest();
   assert.equal(validateAgentManifest(old).success, true);
   assert.equal(compileAgentPrompt(old), compileToolPrompt(old));
@@ -34,8 +34,8 @@ test('primary Agent API preserves saved v1 Tool recipes and truthful execution k
   assert.equal(getAgentExecutionKind('unknown'), undefined);
 });
 test('workspace metadata resolves actual bundled capabilities and stays separate from recipe privileges', () => {
-  assert.equal(AGENT_WORKSPACE_CONTRACT_VERSION, '1.0');
-  assert.deepEqual(Object.fromEntries(['canvas', 'vision', 'writing', 'sketch', 'workflow'].map(kind => [kind, AGENT_CATALOG.filter(agent => getAgentWorkspace(agent.id)?.kind === kind).length])), { canvas: 10, vision: 3, writing: 5, sketch: 2, workflow: 14 });
+  assert.equal(AGENT_WORKSPACE_CONTRACT_VERSION, '1.1');
+  assert.deepEqual(Object.fromEntries(['canvas', 'vision', 'writing', 'sketch', 'workflow', '3d', 'camera'].map(kind => [kind, AGENT_CATALOG.filter(agent => getAgentWorkspace(agent.id)?.kind === kind).length])), { canvas: 10, vision: 3, writing: 5, sketch: 2, workflow: 12, '3d': 2, camera: 2 });
   assert.deepEqual(getAgentWorkspace('motion-pose'), { kind: 'vision', operation: 'pose-reference' });
   assert.equal(getAgentWorkspace('poster-lab').operation, 'poster');
   assert.ok(Object.isFrozen(getAgentWorkspace('poster-lab')));
@@ -125,7 +125,7 @@ test('checked-in schema is identical to generated schema and rejects unknown pro
   const saved = JSON.parse(await readFile(join(packageRoot, 'schema/tool-manifest.schema.json'), 'utf8'));
   assert.deepEqual(saved, TOOL_MANIFEST_SCHEMA);
   assert.equal(saved.additionalProperties, false);
-  assert.equal(saved.properties.recipe.oneOf.length, 34);
+  assert.equal(saved.properties.recipe.oneOf.length, 36);
   assert.ok(saved.properties.recipe.oneOf.every((recipe) => recipe.additionalProperties === false && recipe.properties.values.additionalProperties === false));
 });
 test('scaffolding only writes a fresh bounded local recipe directory', async () => {
@@ -155,7 +155,7 @@ test('core stays dependency-free and browser peers are optional, pinned and isol
   assert.equal(pkg.private, true);
   assert.equal(pkg.name, '@optimai/creative-agents');
   assert.equal(pkg.dependencies, undefined);
-  assert.deepEqual(pkg.peerDependencies, { '@mlc-ai/web-llm': '0.2.85', '@mediapipe/tasks-vision': '1.1.0' });
+  assert.deepEqual(pkg.peerDependencies, { '@mlc-ai/web-llm': '0.2.85', '@mediapipe/tasks-vision': '1.1.0', three: '0.186.1' });
   for (const name of Object.keys(pkg.peerDependencies)) assert.equal(pkg.peerDependenciesMeta[name]?.optional, true);
   for (const [name, target] of Object.entries(pkg.exports)) {
     const paths = typeof target === 'string' ? [target] : Object.values(target);
@@ -172,7 +172,7 @@ test('core stays dependency-free and browser peers are optional, pinned and isol
     assert.ok(!content.includes('new Function'));
     assert.ok(!content.includes('frontend/'));
   }
-  for (const file of ['canvas-lab.mjs', 'browser-writing-runtime.mjs', 'browser-writing-worker.mjs', 'vision-runtime.mjs', 'vision-processor.mjs']) {
+  for (const file of ['canvas-lab.mjs', 'browser-writing-runtime.mjs', 'browser-writing-worker.mjs', 'vision-runtime.mjs', 'vision-processor.mjs', 'scene-3d.mjs', 'scene-3d-runtime.mjs', 'camera-runtime.mjs', 'camera-renderer.mjs', 'camera-tracking.mjs', 'camera-worker.mjs', 'model-setup.mjs']) {
     const content = await readFile(join(packageRoot, 'src', file), 'utf8');
     assert.ok(!/frontend\/|backend\/|\.\.\/\.\.\/|eval\(|new Function/.test(content), `${file} cannot import proprietary host code or evaluate recipes.`);
   }

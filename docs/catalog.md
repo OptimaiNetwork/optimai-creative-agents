@@ -1,8 +1,8 @@
 # Agent catalog
 
-Choose a template by the result its reviewed implementation produces. The current catalog has **34 templates: 10 canvas, 3 browser vision, 5 writing and 16 guided workflows**. Every template can prepare a prompt; execution uses the runtime listed below.
+Choose a template by the result its reviewed implementation produces. The current catalog has **36 templates: 10 canvas, 3 browser vision, 5 writing, 4 interactive and 14 guided entries**. Every template can prepare a prompt; execution uses the runtime listed below.
 
-These groups follow each template's versioned `workspace` descriptor. The SDK exposes `getAgentWorkspace(id)` for dispatch and derives `CANVAS_LAB_AGENTS` from the same catalog. The two sketch workspaces include browser drawing before guided production; the other 14 guided templates prepare direction directly. Display categories and legacy `runtime` and `executionKind` metadata remain compatible with older recipes. Hosts maintain their own supported-operation allowlist as described in [host integration](./host-integration.md).
+These groups follow each template's versioned `workspace` descriptor. The SDK exposes `getAgentWorkspace(id)` for dispatch and derives `CANVAS_LAB_AGENTS` from the same catalog. The two sketch workspaces include browser drawing before guided production; the other 12 guided templates prepare direction directly. Display categories and legacy `runtime` and `executionKind` metadata remain compatible with older recipes. Hosts maintain their own supported-operation allowlist as described in [host integration](./host-integration.md).
 
 ## Canvas tools
 
@@ -29,7 +29,7 @@ Use `canvasLabRecipeSettings(id, values)` to normalize recipe fields into direct
 
 ## Browser vision
 
-These three tools analyze one selected still image using a fixed reviewed MediaPipe model. The host installs the pinned optional dependency, serves a reviewed local worker and WASM assets, and offers an explicit model download. See [browser vision setup](./runtimes.md#browser-vision).
+These three tools analyze one selected still image using a fixed reviewed MediaPipe model. The host installs the pinned optional dependency, serves a reviewed local worker and WASM assets, and applies the selected-agent model setup policy. See [browser vision setup](./runtimes.md#browser-vision).
 
 | Agent | Template ID | Reviewed operation | Actual result |
 | --- | --- | --- | --- |
@@ -45,7 +45,7 @@ Select & Replace's local implementation segments people rather than performing a
 
 ## Writing agents
 
-These five templates generate validated written artifacts through either the [browser writing runtime](./runtimes.md#browser-writing) or [local Ollama writing](./runtimes.md#local-ollama-writing). Browser writing needs supported WebGPU hardware, a locally bundled worker and an explicit fixed-model download. Ollama writing needs a running loopback service and an explicitly selected eligible installed model.
+These five templates generate validated written artifacts through either the [browser writing runtime](./runtimes.md#browser-writing) or [local Ollama writing](./runtimes.md#local-ollama-writing). Browser writing needs supported WebGPU hardware, a locally bundled worker and reviewed fixed-model setup; the host may start preparation when the selected-agent policy permits. Ollama writing needs a running loopback service and an explicitly selected eligible installed model.
 
 | Agent | Template ID | Actual written result |
 | --- | --- | --- |
@@ -59,9 +59,24 @@ The result includes a title, summary, sections and a prompt to review before a p
 
 The runtimes validate structure and task-specific content, allow one bounded repair attempt and report failure when the model still returns invalid output. Model choice and hardware affect speed and creative quality. Review the result before using it for production. Recipe preparation with `compileAgentPrompt` works without a model, as shown in the [quickstart](./quickstart.md).
 
+## Interactive 3D, camera and avatars
+
+These four templates use shared public engines rather than preparing direction alone. A host owns the interface and its camera permission, recording, selected input and export actions. See the [interactive runtime guide](./runtimes.md#interactive-3d-scenes) and [runnable host example](../examples/interactive/README.md).
+
+| Agent | Template ID | Workspace | Actual result |
+| --- | --- | --- | --- |
+| Model Turntable | `model-turntable` | `3d:scene` | Original procedural subjects or a self-contained static GLB; orbit, camera/lens, material and light controls; PNG and scene recipe |
+| Scene Lighting | `scene-lighting` | `3d:scene` | Architectural scene with adjustable key light, atmosphere and camera framing; same real scene engine |
+| Camera Stage | `camera-stage` | `camera:effects` | Local webcam or selected image/video filters, with optional tracked halo; canvas output |
+| Avatar Stage | `avatar-stage` | `camera:avatar` | Original procedural 3D avatar driven by local face geometry/blendshapes, or an animated demo |
+
+`scene3DRecipeSettings(id, values)` maps `demo`, `lighting`, `finish`, `view`, lens and exposure into actual engine settings. `cameraRecipeSettings(id, values)` maps effect, look, intensity and mirror controls. Neither recipe can provide a model URL, decoder, renderer script or worker path. Three.js is an optional pinned peer. Face tracking reuses the pinned, verified Face Landmarker in a local CPU worker; basic filters and the avatar demo work without a downloaded face model.
+
+GLB imports are limited to 20 MiB, 300,000 visible vertices, 128 primitive parts and 256 nodes, with one embedded static scene. Textures must be embedded PNG/JPEG, no larger than 4096 pixels per side or 16 megapixels total. External/data URLs, compressed decoders, skins, morph targets, instancing and animations are rejected. This is a scene visualizer and composition reference, not generative 3D reconstruction. Avatars are original characters, not identity swaps or emotion classifications.
+
 ## Guided workflows
 
-These 16 templates prepare a bounded prompt and a named Studio destination. The SDK does not process their selected media or execute the production step. A host must implement that workflow and handle any generation, editing, cost confirmation, project persistence or publishing. Use `compileAgentPrompt` to prepare direction and [host integration](./host-integration.md) to design the handoff.
+These 14 templates prepare a bounded prompt and a named Studio destination. The SDK does not process their selected media or execute the production step. A host must implement that workflow and handle any generation, editing, cost confirmation, project persistence or publishing. Use `compileAgentPrompt` to prepare direction and [host integration](./host-integration.md) to design the handoff.
 
 | Agent | Template ID | Prepared direction | Destination |
 | --- | --- | --- | --- |
@@ -77,12 +92,10 @@ These 16 templates prepare a bounded prompt and a named Studio destination. The 
 | Frame Study | `frame-study` | Instructions for studying composition, lighting, depth and framing | Image Studio |
 | Motion Tracker | `motion-tracker` | Subject and overlay instructions for a tracking workflow | Editor Studio |
 | Depth Motion | `depth-motion` | Layered-depth movement and camera direction for a still | Video Studio |
-| Camera Stage | `camera-stage` | Virtual-set and lighting direction from a selected reference | Image Studio |
-| Model Turntable | `model-turntable` | Product-turntable concept, subject and surface finish | Video Studio |
 | Scene Scout | `scene-scout` | Location and time-of-day direction for exploring scene angles | Image Studio |
 | Scene Remix | `scene-remix` | Setting and visual direction for recomposing a selected subject | Image Studio |
 
-A successful prompt preparation confirms valid recipe data; it is not evidence of completed rendering, tracking, depth reconstruction, video resizing or export. Camera Stage does not request camera access, and Model Turntable does not load or render a 3D model inside this SDK.
+A successful prompt preparation confirms valid recipe data; it is not evidence of completed rendering, tracking, depth reconstruction, video resizing or export. Interactive camera and 3D capabilities are listed separately below. They have real public engines; guided templates still require their destination host.
 
 ## Inspect and remix a template
 
@@ -94,4 +107,4 @@ node --input-type=module -e 'import { getAgentTemplate } from "./src/index.mjs";
 
 Scaffold a recipe with a known template ID, then validate the resulting JSON. [Create your first recipe](./quickstart.md) walks through those steps. Unknown template IDs and settings are rejected; new capabilities require a reviewed source contribution following [CONTRIBUTING.md](../CONTRIBUTING.md#new-reviewed-operations).
 
-The [MCP adapter](./mcp.md) exposes all 34 template names. It prepares recipes by default and supports explicit local Ollama execution for the five writers. Canvas and vision execute through a browser host. Sharing source or importing recipe JSON does not create a public catalog listing; see [release and review](./release-and-feature.md).
+The [MCP adapter](./mcp.md) exposes all 36 template names. It prepares recipes by default and supports explicit local Ollama execution for the five writers. Canvas and vision execute through a browser host. Sharing source or importing recipe JSON does not create a public catalog listing; see [release and review](./release-and-feature.md).

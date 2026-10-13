@@ -3,13 +3,15 @@ export type StudioMode = 'image' | 'video' | 'story' | 'character' | 'editor';
 export type LocalOperation = 'image-filter' | 'image-resize' | 'image-grid' | 'type-overlay' | 'prompt-builder';
 export type RecipeValues = Record<string, string | number>;
 export type AgentCategory = ToolCategory;
-export type AgentExecutionKind = 'browser' | 'local-model' | 'studio-guided';
+export type AgentExecutionKind = 'browser' | 'browser-interactive' | 'local-model' | 'studio-guided';
 export type CanvasLabOperation = 'mockup' | 'poster' | 'bento' | 'glitch' | 'letter' | 'blend' | 'transition';
 export type AgentWorkspace = (
   | { readonly kind: 'canvas'; readonly operation: Exclude<LocalOperation, 'prompt-builder'> | CanvasLabOperation }
   | { readonly kind: 'vision'; readonly operation: 'person-cutout' | 'pose-reference' | 'face-reference' }
   | { readonly kind: 'writing'; readonly operation: 'cast-notes' | 'style-brief' | 'storyboard-builder' | 'prompt-branches' | 'story-seed' }
   | { readonly kind: 'sketch'; readonly operation: 'draw' }
+  | { readonly kind: '3d'; readonly operation: 'scene' }
+  | { readonly kind: 'camera'; readonly operation: 'effects' | 'avatar' }
   | { readonly kind: 'workflow' }
 ) & { readonly headline?: string };
 export interface ToolField {
@@ -55,7 +57,7 @@ export type AgentTemplate = ToolTemplate;
 export type AgentManifest = ToolManifest;
 export type AgentManifestValidation = ManifestValidation;
 export declare const MANIFEST_VERSION: '1.0';
-export declare const AGENT_WORKSPACE_CONTRACT_VERSION: '1.0';
+export declare const AGENT_WORKSPACE_CONTRACT_VERSION: '1.1';
 export declare const MAX_PROMPT_LENGTH: number;
 export declare const TOOL_CATALOG: readonly ToolTemplate[];
 export declare const AGENT_CATALOG: readonly AgentTemplate[];

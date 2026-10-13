@@ -59,6 +59,69 @@ test('cancelled downloads never fetch or write a model', async () => {
   const runtime = await fresh(), abort = new AbortController(); abort.abort();
   await assert.rejects(runtime.downloadVisionModel('person-cutout', { signal: abort.signal, fetchImpl: async () => { throw Error('must not fetch'); } }), { name: 'AbortError' });
 });
+test('concurrent model consumers share one download and one caller cancellation leaves other consumers running', async () => {
+  let fetches = 0, writes = 0, resolveFetch, underlyingSignal;
+  const restore = globals({ crypto: hashCrypto('face-reference'), caches: { open: async () => ({ match: async () => null, put: async () => { writes++; } }) } });
+  try {
+    const runtime = await fresh(), abort = new AbortController();
+    const fetchImpl = async (_url, options) => { fetches++; underlyingSignal = options.signal; return new Promise(resolve => { resolveFetch = resolve; }); };
+    const first = runtime.downloadVisionModel('face-reference', { signal: abort.signal, fetchImpl });
+    const firstFailure = assert.rejects(first, { name: 'AbortError' });
+    const second = runtime.loadVisionModelBuffer('face-reference', { fetchImpl });
+    for (let i = 0; i < 12; i++) await Promise.resolve(); assert.equal(fetches, 1);
+    abort.abort(); await firstFailure; assert.equal(underlyingSignal.aborted, false, 'one cancelled consumer must not cancel another');
+    resolveFetch(new Response(buffer('face-reference'))); assert.equal((await second).byteLength, VISION_MODELS['face-reference'].bytes); assert.equal(writes, 1);
+  } finally { restore(); }
+});
+test('when every consumer cancels, the shared fetch aborts and a later retry starts a clean job', async () => {
+  let fetches = 0, writes = 0; const requests = [];
+  const restore = globals({ crypto: hashCrypto('face-reference'), caches: { open: async () => ({ match: async () => null, put: async () => { writes++; } }) } });
+  try {
+    const runtime = await fresh(), a = new AbortController(), b = new AbortController();
+    const fetchImpl = async (_url, options) => { fetches++; return new Promise((resolve, reject) => { requests.push({ resolve, signal: options.signal }); options.signal.addEventListener('abort', () => reject(new DOMException('Cancelled', 'AbortError')), { once: true }); }); };
+    const first = runtime.downloadVisionModel('face-reference', { signal: a.signal, fetchImpl }), second = runtime.downloadVisionModel('face-reference', { signal: b.signal, fetchImpl });
+    const failures = [assert.rejects(first, { name: 'AbortError' }), assert.rejects(second, { name: 'AbortError' })];
+    for (let i = 0; i < 12; i++) await Promise.resolve(); assert.equal(fetches, 1);
+    a.abort(); b.abort(); await Promise.all(failures); assert.equal(requests[0].signal.aborted, true); assert.equal(writes, 0);
+    const retry = runtime.loadVisionModelBuffer('face-reference', { fetchImpl }); for (let i = 0; i < 12; i++) await Promise.resolve(); assert.equal(fetches, 2);
+    requests[1].resolve(new Response(buffer('face-reference'))); await retry; assert.equal(writes, 1);
+  } finally { restore(); }
+});
+test('owned verified model buffers share cache and memory with image vision without another download', async () => {
+  let fetches = 0;
+  const restore = globals({ crypto: hashCrypto('face-reference'), caches: cache(null) });
+  try {
+    const runtime = await fresh();
+    const first = await runtime.loadVisionModelBuffer('face-reference', { fetchImpl: async () => { fetches++; return new Response(buffer('face-reference')); } });
+    assert.equal(first.byteLength, VISION_MODELS['face-reference'].bytes); new Uint8Array(first)[0] = 42;
+    const second = await runtime.loadVisionModelBuffer('face-reference', { downloadIfMissing: false, fetchImpl: () => assert.fail('cached request must not fetch') });
+    assert.notEqual(first, second); assert.equal(new Uint8Array(second)[0], 0); assert.equal(fetches, 1); assert.equal((await runtime.getVisionModelStatus('face-reference')).ready, true);
+  } finally { restore(); }
+});
+test('cache-only model access and aborted buffer loads never start a network request', async () => {
+  const restore = globals({ caches: cache(null) });
+  try {
+    const runtime = await fresh(); const options = { downloadIfMissing: false, fetchImpl: () => assert.fail('cache-only mode must not fetch') };
+    await assert.rejects(runtime.loadVisionModelBuffer('face-reference', options), { code: 'model-missing' });
+    const abort = new AbortController(); abort.abort();
+    await assert.rejects(runtime.loadVisionModelBuffer('face-reference', { ...options, signal: abort.signal }), { name: 'AbortError' });
+  } finally { restore(); }
+});
+test('cached model responses are bounded even without content-length and corrupt caches are discarded', async () => {
+  let deleted = 0;
+  const restore = globals({ crypto: hashCrypto('face-reference'), caches: { open: async () => ({ match: async () => new Response(new Uint8Array(VISION_MODELS['face-reference'].bytes + 1)), delete: async () => { deleted++; } }) } });
+  try { const runtime = await fresh(); await assert.rejects(runtime.loadVisionModelBuffer('face-reference', { downloadIfMissing: false }), { code: 'model-missing' }); assert.equal(deleted, 1); } finally { restore(); }
+});
+test('cancelling a stalled cache read closes its stream and returns immediately without fetching', async () => {
+  let cancelled = 0;
+  const restore = globals({ caches: { open: async () => ({ match: async () => new Response(new ReadableStream({ cancel() { cancelled++; } })) }) } });
+  try {
+    const runtime = await fresh(), abort = new AbortController();
+    const pending = runtime.loadVisionModelBuffer('face-reference', { signal: abort.signal, downloadIfMissing: false, fetchImpl: () => assert.fail('cancellation cannot fetch') });
+    for (let i = 0; i < 5; i++) await Promise.resolve(); abort.abort();
+    await assert.rejects(pending, { name: 'AbortError' }); assert.equal(cancelled, 1);
+  } finally { restore(); }
+});
 test('worker inference refuses missing weights or a remote WASM origin', async () => {
   const restore = globals({ location: { origin: 'https://studio.example' }, caches: cache(null) });
   try {

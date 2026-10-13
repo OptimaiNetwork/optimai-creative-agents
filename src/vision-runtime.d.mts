@@ -10,4 +10,6 @@ export declare function getVisionAnalysisSize(width: number, height: number): { 
 export declare function normalizeVisionValues(operation: VisionOperation, values?: Record<string, string | number>): Record<string, string | number>;
 export declare function getVisionModelStatus(operation: VisionOperation, options?: { signal?: AbortSignal }): Promise<VisionModelStatus>;
 export declare function downloadVisionModel(operation: VisionOperation, options?: { signal?: AbortSignal; onProgress?: (progress: VisionProgress) => void; fetchImpl?: typeof fetch }): Promise<VisionModelStatus>;
+/** Owned verified bytes. Cache-only mode never starts a network request. */
+export declare function loadVisionModelBuffer(operation: VisionOperation, options?: { signal?: AbortSignal; onProgress?: (progress: VisionProgress) => void; fetchImpl?: typeof fetch; downloadIfMissing?: boolean }): Promise<ArrayBuffer>;
 export declare function runBrowserVision(operation: VisionOperation, file: File, values?: Record<string, string | number>, options?: { signal?: AbortSignal; onProgress?: (progress: VisionProgress) => void; workerFactory: () => Worker; wasmBaseUrl: string }): Promise<VisionResult>;

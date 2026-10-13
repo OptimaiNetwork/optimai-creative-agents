@@ -57,9 +57,11 @@ Open a pull request from your branch to `main` in [OptimaiNetwork/optimai-creati
 
 A recipe PR reuses reviewed code. A new operation needs SDK source, declarations, contract and schema updates, meaningful tests and documentation. Merging source does not automatically deploy it to every host; a host must ship the reviewed version before the capability can execute there.
 
-## SDK 0.2.0 and Studio promotion
+## SDK 0.3.0 and Studio promotion
 
-This release introduces a versioned public `workspace` descriptor for actual canvas, vision, writing, sketch and guided capabilities. Titles, descriptions, workspace headlines, fields and artwork ship from the reviewed package. Canvas composition defaults now honor saved recipe values and normalize legacy aliases; existing v1 fields and Tool aliases remain accepted. MCP preparation includes the workspace descriptor alongside its legacy metadata.
+This release extends the public workspace contract to 1.1 for real `3d:scene`, `camera:effects` and `camera:avatar` engines. The catalog has 36 templates: 10 canvas, 3 vision, 5 writing, 4 interactive and 14 guided entries (12 workflows and two sketches). The v1 portable manifest format and legacy Tool aliases stay compatible. Titles, descriptions, workspace headlines, fields and artwork ship from the reviewed package. Canvas composition defaults now honor saved recipe values and normalize legacy aliases; existing v1 fields and Tool aliases remain accepted. MCP preparation includes the workspace descriptor alongside its legacy metadata. Camera rendering, tracker workers, verified model buffers, model-setup policy and 3D rendering belong to the public reusable SDK; private Studio services remain outside it.
+
+The [interactive host example](../examples/interactive/README.md) documents pinned local dependencies, real rendering, cancellation and cleanup. New interactive contributions should include selected-input validation, camera permission behavior, GPU/worker disposal and no unintended network fallback. Tests of a shared engine should exercise its public module, rather than a duplicate private implementation.
 
 A built-in agent must be a reviewed source catalog entry with an implemented or supported operation binding, original artwork, matching declarations and schemas, and meaningful tests. Adding a standalone recipe example does not create a built-in listing.
 
@@ -93,6 +95,6 @@ A future catalog review would need to assess behavior, licenses, source provenan
 
 Featured placement is an editorial decision beyond validation or catalog acceptance. There is no active application channel, automatic placement, promised response time or selection guarantee in this kit.
 
-Prepare a clear useful outcome, original presentation, honest capability labels and examples another person can reproduce. Make the first run understandable, state optional download requirements, preserve inputs after a failure and support stopping a job. Controls should work by keyboard and on small screens, and the result should be easy to inspect and export.
+Prepare a clear useful outcome, original presentation, honest capability labels and examples another person can reproduce. Make the first run understandable, state model preparation requirements and manual fallbacks, preserve inputs after a failure and support stopping a job. Controls should work by keyboard and on small screens, and the result should be easy to inspect and export.
 
 Contribute through the public source workflow now. Treat any future catalog or featuring process as available only when OptimAI announces its official channel and requirements.

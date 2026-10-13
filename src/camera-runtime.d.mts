@@ -1,0 +1,16 @@
+export type CameraEffect = 'clean' | 'neon' | 'prism' | 'duotone' | 'film' | 'halo';
+export type AvatarLook = 'orbit' | 'pixel' | 'luna';
+export type FaceFrame = { found: boolean; timestamp: number; blendshapes: Record<string, number>; matrix: number[]; anchors: { x: number; y: number }[] };
+export type FaceRig = { yaw: number; pitch: number; roll: number; jaw: number; smile: number; blinkLeft: number; blinkRight: number; brow: number };
+export declare const CAMERA_LIMITS: Readonly<Record<string, number>>;
+export declare const NEUTRAL_FACE: Readonly<FaceRig>;
+export declare function cameraRecipeSettings(agentId: string, values?: Record<string, string | number>): { effect: CameraEffect; look: AvatarLook; strength: number; mirror: boolean; avatar: boolean };
+export declare function bounded(value: unknown, min?: number, max?: number): number;
+export declare function faceRigFromFrame(frame: FaceFrame | null, mirror?: boolean): FaceRig;
+export declare function smoothFaceRig(current: FaceRig, target: FaceRig, elapsedMs: number): FaceRig;
+export declare function faceRigAt(frame: FaceFrame | null, now: number, mirror?: boolean): FaceRig;
+export declare function demoFaceRig(seconds: number): FaceRig;
+export type CameraLease = { stop(): void; close(): void; start(getMedia: () => Promise<MediaStream>): Promise<MediaStream | null>; readonly active: MediaStream | null };
+export declare function createCameraLease(): CameraLease;
+export declare function cameraPermissionMessage(reason: unknown): string;
+export declare function coverCrop(width: number, height: number, targetWidth: number, targetHeight: number): { scale: number; x: number; y: number; width: number; height: number };

@@ -8,6 +8,7 @@ export const VISION_MODELS = Object.freeze({
   'face-reference': Object.freeze({ id: 'face-landmarker-v1', name: 'MediaPipe Face Landmarker', bytes: 3758596, sha256: '64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff', url: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', task: 'One visible face · 478 landmarks and raw blendshape coefficients' }),
 });
 const memory = new Map();
+const pendingDownloads = new Map();
 const CACHE = 'optimai-vision-models-v1';
 export class VisionError extends Error {
   constructor(code, message) { super(message); this.name = 'VisionError'; this.code = code; }
@@ -25,6 +26,24 @@ async function verified(model, buffer) {
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', buffer));
   return Array.from(digest, n => n.toString(16).padStart(2, '0')).join('') === model.sha256;
 }
+/** Reads both cached and network responses under the exact pinned byte ceiling. */
+async function modelResponseBuffer(model, response, signal) {
+  if (Number(response.headers.get('content-length')) > model.bytes || !response.body?.getReader) throw new VisionError('invalid-model', 'The model response does not match its reviewed size or streaming format.');
+  const reader = response.body.getReader(), chunks = []; let size = 0;
+  const cancel = () => { void reader.cancel().catch(() => {}); };
+  signal?.addEventListener('abort', cancel, { once: true });
+  try {
+    while (true) {
+      aborted(signal); const item = await reader.read(); if (item.done) break;
+      size += item.value.byteLength;
+      if (size > model.bytes || size > VISION_LIMITS.modelBytes) throw new VisionError('invalid-model', 'The model response exceeds its reviewed size.');
+      chunks.push(item.value);
+    }
+    const bytes = new Uint8Array(size); let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    aborted(signal); return bytes.buffer;
+  } finally { signal?.removeEventListener('abort', cancel); try { await reader.cancel(); } catch {} }
+}
 async function readModel(model, signal) {
   aborted(signal);
   let buffer = memory.get(model.id);
@@ -33,12 +52,12 @@ async function readModel(model, signal) {
     const cached = await (await globalThis.caches?.open(CACHE))?.match(cacheKey(model));
     if (cached) {
       if (Number(cached.headers.get('content-length')) > VISION_LIMITS.modelBytes) throw new Error('oversized');
-      buffer = await cached.arrayBuffer();
+      buffer = await modelResponseBuffer(model, cached, signal);
       aborted(signal);
       if (await verified(model, buffer)) { memory.set(model.id, buffer); return buffer.slice(0); }
       await (await caches.open(CACHE)).delete(cacheKey(model));
     }
-  } catch (error) { if (error?.name === 'AbortError' || error instanceof VisionError) throw error; }
+  } catch (error) { if (error?.name === 'AbortError') throw error; if (error instanceof VisionError && error.code === 'unsupported-browser') throw error; try { await (await caches.open(CACHE)).delete(cacheKey(model)); } catch {} }
   return null;
 }
 /** Checks local cache only. This function never starts a network request. */
@@ -47,11 +66,12 @@ export async function getVisionModelStatus(operation, { signal } = {}) {
   const buffer = await readModel(model, signal);
   return { operation, model, ready: Boolean(buffer), storage: buffer ? (globalThis.caches ? 'browser-cache' : 'memory') : null };
 }
-/** Explicit user action: only a pinned official weight URL can be fetched. */
-export async function downloadVisionModel(operation, { signal, onProgress, fetchImpl = globalThis.fetch } = {}) {
+/** Trusted host setup call: only a pinned official weight URL can be fetched. */
+async function downloadVisionModelOnce(operation, { signal, onProgress, fetchImpl = globalThis.fetch } = {}) {
   const model = modelFor(operation);
   aborted(signal);
   const existing = await readModel(model, signal);
+  aborted(signal);
   if (existing) { emit(onProgress, 'ready', 'Model is ready in this browser.', 1); return getVisionModelStatus(operation, { signal }); }
   if (typeof fetchImpl !== 'function') throw new VisionError('unsupported-browser', 'This browser cannot download the vision model.');
   const controller = new AbortController();
@@ -93,6 +113,54 @@ export async function downloadVisionModel(operation, { signal, onProgress, fetch
     if (error instanceof VisionError) throw error;
     throw new VisionError('download-failed', 'The official model could not be downloaded. Check your connection and try again.');
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); try { await reader?.cancel(); } catch {} }
+}
+/** One bounded download per pinned model; cancellation only aborts an unused job. */
+export async function downloadVisionModel(operation, { signal, onProgress, fetchImpl = globalThis.fetch } = {}) {
+  const model = modelFor(operation); aborted(signal);
+  const cached = await readModel(model, signal); aborted(signal);
+  if (cached) { emit(onProgress, 'ready', 'Model is ready in this browser.', 1); return getVisionModelStatus(operation, { signal }); }
+  let entry = pendingDownloads.get(model.id);
+  if (!entry) {
+    entry = { controller: new AbortController(), waiters: new Set(), settled: false, lastProgress: null };
+    pendingDownloads.set(model.id, entry);
+    const job = entry;
+    const settle = (error, status) => {
+      job.settled = true; if (pendingDownloads.get(model.id) === job) pendingDownloads.delete(model.id);
+      for (const waiter of job.waiters) { waiter.signal?.removeEventListener('abort', waiter.cancel); error ? waiter.reject(error) : waiter.resolve(status); }
+      job.waiters.clear();
+    };
+    void Promise.resolve().then(() => downloadVisionModelOnce(operation, {
+      signal: job.controller.signal, fetchImpl,
+      onProgress: progress => { job.lastProgress = progress; for (const waiter of job.waiters) { try { waiter.onProgress?.(progress); } catch {} } },
+    })).then(status => settle(null, status), error => settle(error));
+  }
+  const job = entry;
+  return new Promise((resolve, reject) => {
+    const waiter = { resolve, reject, signal, onProgress, cancel: null };
+    waiter.cancel = () => {
+      if (!job.waiters.delete(waiter)) return;
+      signal?.removeEventListener('abort', waiter.cancel); reject(new DOMException('Model download was cancelled.', 'AbortError'));
+      if (!job.waiters.size && !job.settled) { job.controller.abort(); if (pendingDownloads.get(model.id) === job) pendingDownloads.delete(model.id); }
+    };
+    job.waiters.add(waiter); signal?.addEventListener('abort', waiter.cancel, { once: true });
+    if (signal?.aborted) { waiter.cancel(); return; }
+    if (job.lastProgress) { try { onProgress?.(job.lastProgress); } catch {} }
+  });
+}
+/** Returns an owned, verified model buffer for a host's reusable worker.
+ * Cache-first. Setting downloadIfMissing:false never contacts a model host.
+ */
+export async function loadVisionModelBuffer(operation, { signal, onProgress, fetchImpl = globalThis.fetch, downloadIfMissing = true } = {}) {
+  const model = modelFor(operation); aborted(signal);
+  let buffer = await readModel(model, signal);
+  if (!buffer && downloadIfMissing) {
+    await downloadVisionModel(operation, { signal, onProgress, fetchImpl });
+    buffer = await readModel(model, signal);
+  }
+  aborted(signal);
+  if (!buffer) throw new VisionError('model-missing', 'This model is not cached yet. Download it when you are ready.');
+  emit(onProgress, 'ready', 'Verified model is ready in this browser.', 1);
+  return buffer;
 }
 export function getVisionAnalysisSize(width, height) {
   if (![width, height].every(n => Number.isInteger(n) && n > 0) || width > VISION_LIMITS.dimension || height > VISION_LIMITS.dimension || width * height > VISION_LIMITS.pixels) throw new VisionError('image-too-large', 'Use an image up to 4096 pixels per side and 16 million pixels.');

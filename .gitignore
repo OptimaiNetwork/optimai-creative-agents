@@ -21,3 +21,6 @@ models/
 outputs/
 *.tgz
 npm-debug.log*
+
+# Locally copied optional peers for the standalone browser example
+examples/interactive/vendor/

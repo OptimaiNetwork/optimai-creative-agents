@@ -1302,6 +1302,31 @@
                     "studio key light",
                     "warm practical lights"
                   ]
+                },
+                "effect": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "studio",
+                    "neon",
+                    "prism",
+                    "duotone",
+                    "film",
+                    "halo"
+                  ]
+                },
+                "intensity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "mirror": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "yes",
+                    "no"
+                  ]
                 }
               }
             }
@@ -1390,6 +1415,167 @@
                 "material": {
                   "type": "string",
                   "maxLength": 2000
+                },
+                "demo": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "sculpture",
+                    "product",
+                    "architecture"
+                  ]
+                },
+                "lighting": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "studio",
+                    "sunset",
+                    "neon"
+                  ]
+                },
+                "finish": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "original",
+                    "ceramic",
+                    "metal",
+                    "clay"
+                  ]
+                },
+                "view": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "iso",
+                    "front",
+                    "side",
+                    "top"
+                  ]
+                },
+                "focalLength": {
+                  "type": "integer",
+                  "minimum": 24,
+                  "maximum": 100
+                },
+                "exposure": {
+                  "type": "integer",
+                  "minimum": 25,
+                  "maximum": 200
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "scene-lighting"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "demo": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "sculpture",
+                    "product",
+                    "architecture"
+                  ]
+                },
+                "lighting": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "studio",
+                    "sunset",
+                    "neon"
+                  ]
+                },
+                "finish": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "original",
+                    "ceramic",
+                    "metal",
+                    "clay"
+                  ]
+                },
+                "view": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "iso",
+                    "front",
+                    "side",
+                    "top"
+                  ]
+                },
+                "focalLength": {
+                  "type": "integer",
+                  "minimum": 24,
+                  "maximum": 100
+                },
+                "exposure": {
+                  "type": "integer",
+                  "minimum": 25,
+                  "maximum": 200
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "avatar-stage"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "look": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "orbit",
+                    "luna",
+                    "pixel"
+                  ]
+                },
+                "mirror": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "yes",
+                    "no"
+                  ]
                 }
               }
             }
@@ -2363,6 +2549,58 @@
             "properties": {
               "templateId": {
                 "const": "model-turntable"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "scene-lighting"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "avatar-stage"
               }
             },
             "required": [

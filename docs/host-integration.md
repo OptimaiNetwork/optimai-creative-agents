@@ -1,6 +1,6 @@
 # Integrate agents into your application
 
-A host reads a recipe, validates it, resolves a reviewed implementation and supplies the user's selected inputs. The SDK works independently of OptimAI Studio. Start with the [browser example](../examples/browser/) for a complete canvas input → preview → export flow, then use the [runtime guide](./runtimes.md) for optional writing and vision engines.
+A host reads a recipe, validates it, resolves a reviewed implementation and supplies the user's selected inputs. The SDK works independently of OptimAI Studio. Start with the [browser example](../examples/browser/) for a complete canvas input → preview → export flow, then use the [runtime guide](./runtimes.md) for optional writing, vision, 3D and camera engines. The [interactive example](../examples/interactive/README.md) shows the same engines without the private Studio app.
 
 A recipe is configuration for code you have already chosen to ship. It cannot install JavaScript, select a worker URL, add a new model service or grant itself account access.
 
@@ -41,7 +41,7 @@ Treat recipe metadata, compiled prompts and model output as untrusted plain text
 
 ## Dispatch a reviewed operation
 
-Use the source catalog's versioned `workspace` descriptor to select an adapter your application already bundles. `getAgentWorkspace(id)` returns its `kind`, reviewed `operation` and optional presentation `headline`; `AGENT_WORKSPACE_CONTRACT_VERSION` is `1.0`. Template titles, descriptions, fields and artwork remain public presentation data. Legacy `executionKind` and `runtime` exports are retained for older consumers.
+Use the source catalog's versioned `workspace` descriptor to select an adapter your application already bundles. `getAgentWorkspace(id)` returns its `kind`, reviewed `operation` and optional presentation `headline`; `AGENT_WORKSPACE_CONTRACT_VERSION` is `1.1`; the v1 recipe schema remains unchanged. Template titles, descriptions, fields and artwork remain public presentation data. Legacy `executionKind` and `runtime` exports are retained for older consumers.
 
 Keep a host-owned allowlist of supported workspace versions and operations. The catalog can describe an operation, but it cannot install an adapter in a running application. A new template that reuses a supported operation can appear and open its workspace after a reviewed SDK upgrade; a new operation or custom interface needs integration and testing first.
 
@@ -77,14 +77,50 @@ A broader host can add these reviewed runtime adapters:
 | --- | --- | --- |
 | Original image processing | `browser-runtime` → `runLocalTool` | PNG; selected PNG/JPEG/WebP files and bounded settings |
 | Additional composition | `canvas-lab` → `canvasLabRecipeSettings`, `runCanvasLab` | PNG; normalize defaults, canonical settings and saved v1 aliases |
-| Browser vision | `vision-runtime` → `downloadVisionModel`, `runBrowserVision` | PNG and analysis; explicit model download, reviewed local worker and WASM assets |
-| Browser writing | `browser-writing-runtime` → `createBrowserAgentRuntime` | Validated written artifact; explicit download, supported WebGPU device and local worker |
+| Browser vision | `vision-runtime` → `downloadVisionModel`, `runBrowserVision` | PNG and analysis; selected-agent setup policy, reviewed local worker and WASM assets |
+| Browser writing | `browser-writing-runtime` → `createBrowserAgentRuntime` | Validated written artifact; selected-agent setup policy, supported WebGPU device and local worker |
+| 3D scene | `scene-3d` → `scene3DRecipeSettings`; `scene-3d-runtime` → `createScene3DStage` | Procedural/local GLB WebGL stage, PNG and scene recipe; optional reviewed Three peer |
+| Camera effects/avatar | `camera-runtime`, `camera-renderer`, `camera-tracking`, `camera-worker` | Canvas effects and original face-driven avatar; explicit permission and local verified tracking worker |
+| Model preparation policy | `model-setup` → `getModelSetupPolicy` | Pure automatic/manual/unsupported decision; host performs reviewed load calls |
 | Local Ollama writing | `agent-runtime` → `runCreativeAgent` | Validated written artifact; explicitly selected eligible installed model and loopback service |
 | Guided production | `compileAgentPrompt` and a host handoff | Prepared direction; the destination host runs Image, Video, Story, Character or Editor production |
 
 Vision workspace descriptors identify `person-cutout`, `pose-reference` or `face-reference`. `CANVAS_LAB_AGENTS` derives its composition map from the same catalog. Writing descriptors use the five implemented output-contract IDs; declaring an unknown writer does not implement its output validation. Sketch descriptors identify a browser drawing workspace followed by a separate Studio production step.
 
 Recipe fields and direct engine settings can differ. Use `canvasLabRecipeSettings(templateId, manifest.recipe.values)` for compositions: it merges template defaults, preserves legacy `format`, `text`, `style` and `intensity` aliases, and gives explicit canonical settings priority. Pass the resulting settings to `runCanvasLab(settings.operation, files, settings, signal)`. The engine validates its bounded settings again. Mockup Maker keeps its original image-resize recipe fields for compatibility, while its default workspace now selects device composition. See [runtime APIs and limits](./runtimes.md) for exact options and requirements.
+
+## Normalize portable interactive recipes
+
+`3d:scene`, `camera:effects` and `camera:avatar` are source-reviewed bindings in workspace contract 1.1. Keep these operations on the host allowlist; an untrusted recipe cannot add another binding. Studio consumes the same public engine modules through thin adapters. Its dialog layout, account state, asset picker, credits and production services remain private host code.
+
+```js
+import { getAgentWorkspace, validateAgentManifest } from './src/index.mjs';
+import { scene3DRecipeSettings } from './src/scene-3d.mjs';
+import { createScene3DStage } from './src/scene-3d-runtime.mjs';
+import { cameraRecipeSettings } from './src/camera-runtime.mjs';
+
+export async function openInteractiveRecipe(candidate, mountedContainer, options) {
+  const checked = validateAgentManifest(candidate);
+  if (!checked.success) throw new Error(checked.errors.join('\n'));
+  const { templateId, values } = checked.manifest.recipe;
+  const workspace = getAgentWorkspace(templateId);
+  if (workspace?.kind === '3d' && workspace.operation === 'scene') {
+    const recipe = scene3DRecipeSettings(templateId, values);
+    const stage = await createScene3DStage(mountedContainer, recipe.settings, options);
+    stage.camera(recipe.camera);
+    return stage; // Host closes it with dispose(), and owns PNG download/reference handoff.
+  }
+  if (workspace?.kind === 'camera' && ['effects', 'avatar'].includes(workspace.operation)) {
+    return { settings: cameraRecipeSettings(templateId, values), workspace };
+    // Render with the shared camera modules; requesting camera permission is another user action.
+  }
+  throw new Error('This host does not support this interactive workspace.');
+}
+```
+
+Use `scene3DRecipeSettings` before rendering so `finish`, `view`, focal length and percent exposure change actual materials, camera and lighting. The normalizer preserves accepted legacy free-text material fields. `cameraRecipeSettings` maps recipe effect/look/intensity/mirror controls into bounded renderer settings. Do not interpret arbitrary recipe text as executable shader, model path or worker URL.
+
+The scene engine either loads the installed optional `three@0.186.1` peer on creation or accepts trusted injected Three/addon modules. The camera avatar renderer requires a host-supplied pinned `THREE` module; its tracker requires a host-created worker, same-origin WASM path and verified model buffer. Review these code/assets together with their licenses before shipping. See [runtime ownership and exact APIs](./runtimes.md#interactive-3d-scenes).
 
 ## Promote a source release into Studio
 
@@ -94,11 +130,11 @@ Merging the public repository does not alter the live site immediately. Maintain
 
 Portable JSON recipes customize existing templates. Adding an example recipe to a GitHub pull request does not automatically turn it into a built-in catalog template or featured listing. Contribute the source catalog entry, implementation or supported operation binding, original artwork, declarations, schemas and relevant tests when proposing a new built-in agent. Editorial featuring remains a separate decision.
 
-## Keep model setup explicit
+## Prepare only the selected model
 
-`network: "none"` and `execution: "declarative"` describe the recipe's privileges. A trusted host can separately download fixed public model assets after a user action or run inference against a validated literal-loopback service. Model configuration stays in host code or host environment settings; it is never read from a recipe.
+`network: "none"` and `execution: "declarative"` describe the recipe's privileges. A trusted host can prepare fixed public model assets after the user selects an agent, or run inference against a validated literal-loopback service. `getModelSetupPolicy` recommends automatic setup on supported devices and manual setup for Data Saver, slow connections and large-model memory limits; it performs no network request itself. Model configuration stays in host code or host environment settings; it is never read from a recipe.
 
-Before a download, show its size, device requirements and browser storage behavior. Keep downloads optional and allow users to browse other tools while preparation runs. Run writing jobs sequentially, expose progress and cancellation, and display model failures without substituting canned creative output. Vision work should report a missing subject when detection fails.
+Show model size, device requirements, progress and browser storage behavior as preparation starts. In manual mode, offer Download; in unsupported mode, offer basic filters, procedural demos, canvas tools or guided direction. Camera permission is a separate explicit action. Stop/cancel a download when the workspace closes and keep retry deliberate. Allow users to browse other tools while preparation runs. Run writing jobs sequentially, expose progress and cancellation, and display model failures without substituting canned creative output. Vision work should report a missing subject when detection fails.
 
 Connect cancellation and cleanup to every asynchronous operation. Release workers, decoded images, canvases, GPU sessions and temporary URLs after completion, failure or cancellation. The [runtime guide](./runtimes.md) explains each engine's ownership and disposal API.
 

@@ -17,7 +17,7 @@ npm test
 npm run verify
 ```
 
-Use Node.js 20 or newer. CI runs the package checks on Node.js 20, 22 and 24. The core and tests are dependency-free ESM: `npm install` is not needed. Browser hosts install the reviewed optional peers only when integrating their respective engines.
+Use Node.js 20 or newer. CI runs the package checks on Node.js 20, 22 and 24. Core checks need no dependency installation. Renderer regressions additionally need the pinned optional `three@0.186.1` peer; without it those cases report an explicit skip. CI installs that peer in a separate renderer step. Browser hosts install the reviewed optional peers only when integrating their respective engines.
 
 The tests use controlled browser fixtures and local model responses. CLI and MCP integration tests start a temporary HTTP listener on `127.0.0.1`; run them in an environment that permits loopback connections. They do not require Ollama, a GPU, model weights or an API key. Passing these tests is evidence of SDK behavior, not of model quality or compatibility with every browser or device.
 
@@ -80,7 +80,7 @@ For an engine change, cover the behavior specific to that engine:
 
 The catalog's versioned `workspace` descriptor drives current dispatch; `executionKind` stays available as a legacy hint. Titles, descriptions, workspace headlines, settings and original artwork ship from this source. Preserve existing IDs and settings so saved v1 recipes reopen; additive fields and explicit alias normalization can evolve the interface without silently dropping a builder's choices. See [host integration](./docs/host-integration.md) for the consumer's compatibility gate and release responsibilities.
 
-Model downloads must remain explicit host actions. Recipes cannot choose executable, worker or model URLs. The reviewed optional browser peers are WebLLM `0.2.85` and MediaPipe Tasks Vision `1.1.0`; dependency or model changes require their own review and license notices. Never silently fall back to a cloud model or install an Ollama model. Arbitrary network, filesystem, account and background access are outside the v1 recipe contract.
+Model setup belongs to trusted host code. A host may automatically prepare the relevant model when an agent opens, using `getModelSetupPolicy`, verified cache reuse and visible progress/cancellation. Data Saver and slow connections receive manual Download; unsupported devices receive an explanation. Cancel remains respected until deliberate retry. Recipes cannot choose executable, worker or model URLs. Camera permission is separate from setup. The reviewed optional peers are WebLLM `0.2.85`, MediaPipe Tasks Vision `1.1.0` and Three.js `0.186.1`; dependency or model changes require their own review and license notices. Never silently fall back to a cloud model or install an Ollama model. Arbitrary network, filesystem, account and background access are outside the v1 recipe contract.
 
 Use focused tests for a changed behavior, then run the full checks before requesting review:
 

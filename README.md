@@ -10,7 +10,7 @@
 
 Build image workspaces, design utilities, story treatments and creative workflows with a small JavaScript SDK. Start with a working template, customize its recipe, or contribute a new reviewed engine. Use it in your own application or integrate it with [OptimAI Studio](https://optimai.studio/agents).
 
-**[Quickstart](./docs/quickstart.md) · [Browser demo](./examples/browser/README.md) · [Runtime guides](./docs/runtimes.md) · [Contribute](./CONTRIBUTING.md)**
+**[Quickstart](./docs/quickstart.md) · [Canvas demo](./examples/browser/README.md) · [Interactive host example](./examples/interactive/README.md) · [Runtime guides](./docs/runtimes.md) · [Contribute](./CONTRIBUTING.md)**
 
 ## Why build with it?
 
@@ -21,16 +21,17 @@ Build image workspaces, design utilities, story treatments and creative workflow
 
 ## What works today
 
-Version `0.2.0` contains **34 agent templates**. They expose different kinds of capability; a production brief and an executed image processor have different outputs.
+Version `0.3.0` contains **36 agent templates**. They expose different kinds of capability; a production brief and an executed image processor have different outputs.
 
 | Capability | Agents | What you receive | Setup |
 | --- | ---: | --- | --- |
 | Canvas processing | 10 | PNG filters, grids, mockups, typography and composition | Browser; no model or dependency install |
-| Browser vision | 3 | Person cutout, pose landmarks or face landmarks | MediaPipe worker and explicit model download |
+| Browser vision | 3 | Person cutout, pose landmarks or face landmarks | MediaPipe worker and selected-agent model setup |
 | Local writing | 5 | Treatments, cast notes, style briefs, storyboards and prompt alternatives | WebGPU + WebLLM, or an installed local Ollama model |
-| Guided Studio workflows | 16 | Validated production direction for a separate host workflow | Your host's generation or editing integration |
+| Interactive 3D and camera | 4 | Real scene previews, live filters and tracked original avatars | Optional Three.js; MediaPipe for face tracking |
+| Guided Studio workflows | 14 | Validated production direction for a separate host workflow | Your host's generation or editing integration |
 
-The ten canvas agents share eleven operations. Browser vision works on still images; Face Performance returns landmarks and blendshape coefficients. Guided workflows prepare direction rather than implementing video codecs, arbitrary-object editing, face swapping, 3D rendering or a production service.
+The ten canvas agents share eleven operations. Browser vision works on still images; Face Performance returns landmarks and blendshape coefficients. The four interactive agents execute the reusable 3D, camera and avatar engines. The 14 guided entries comprise 12 prompt workflows and two sketch workspaces. Guided workflows prepare direction rather than implementing video codecs, arbitrary-object editing, identity face swapping or a production service.
 
 ## Get started
 
@@ -43,7 +44,7 @@ npm test
 npm run verify
 ```
 
-The core tests, manifest validation and scaffolding need **no dependency installation, API key, model download or Studio account**. Tests use a controlled local HTTP listener; restrictive sandboxes must allow loopback connections.
+The core tests, manifest validation and scaffolding need **no dependency installation, API key, model download or Studio account**. Optional renderer tests run when the reviewed Three.js peer is installed; otherwise they are explicitly skipped. Tests use a controlled local HTTP listener; restrictive sandboxes must allow loopback connections.
 
 The source repository is the current distribution. `@optimai/creative-agents` is its package name; it is not published on npm yet. Browser model integrations install their pinned optional dependencies separately, as described in the [runtime guide](./docs/runtimes.md).
 
@@ -126,15 +127,15 @@ Replace the path with your checkout, then import from `@optimai/creative-agents`
 | ![Image Grid: a local contact sheet](./artwork/image-grid.svg) | ![Motion Pose: body landmarks in a still image](./artwork/motion-pose.svg) | ![Storyboard Builder: a structured scene sequence](./artwork/storyboard-builder.svg) |
 | Canvas · contact-sheet PNG | Browser vision · landmarks and reference PNG | Local model · written storyboard |
 
-See the [full catalog](./docs/catalog.md) for all 34 IDs, their execution paths and output limits. Every agent ships with original, reusable [SVG artwork](./artwork/).
+See the [full catalog](./docs/catalog.md) for all 36 IDs, their execution paths and output limits. Every agent ships with original, reusable [SVG artwork](./artwork/).
 
 Try the agents at [optimai.studio/agents](https://optimai.studio/agents), or read the [Studio builder docs](https://optimai.studio/agents/docs). The local guides below also work without a Studio account.
 
 ## Integrate with your workflow
 
-**Browser applications.** Bundle the canvas, writing or vision entry points into your own workspace. Let users select inputs, run, review, cancel and export. Optional models download only after an explicit action. [Runtime setup →](./docs/runtimes.md)
+**Browser applications.** Bundle the canvas, writing, vision, 3D and camera entry points into your own workspace. Let users select inputs, run, review, cancel and export. On opening a supported agent, the host can use `getModelSetupPolicy` to prepare its reviewed model automatically, with manual setup for Data Saver, slow connections and constrained devices. Camera permission remains an explicit action. [Runtime setup →](./docs/runtimes.md)
 
-**MCP clients.** Launch the local stdio adapter with Node. It exposes all 34 recipes for preparation; writing agents can run only when explicitly requested with an installed model. The adapter implements protocol version `2025-11-25`. [MCP guide →](./docs/mcp.md)
+**MCP clients.** Launch the local stdio adapter with Node. It exposes all 36 recipes for preparation; writing agents can run only when explicitly requested with an installed model. The adapter implements protocol version `2025-11-25`. [MCP guide →](./docs/mcp.md)
 
 **OptimAI Studio.** Import a valid JSON recipe through the local AI Agents builder, or use a reviewed host handoff. Studio's account, generation, billing, persistence and publishing services are separate from this MIT SDK. Importing a recipe does not publish a community listing. [Host integration →](./docs/host-integration.md)
 
@@ -167,6 +168,6 @@ Use [issues](https://github.com/OptimaiNetwork/optimai-creative-agents/issues) f
 
 ## License and acknowledgments
 
-The SDK, examples and original agent artwork are [MIT licensed](./LICENSE). Optional WebLLM and MediaPipe libraries, Qwen weights and vision models retain their upstream licenses; the SDK's license does not replace them.
+The SDK, examples and original agent artwork are [MIT licensed](./LICENSE). Optional Three.js, WebLLM and MediaPipe libraries, Qwen weights and vision models retain their upstream licenses; the SDK's license does not replace them.
 
-We build on the work of [WebLLM](https://github.com/mlc-ai/web-llm), [Qwen](https://github.com/QwenLM/Qwen3.5), [MediaPipe](https://github.com/google-ai-edge/mediapipe) and the [Model Context Protocol](https://modelcontextprotocol.io/). These integrations are independent; their maintainers do not endorse OptimAI. See the [runtime guide](./docs/runtimes.md) for reviewed versions, asset integrity and redistribution notes.
+We build on the work of [WebLLM](https://github.com/mlc-ai/web-llm), [Qwen](https://github.com/QwenLM/Qwen3.5), [MediaPipe](https://github.com/google-ai-edge/mediapipe), [Three.js](https://threejs.org/) and the [Model Context Protocol](https://modelcontextprotocol.io/). These integrations are independent; their maintainers do not endorse OptimAI. See the [runtime guide](./docs/runtimes.md) for reviewed versions, asset integrity and redistribution notes.

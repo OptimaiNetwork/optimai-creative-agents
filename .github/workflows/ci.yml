@@ -35,6 +35,13 @@ jobs:
         run: npm test
       - name: Verify reviewed catalog
         run: npm run verify
+      - name: Install only the pinned optional renderer peer
+        run: |
+          npm install --prefix .cache/renderer-peer --ignore-scripts --no-save --package-lock=false three@0.186.1
+          mkdir -p node_modules
+          ln -s ../.cache/renderer-peer/node_modules/three node_modules/three
+      - name: Test reusable 3D renderer
+        run: node --test test/scene-3d.test.mjs
       - name: Validate example recipes
         run: |
           for manifest in examples/*.agent.json; do

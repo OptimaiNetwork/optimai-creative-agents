@@ -1,14 +1,16 @@
 # Runtimes and model setup
 
-Choose the runtime for the result you need. The canvas SDK runs without a model or external dependency. Vision and browser writing use reviewed optional model runtimes. Node writing uses your own installed Ollama service. Guided recipes prepare direction for a separate host workflow.
+Choose the runtime for the result you need. The canvas SDK runs without a model or external dependency. Vision, tracking and browser writing use reviewed optional model runtimes. Interactive scenes and avatars use the shared Three.js engine. Node writing uses your own installed Ollama service. Guided recipes prepare direction for a separate host workflow.
 
 The examples below use relative imports from an entry file at the cloned repository root. An application can bundle these source modules or use the exported package entry points through a local source dependency; the package is not distributed on npm yet. For a working model-free browser workspace, see [examples/browser](../examples/browser/README.md).
 
 | Runtime | Setup | Output |
 | --- | --- | --- |
 | [Canvas](#canvas-processing) | Local browser; no model or dependency install | PNG images and design artboards |
-| [Browser writing](#browser-writing) | WebGPU, pinned WebLLM dependency, local worker and explicit model download | Validated written documents |
-| [Browser vision](#browser-vision) | Pinned MediaPipe dependency, local WASM/worker and explicit model download | Person cutout PNGs, pose or face landmarks |
+| [Browser writing](#browser-writing) | WebGPU, pinned WebLLM dependency, local worker and selected-agent model setup | Validated written documents |
+| [Browser vision](#browser-vision) | Pinned MediaPipe dependency, local WASM/worker and selected-agent model setup | Person cutout PNGs, pose or face landmarks |
+| [Interactive 3D](#interactive-3d-scenes) | Optional pinned Three.js; browser WebGL | Real scene preview, PNG and scene recipe |
+| [Camera and avatar](#camera-effects-and-face-driven-avatars) | Explicit camera permission; optional pinned face tracking worker | Canvas filters and original avatar rendering |
 | [Local Ollama](#local-ollama-writing) | Already running local service and installed eligible model | Validated written documents |
 | [MCP](./mcp.md) | Node stdio adapter; Ollama only for explicit writing runs | Prepared recipes or local written results |
 
@@ -74,6 +76,35 @@ const output = await runCanvasLab(settings.operation, [], settings, controller.s
 
 The normalizer merges source defaults, maps legacy poster `format` to `ratio`, letter `text` to `title`, `style` to `treatment` and glitch `intensity` to `amount`. Explicit canonical values win. It validates recipe values and the final engine settings. Do not merge defaults into supplied values before calling it: that would conceal whether a canonical setting was explicitly selected. Raw `runCanvasLab` remains available for applications using direct bounded engine settings.
 
+## Selected-agent model setup
+
+`getModelSetupPolicy(model, environment)` is a pure public policy: it never fetches a model, starts a worker or asks for camera permission. A host applies it when the user opens a model-backed agent, then calls the reviewed download/load API in code. This keeps preparation convenient while making size, progress, cancellation and retry visible.
+
+```js
+import { getModelSetupPolicy } from './src/model-setup.mjs';
+import { VISION_MODELS, loadVisionModelBuffer } from './src/vision-runtime.mjs';
+
+const policy = getModelSetupPolicy(VISION_MODELS['face-reference'], {
+  browser: true, webGPU: Boolean(navigator.gpu),
+  saveData: navigator.connection?.saveData,
+  effectiveType: navigator.connection?.effectiveType,
+  deviceMemory: navigator.deviceMemory
+});
+// Always show policy.reason, model size, progress and a Stop control in the host.
+if (policy.mode === 'automatic') {
+  const bytes = await loadVisionModelBuffer('face-reference', {
+    signal: controller.signal, onProgress: progress => showProgress(progress.message)
+  });
+  // Pass these owned verified bytes to the reviewed local tracking worker.
+}
+// manual: display Download and let that click call the same preparation API.
+// unsupported: keep basic filters, procedural demos, canvas tools or guided direction available.
+```
+
+Data Saver and 2G connections use manual setup. Large models also use manual setup on 3G or when reported device memory is below 4 GB. A required but unavailable WebGPU environment is unsupported. Automatic mode prepares only the selected reviewed model; it does not download every catalog model. The host still performs capability checks beyond this coarse policy. Cancel preparation when a workspace closes, preserve its user's input and offer a deliberate retry; cancel is not permission to restart a download automatically.
+
+`downloadVisionModel`, `loadVisionModelBuffer` and browser writer `load()` remain explicit function calls internally. Recipes contain neither download policy nor model/worker URLs. Inference stays separate from setup: preparing a model does not generate a new take, request a camera or trigger paid production.
+
 ## Browser writing
 
 Install the reviewed optional dependency in your isolated browser host:
@@ -82,7 +113,7 @@ Install the reviewed optional dependency in your isolated browser host:
 npm install --save-exact @mlc-ai/web-llm@0.2.85
 ```
 
-Create a local worker entry that imports `WebWorkerMLCEngineHandler` from the installed WebLLM dependency and calls the kit's `attachBrowserWritingWorker(WebWorkerMLCEngineHandler)`. Bundle that entry locally; a recipe cannot supply its own worker URL. The runtime downloads only the configured public Qwen 3.5 0.8B model and matching compiled WebGPU library when `load()` is explicitly called. The first download is approximately **453.2 MB**; HTTPS or localhost, Web Workers, WebGPU with `shader-f16` and sufficient GPU memory are required. The configured context is 4096 tokens, and the official model estimate is approximately 1.63 GB of GPU memory. Device support checks are conservative and cannot guarantee successful allocation on every GPU.
+Create a local worker entry that imports `WebWorkerMLCEngineHandler` from the installed WebLLM dependency and calls the kit's `attachBrowserWritingWorker(WebWorkerMLCEngineHandler)`. Bundle that entry locally; a recipe cannot supply its own worker URL. The runtime downloads only the configured public Qwen 3.5 0.8B model and matching compiled WebGPU library when the host calls `load()`, either automatically after agent selection under the setup policy or through a manual Download control. The first download is approximately **453.2 MB**; HTTPS or localhost, Web Workers, WebGPU with `shader-f16` and sufficient GPU memory are required. The configured context is 4096 tokens, and the official model estimate is approximately 1.63 GB of GPU memory. Device support checks are conservative and cannot guarantee successful allocation on every GPU.
 
 ```js
 import { createBrowserAgentRuntime } from './src/browser-writing-runtime.mjs';
@@ -94,7 +125,7 @@ const writer = createBrowserAgentRuntime({
 });
 const support = await writer.status(); // No engine or model download.
 if (!support.available) throw new Error(support.message);
-await writer.load({ signal: controller.signal }); // Wire to an explicit Download button.
+await writer.load({ signal: controller.signal }); // Host calls this after the setup policy permits preparation.
 const draft = await writer.run({
   templateId: 'story-seed', brief: 'An explorer helps a lost cloud.',
   values: { form: 'manga', style: 'manga' }, signal: controller.signal
@@ -129,7 +160,7 @@ import { downloadVisionModel, runBrowserVision } from './src/vision-runtime.mjs'
 
 const controller = new AbortController();
 const file = imageInput.files[0]; // A local file selected by the user.
-await downloadVisionModel('person-cutout', { signal: controller.signal }); // Explicit Download action.
+await downloadVisionModel('person-cutout', { signal: controller.signal }); // Host policy or manual Download action.
 const result = await runBrowserVision('person-cutout', file, {
   background: 'transparent', threshold: .5, softness: .12
 }, {
@@ -140,11 +171,79 @@ const result = await runBrowserVision('person-cutout', file, {
 console.log(result.blob, result.analysis);
 ```
 
-Person Cutout uses Selfie Segmenter (249,537 bytes) for people in portrait photos. Motion Pose uses Pose Landmarker Lite (5,777,746 bytes) for one person's 33 body landmarks. Face Performance uses Face Landmarker (3,758,596 bytes) for one visible face's 478 landmarks and raw blendshape coefficients. It does not identify people, infer personality or emotions, or swap faces. Model URLs are fixed official Google storage version-1 assets and checked against exact byte lengths and SHA-256 hashes. `getVisionModelStatus()` reads local cache only; `runBrowserVision()` never implicitly downloads a model.
+Person Cutout uses Selfie Segmenter (249,537 bytes) for people in portrait photos. Motion Pose uses Pose Landmarker Lite (5,777,746 bytes) for one person's 33 body landmarks. Face Performance uses Face Landmarker (3,758,596 bytes) for one visible face's 478 landmarks and raw blendshape coefficients. It does not identify people, infer personality or emotions, or swap faces. Model URLs are fixed official Google storage version-1 assets and checked against exact byte lengths and SHA-256 hashes. `getVisionModelStatus()` reads local cache only; `runBrowserVision()` never implicitly downloads a model. `loadVisionModelBuffer()` returns owned verified bytes and can prepare a missing model when `downloadIfMissing: true`; use `false` for cache-only access.
 
 Vision requires HTTPS or localhost, Web Crypto, Web Workers, ImageBitmap, OffscreenCanvas and WASM SIMD support. It uses a CPU worker and does not require WebGPU. Check the target browser before enabling the workspace.
 
 Selected PNG, JPEG and WebP images remain in the browser. Inputs are limited to 20 MiB, 4096 pixels per side and 16 million pixels; analysis and PNG output are scaled to at most 1600 pixels per side. A CPU WASM worker is stopped after 60 seconds or on cancellation. Results depend on subject visibility and the model's training scope; an undetected subject produces a useful error rather than a fabricated landmark result. Raw landmark analysis is available in `result.analysis`; the consumer can create a reviewed JSON export if needed.
+
+## Interactive 3D scenes
+
+Install the optional reviewed peer in the host: `npm install --save-exact three@0.186.1`. TypeScript hosts can install `@types/three@0.186.0` for its declarations. Nothing is fetched by the scene engine itself. Public entry points are `scene-3d` for pure input/settings helpers and `scene-3d-runtime` for the browser renderer. The root manifest entry does not import Three.js.
+
+```js
+import { scene3DRecipeSettings } from './src/scene-3d.mjs';
+import { createScene3DStage } from './src/scene-3d-runtime.mjs';
+
+const recipe = scene3DRecipeSettings('scene-lighting', {
+  demo: 'architecture', lighting: 'sunset', finish: 'original',
+  view: 'iso', focalLength: 50, exposure: 120
+});
+const stage = await createScene3DStage(mountedContainer, recipe.settings, {
+  signal: controller.signal, onError: message => showError(message)
+});
+stage.camera(recipe.camera);
+// A selected self-contained file only; never pass a URL.
+await stage.importGLB(await glbInput.files[0].arrayBuffer(), glbInput.files[0].name);
+const png = await stage.png();
+const recipeJson = stage.configuration();
+// Call stage.dispose() on route/dialog close; this releases GPU objects and controls.
+```
+
+`createScene3DStage()` loads the installed optional peer only when called. A host that already bundles reviewed Three modules can avoid another module loading boundary with synchronous `createScene3DStageWithRuntime(container, settings, onError, { THREE, OrbitControls, GLTFLoader, RoomEnvironment })`. `loadScene3DRuntime()` exposes the same optional peer loader. The [interactive example](../examples/interactive/README.md) demonstrates local dependency injection.
+
+The controller supports `update(settings)`, `demo('sculpture'|'product'|'architecture')`, `camera('isometric'|'front'|'side'|'top')`, `fit()`, `zoom('in'|'out')`, `importGLB(bytes, name)`, `png()`, `configuration()` and `dispose()`. Procedural demos contain original sculpture, headphone and architectural geometry. Materials can remain original or use ceramic, metal or clay; light presets are studio, sunset and neon. Lens controls use real 24–100 mm focal lengths. A portable recipe uses `finish`, `view` and exposure in 25–200 percent; `scene3DRecipeSettings` maps them to material, camera and renderer settings. Saved free-text subject/material fields remain compatible.
+
+`validateAgentGLB()` runs before the glTF loader. It accepts one static embedded scene up to 20 MiB with 300,000 visible vertices, 128 primitives and 256 nodes. It validates accessor storage, indices, finite coordinates and a usable visible scene. Up to eight embedded PNG/JPEG images share a 16-megapixel budget and a 4096-pixel side limit. External/data URLs, compressed decoders, instancing, skins, morph targets and animations are rejected. A failed or late import preserves the prior scene or releases its unused result.
+
+The renderer caps pixel density, renders manual previews only on change, and suspends turntable motion when hidden, offscreen or reduced motion is requested. Exports render the current camera immediately before PNG readback. The scene recipe contains settings and camera state; imported GLB geometry is not included. Keep the original model with it. `dispose()` releases geometry, material, textures, decoded bitmaps, environment/shadow targets, renderer and listeners. These ownership choices follow the [Three glTF loader's bitmap guidance](https://threejs.org/docs/pages/GLTFLoader.html); interaction uses [OrbitControls](https://threejs.org/docs/pages/OrbitControls.html).
+
+## Camera effects and face-driven avatars
+
+`camera-runtime`, `camera-renderer`, `camera-tracking` and `camera-worker` are reusable public modules. They do not import Studio services. The host owns camera permission, selected media decoding, its render loop, snapshot/recording UI and any subsequent handoff. Basic clean/neon/prism/duotone/film canvas effects and the original avatar demo do not require a face-model download. Halo anchoring and face-driven avatar controls use a local Face Landmarker worker.
+
+```js
+import { cameraRecipeSettings, createCameraLease, faceRigAt } from './src/camera-runtime.mjs';
+import { createCameraAvatar, drawCameraEffect, drawFaceHalo } from './src/camera-renderer.mjs';
+import { createFaceTracker } from './src/camera-tracking.mjs';
+import { loadVisionModelBuffer } from './src/vision-runtime.mjs';
+
+const settings = cameraRecipeSettings('avatar-stage', { look: 'orbit', mirror: 'yes' });
+const bytes = await loadVisionModelBuffer('face-reference', { signal: controller.signal });
+let latestFace = null;
+const tracker = await createFaceTracker(bytes, {
+  workerFactory: () => new Worker(new URL('./camera-worker.mjs', import.meta.url), { type: 'module' }),
+  wasmBaseUrl: new URL('./vision-assets/1.1.0', location.href).href,
+  signal: controller.signal, onFace: frame => { latestFace = frame; }, onError: showError
+});
+const avatar = createCameraAvatar(avatarCanvas, settings.look, { THREE });
+const lease = createCameraLease();
+// Wire this to the user's Start camera button, not model preparation.
+const stream = await lease.start(() => navigator.mediaDevices.getUserMedia({
+  video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false
+}));
+if (stream) video.srcObject = stream;
+// In your visible preview loop, first draw video into an unmirrored <=1280×720 input canvas:
+tracker.submit(sourceCanvas, performance.now()); // At most one frame in flight; inference stays in worker.
+avatar.render(faceRigAt(latestFace, performance.now(), settings.mirror));
+// Close/hidden/cancel: tracker.dispose(); avatar.dispose(); lease.close(); cancelAnimationFrame(loop);
+```
+
+The host's same-origin worker entry imports its locally served pinned MediaPipe bundle, then calls `installCameraWorker(vision)`. Use `loadVisionModelBuffer('face-reference')` to obtain cache-first verified bytes; the camera worker checks the exact model length and SHA-256 again before creating the task. `createFaceTracker` transfers ownership of the buffer to the worker. Worker and WASM paths are trusted host code; they must not come from recipe values. Its processing canvas is 640 × 360, face frames are compact, and the tracking pipeline keeps one bitmap/inference in flight at a 100 ms interval. Missing or stale faces return neutral rig values rather than retaining a previous person's motion.
+
+`drawCameraSource` performs a cover crop; `drawCameraEffect` draws selected filters; `drawFaceHalo` draws landmark-aligned graphics. `faceRigFromFrame`, `smoothFaceRig` and `faceRigAt` map bounded transform/blendshape data into an original procedural avatar. Mirroring is applied after inference. Live camera access requires HTTPS/localhost and explicit browser permission, as documented by [getUserMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia). Face Landmarker calls are synchronous, so this implementation follows [Google's Web Worker recommendation](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/web_js).
+
+The public camera engines render canvases, not a finished recording container. A host can capture snapshots or use a browser-supported `MediaRecorder` on the canvas stream, enforce its recording duration/size limits and offer an explicit download. Studio's host limits recording to 30 seconds/32 MiB. It requests no microphone track for this feature. These effects are not identity face swaps, emotion detection or a guarantee of frame-rate on every device. Stop all camera tracks when the workspace closes or becomes hidden, including late permission responses; `createCameraLease` handles that late-response ownership.
 
 ## Local Ollama writing
 
@@ -230,7 +329,7 @@ Serve this entry and the static dependency assets on the host's own origin. The 
 | --- | --- |
 | Canvas preview fails | Serve the repository over localhost; use a real PNG, JPEG or WebP within the documented pixel limits. |
 | Browser writer is unavailable | Check secure context, WebGPU with `shader-f16`, workers and available GPU memory. No remote fallback is enabled. |
-| Vision says a model is missing | Download the selected reviewed model explicitly in this browser before running it. |
+| Vision says a model is missing | Check selected-agent setup progress, or use Download after Data Saver/manual setup. Cache-only loading cannot download it. |
 | MediaPipe WASM fails to load | Serve the pinned native bundle and its WASM files together on the same origin; preserve its variable imports. |
 | Ollama is unavailable | Start the service outside this SDK and use a literal-loopback endpoint. `localhost` is deliberately rejected by the Node runtime. |
 | A writing run fails validation | Try a shorter brief or another eligible installed model. Invalid output is reported after one bounded repair attempt. |

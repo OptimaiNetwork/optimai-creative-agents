@@ -1,6 +1,6 @@
 {
   "name": "@optimai/creative-agents",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "OptimAI Creative Agents: local-first browser AI, creative workflows and a community builder SDK",
   "type": "module",
   "private": true,
@@ -50,7 +50,35 @@
       "import": "./src/vision-processor.mjs"
     },
     "./schema": "./schema/agent-manifest.schema.json",
-    "./legacy-tool-schema": "./schema/tool-manifest.schema.json"
+    "./legacy-tool-schema": "./schema/tool-manifest.schema.json",
+    "./scene-3d": {
+      "types": "./src/scene-3d.d.mts",
+      "import": "./src/scene-3d.mjs"
+    },
+    "./scene-3d-runtime": {
+      "types": "./src/scene-3d-runtime.d.mts",
+      "import": "./src/scene-3d-runtime.mjs"
+    },
+    "./camera-runtime": {
+      "types": "./src/camera-runtime.d.mts",
+      "import": "./src/camera-runtime.mjs"
+    },
+    "./camera-tracking": {
+      "types": "./src/camera-tracking.d.mts",
+      "import": "./src/camera-tracking.mjs"
+    },
+    "./camera-renderer": {
+      "types": "./src/camera-renderer.d.mts",
+      "import": "./src/camera-renderer.mjs"
+    },
+    "./camera-worker": {
+      "types": "./src/camera-worker.d.mts",
+      "import": "./src/camera-worker.mjs"
+    },
+    "./model-setup": {
+      "types": "./src/model-setup.d.mts",
+      "import": "./src/model-setup.mjs"
+    }
   },
   "files": [
     "src",
@@ -68,13 +96,17 @@
   ],
   "peerDependencies": {
     "@mlc-ai/web-llm": "0.2.85",
-    "@mediapipe/tasks-vision": "1.1.0"
+    "@mediapipe/tasks-vision": "1.1.0",
+    "three": "0.186.1"
   },
   "peerDependenciesMeta": {
     "@mlc-ai/web-llm": {
       "optional": true
     },
     "@mediapipe/tasks-vision": {
+      "optional": true
+    },
+    "three": {
       "optional": true
     }
   },

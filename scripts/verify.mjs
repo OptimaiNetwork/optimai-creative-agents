@@ -2,9 +2,10 @@
 import { AGENT_CATALOG, validateAgentManifest, verifyRegistry } from '../src/index.mjs';
 import { readAgentManifest } from './cli-input.mjs';
 const capability = agent => agent.workspace.kind === 'canvas' ? `browser canvas ${agent.workspace.operation}`
-  : agent.workspace.kind === 'vision' ? `browser vision ${agent.workspace.operation} (explicit model download)`
+  : agent.workspace.kind === 'vision' ? `browser vision ${agent.workspace.operation} (verified on-device model)`
   : agent.workspace.kind === 'writing' ? 'browser writing AI or installed Ollama model'
   : agent.workspace.kind === 'sketch' ? `browser drawing + ${agent.studioMode} Studio guided workflow`
+  : ['3d', 'camera'].includes(agent.workspace.kind) ? `interactive browser ${agent.workspace.kind} ${agent.workspace.operation} (host permission controls)`
   : `${agent.studioMode} Studio guided workflow`;
 const path = process.argv[2];
 try {

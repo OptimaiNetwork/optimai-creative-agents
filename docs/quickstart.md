@@ -13,7 +13,7 @@ node --version
 npm run verify
 ```
 
-Verification should begin with `Validated 34 reviewed agent templates.` and list each template's actual capability. These commands run from the repository root throughout this guide. You do not need the Studio source repository. The package is not currently published to npm; `npm install @optimai/creative-agents` is not the onboarding path.
+Verification should begin with `Validated 36 reviewed agent templates.` and list each template's actual capability. These commands run from the repository root throughout this guide. You do not need the Studio source repository. The package is not currently published to npm; `npm install @optimai/creative-agents` is not the onboarding path.
 
 ## 2. Scaffold Cloud Companion
 
