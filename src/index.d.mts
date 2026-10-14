@@ -12,6 +12,8 @@ export type AgentWorkspace = (
   | { readonly kind: 'sketch'; readonly operation: 'draw' }
   | { readonly kind: '3d'; readonly operation: 'scene' }
   | { readonly kind: 'camera'; readonly operation: 'effects' | 'avatar' }
+  | { readonly kind: 'music'; readonly operation: 'reactive' }
+  | { readonly kind: 'frame'; readonly operation: 'sculpture' }
   | { readonly kind: 'workflow' }
 ) & { readonly headline?: string };
 export interface ToolField {
@@ -57,7 +59,7 @@ export type AgentTemplate = ToolTemplate;
 export type AgentManifest = ToolManifest;
 export type AgentManifestValidation = ManifestValidation;
 export declare const MANIFEST_VERSION: '1.0';
-export declare const AGENT_WORKSPACE_CONTRACT_VERSION: '1.1';
+export declare const AGENT_WORKSPACE_CONTRACT_VERSION: '1.2';
 export declare const MAX_PROMPT_LENGTH: number;
 export declare const TOOL_CATALOG: readonly ToolTemplate[];
 export declare const AGENT_CATALOG: readonly AgentTemplate[];

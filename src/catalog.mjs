@@ -21,6 +21,14 @@ const template = (id, title, sourceTemplate, category, icon, accent, description
 });
 
 export const catalog = [
+  template('music-reactive', 'Sound Canvas', 'Music-reactive visual performance', 'experimental', 'music', '#a8a1ff',
+    'Let your song shape a living visual world. Preview four reactive looks and export a full music visualizer on your device.',
+    'Prepare a music-reactive visualizer. Keep the selected original song intact. Local preview and export use measured audio spectrum; this recipe does not infer beat timestamps or generate footage.',
+    [], { runtime: 'local', executionKind: 'browser-interactive', studioMode: 'editor', workspace: { kind: 'music', operation: 'reactive' }, tags: ['music', 'audio', 'visualizer', 'spectrum', 'video', 'performance', 'local'] }),
+  template('frame-sculpture', 'Frame Sculpture', 'Video frame sculpture', 'experimental', 'layers', '#f4b783',
+    'Turn actual frames from a short clip into an interactive 2.5D sculpture. Shape its spacing and perspective, then capture your composition.',
+    'Prepare a composition from the selected video frames. Keep their appearance intact. This is a layered 2.5D frame sculpture, not a reconstructed 3D scene.',
+    [], { runtime: 'local', executionKind: 'browser-interactive', studioMode: 'image', workspace: { kind: 'frame', operation: 'sculpture' }, tags: ['3d', 'video', 'frames', 'sculpture', 'composition', '2.5d', 'local'] }),
   template('sketch-to-scene', 'Sketch to Scene', 'Simple Sketch', 'image', 'pencil', '#f2b96d',
     'Turn a selected drawing into a finished image with your chosen visual direction.',
     'Develop the selected sketch into a finished image. Preserve its composition and recognizable shapes. Visual direction: {{style}}. Material: {{material}}.',

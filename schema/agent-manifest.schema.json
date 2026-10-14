@@ -82,6 +82,52 @@
           ],
           "properties": {
             "templateId": {
+              "const": "music-reactive"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
+              "const": "frame-sculpture"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
               "const": "sketch-to-scene"
             },
             "brief": {
@@ -1814,6 +1860,58 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "music-reactive"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "frame-sculpture"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "experimental"
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": {

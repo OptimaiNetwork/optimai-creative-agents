@@ -10,12 +10,12 @@ function run(messages) {
   assert.equal(result.status, 0, result.stderr);
   return result.stdout.trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
 }
-test('stdio MCP initializes, lists exactly 36 tools and prepares a structured recipe', () => {
+test('stdio MCP initializes, lists exactly 38 tools and prepares a structured recipe', () => {
   const results = run([initialize, ready, { jsonrpc: '2.0', id: 2, method: 'tools/list' }, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'optimai.image-finish', arguments: { values: { preset: 'noir', intensity: 80 }, brief: 'A calm portrait.' } } }]);
   assert.equal(results.length, 3, 'notifications have no response');
   assert.equal(results[0].result.protocolVersion, '2025-11-25');
   assert.equal(results[0].result.serverInfo.version, '0.3.0');
-  assert.equal(results[1].result.tools.length, 36);
+  assert.equal(results[1].result.tools.length, 38);
   assert.equal(results[2].result.structuredContent.localOperation, 'image-filter');
   assert.deepEqual(results[2].result.structuredContent.workspace, { kind: 'canvas', operation: 'image-filter' });
   assert.equal(results[2].result.structuredContent.values.preset, 'noir');
@@ -38,7 +38,7 @@ test('MCP handles malformed JSON, unknown notifications and fixed protocol negot
 test('every MCP tool can prepare a default recipe without performing host actions', () => {
   const listed = run([initialize, ready, { jsonrpc: '2.0', id: 2, method: 'tools/list' }])[1].result.tools;
   const results = run([initialize, ready, ...listed.map((tool, index) => ({ jsonrpc: '2.0', id: index + 2, method: 'tools/call', params: { name: tool.name, arguments: {} } }))]);
-  assert.equal(results.length, 37);
+  assert.equal(results.length, 39);
   assert.ok(results.slice(1).every((result) => result.result.isError === false && result.result.structuredContent.prompt.length < 12000));
 });
 test('MCP does not coerce explicit null arguments, settings or brief to valid defaults', () => {

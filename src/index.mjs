@@ -3,7 +3,7 @@ import { catalog } from './catalog.mjs';
 export const MANIFEST_VERSION = '1.0';
 // Bundled workspace metadata is separate from the portable recipe format.
 // Hosts keep their own adapter allowlist and promote reviewed source revisions.
-export const AGENT_WORKSPACE_CONTRACT_VERSION = '1.1';
+export const AGENT_WORKSPACE_CONTRACT_VERSION = '1.2';
 export const MAX_PROMPT_LENGTH = 12000;
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const DANGEROUS_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
@@ -30,6 +30,8 @@ const WORKSPACE_OPERATIONS = Object.freeze({
   sketch: ['draw'],
   '3d': ['scene'],
   camera: ['effects', 'avatar'],
+  music: ['reactive'],
+  frame: ['sculpture'],
   workflow: [],
 });
 /** Check source-owned workspace data without accepting code, URLs or privileges. */
@@ -213,8 +215,8 @@ export function verifyRegistry() {
       || (tool.executionKind === 'local-model' && (tool.category !== 'writing' || tool.localOperation !== 'prompt-builder'))
       || (tool.executionKind === 'browser' && (tool.runtime !== 'local' || tool.localOperation === 'prompt-builder'))
       || (tool.executionKind === 'studio-guided' && tool.runtime !== 'studio')
-      || (tool.executionKind === 'browser-interactive' && (tool.runtime !== 'local' || !['3d', 'camera'].includes(tool.workspace?.kind) || tool.localOperation !== undefined))) errors.push(`${tool.id}: execution kind does not match its reviewed capability.`);
-    if (['3d', 'camera'].includes(tool.workspace?.kind) && tool.executionKind !== 'browser-interactive') errors.push(`${tool.id}: interactive workspace requires its browser engine.`);
+      || (tool.executionKind === 'browser-interactive' && (tool.runtime !== 'local' || !['3d', 'camera', 'music', 'frame'].includes(tool.workspace?.kind) || tool.localOperation !== undefined))) errors.push(`${tool.id}: execution kind does not match its reviewed capability.`);
+    if (['3d', 'camera', 'music', 'frame'].includes(tool.workspace?.kind) && tool.executionKind !== 'browser-interactive') errors.push(`${tool.id}: interactive workspace requires its browser engine.`);
     errors.push(...validateAgentWorkspace(tool.workspace).map(error => `${tool.id}: ${error}`));
     if (tool.workspace?.kind === 'writing' && (tool.executionKind !== 'local-model' || tool.workspace.operation !== tool.id)
       || tool.executionKind === 'local-model' && tool.workspace?.kind !== 'writing') errors.push(`${tool.id}: writing workspace must match its implemented output contract.`);

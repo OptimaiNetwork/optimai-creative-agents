@@ -41,7 +41,7 @@ Treat recipe metadata, compiled prompts and model output as untrusted plain text
 
 ## Dispatch a reviewed operation
 
-Use the source catalog's versioned `workspace` descriptor to select an adapter your application already bundles. `getAgentWorkspace(id)` returns its `kind`, reviewed `operation` and optional presentation `headline`; `AGENT_WORKSPACE_CONTRACT_VERSION` is `1.1`; the v1 recipe schema remains unchanged. Template titles, descriptions, fields and artwork remain public presentation data. Legacy `executionKind` and `runtime` exports are retained for older consumers.
+Use the source catalog's versioned `workspace` descriptor to select an adapter your application already bundles. `getAgentWorkspace(id)` returns its `kind`, reviewed `operation` and optional presentation `headline`; `AGENT_WORKSPACE_CONTRACT_VERSION` is `1.2`; the v1 recipe schema remains unchanged. Template titles, descriptions, fields and artwork remain public presentation data. Legacy `executionKind` and `runtime` exports are retained for older consumers.
 
 Keep a host-owned allowlist of supported workspace versions and operations. The catalog can describe an operation, but it cannot install an adapter in a running application. A new template that reuses a supported operation can appear and open its workspace after a reviewed SDK upgrade; a new operation or custom interface needs integration and testing first.
 
@@ -157,3 +157,5 @@ Canvas and model runtimes do not need a Studio account. If your application hand
 Keep stable agent IDs and increment a recipe's `version` when releasing a revision. A breaking manifest format needs a new `schemaVersion` and a deliberate migration. Legacy Tool-named exports and manifests remain aliases of the v1 Agent contract, so saved recipes can reopen.
 
 Unknown template IDs are rejected. JSON import cannot install a new capability; new source requires maintainer review and a host that bundles it. Follow [CONTRIBUTING.md](../CONTRIBUTING.md#new-reviewed-operations) for source changes, including generated schemas, model/dependency licenses and hardware requirements.
+
+The `music/reactive` and `frame/sculpture` adapters are installed with workspace contract 1.2. See [music and motion engines](./MUSIC-MOTION.md) for their host lifecycle and export contracts.
