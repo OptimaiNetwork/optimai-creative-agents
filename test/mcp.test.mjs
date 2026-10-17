@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const server = fileURLToPath(new URL('../src/mcp-server.mjs', import.meta.url));
 const initialize = { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1.0.0' } } };
@@ -14,7 +15,7 @@ test('stdio MCP initializes, lists exactly 38 tools and prepares a structured re
   const results = run([initialize, ready, { jsonrpc: '2.0', id: 2, method: 'tools/list' }, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'optimai.image-finish', arguments: { values: { preset: 'noir', intensity: 80 }, brief: 'A calm portrait.' } } }]);
   assert.equal(results.length, 3, 'notifications have no response');
   assert.equal(results[0].result.protocolVersion, '2025-11-25');
-  assert.equal(results[0].result.serverInfo.version, '0.3.0');
+  assert.equal(results[0].result.serverInfo.version, JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);
   assert.equal(results[1].result.tools.length, 38);
   assert.equal(results[2].result.structuredContent.localOperation, 'image-filter');
   assert.deepEqual(results[2].result.structuredContent.workspace, { kind: 'canvas', operation: 'image-filter' });

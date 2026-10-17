@@ -57,6 +57,10 @@ Open a pull request from your branch to `main` in [OptimaiNetwork/optimai-creati
 
 A recipe PR reuses reviewed code. A new operation needs SDK source, declarations, contract and schema updates, meaningful tests and documentation. Merging source does not automatically deploy it to every host; a host must ship the reviewed version before the capability can execute there.
 
+## SDK 0.4.0
+
+Workspace contract 1.2 adds the `music:reactive` (Sound Canvas) and `frame:sculpture` (Frame Sculpture) engines, bringing the catalog to 38 templates: 10 canvas, 3 vision, 5 writing, 6 interactive and 14 guided entries. Both use selected local media, need no model download, and require a host adapter before they can run. See [music and motion](./MUSIC-MOTION.md). Day-to-day changes are listed in the [changelog](../CHANGELOG.md).
+
 ## SDK 0.3.0 and Studio promotion
 
 This release extends the public workspace contract to 1.1 for real `3d:scene`, `camera:effects` and `camera:avatar` engines. The catalog has 36 templates: 10 canvas, 3 vision, 5 writing, 4 interactive and 14 guided entries (12 workflows and two sketches). The v1 portable manifest format and legacy Tool aliases stay compatible. Titles, descriptions, workspace headlines, fields and artwork ship from the reviewed package. Canvas composition defaults now honor saved recipe values and normalize legacy aliases; existing v1 fields and Tool aliases remain accepted. MCP preparation includes the workspace descriptor alongside its legacy metadata. Camera rendering, tracker workers, verified model buffers, model-setup policy and 3D rendering belong to the public reusable SDK; private Studio services remain outside it.

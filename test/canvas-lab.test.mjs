@@ -197,3 +197,28 @@ test('empty or oversized exports fail safely and an already aborted run opens no
     assert.equal(h.calls.canvases.length, 0); assert.equal(h.calls.bitmaps.length, 0);
   });
 });
+
+test('compositions crop each image toward its subject, and crop: center opts out', async () => {
+  const previous = globalThis.OffscreenCanvas;
+  globalThis.OffscreenCanvas = class {
+    constructor(width, height) { this.width = width; this.height = height; }
+    getContext() { return { drawImage() {}, getImageData(x, y, width, height) {
+      const data = new Uint8ClampedArray(width * height * 4);
+      for (let index = 0; index < width * height; index++) data.set(index % width < width * .14 ? (index % 3 ? [240, 80, 50, 255] : [250, 220, 90, 255]) : [120, 124, 122, 255], index * 4);
+      return { data };
+    } }; }
+  };
+  try {
+    assert.equal(canvasLabSettings('poster').crop, 'smart');
+    assert.throws(() => canvasLabSettings('poster', { crop: 'faces' }), /supported crop/);
+    await canvasHarness(async h => {
+      await runCanvasLab('poster', [image()], { ratio: '1:1' });
+      const focused = h.calls.draw.filter(call => call.canvas === h.calls.canvases.at(-1));
+      assert.equal(focused[0].args.length, 9);
+      assert.equal(focused[0].args[1], 0, 'A left-hand subject keeps the crop at the left edge.');
+      await runCanvasLab('poster', [image()], { ratio: '1:1', crop: 'center' });
+      assert.equal(h.calls.draw.filter(call => call.canvas === h.calls.canvases.at(-1))[0].args.length, 5);
+      assert.ok(h.calls.bitmaps.every(value => value.closed === 1));
+    });
+  } finally { if (previous === undefined) delete globalThis.OffscreenCanvas; else globalThis.OffscreenCanvas = previous; }
+});

@@ -1,3 +1,4 @@
+import { analyzeImageFocus, focusCoverRect } from './smart-crop.mjs';
 export const LOCAL_IMAGE_LIMITS = Object.freeze({
     files: 8,
     bytes: 20 * 1024 * 1024,
@@ -227,7 +228,18 @@ async function loadLocalImage(file, signal) {
             image.src = url;
     });
 }
-function drawFit(context, image, x, y, width, height, fit) {
+function drawFit(context, image, x, y, width, height, fit, crop = 'smart') {
+    // Matching aspects leave nothing to crop, so they skip the pixel read.
+    if (fit !== 'contain' && crop === 'smart' && Math.abs(image.width * height - width * image.height) > 1e-6 * image.height * height) {
+        // Read interest once per decoded image; null keeps the centred crop.
+        if (image.focus === undefined)
+            image.focus = analyzeImageFocus(image.source, image.width, image.height);
+        if (image.focus) {
+            const area = focusCoverRect(image.width, image.height, width, height, image.focus);
+            context.drawImage(image.source, area.x, area.y, area.width, area.height, x, y, width, height);
+            return;
+        }
+    }
     const scale = fit === 'contain' ? Math.min(width / image.width, height / image.height) : Math.max(width / image.width, height / image.height);
     const drawnWidth = image.width * scale, drawnHeight = image.height * scale;
     context.save();
@@ -354,13 +366,14 @@ export async function runLocalTool(operation, files, values, signal) {
         else if (operation === 'image-resize') {
             context.fillStyle = colorValue(values, 'background', '#101312');
             context.fillRect(0, 0, size.width, size.height);
-            drawFit(context, images[0], 0, 0, size.width, size.height, optionValue(values, 'fit', 'cover', ['cover', 'contain']));
+            drawFit(context, images[0], 0, 0, size.width, size.height, optionValue(values, 'fit', 'cover', ['cover', 'contain']), optionValue(values, 'crop', 'smart', ['smart', 'center']));
         }
         else if (operation === 'image-grid') {
             const layout = gridLayout(images, values);
+            const crop = optionValue(values, 'crop', 'smart', ['smart', 'center']);
             context.fillStyle = colorValue(values, 'background', '#101312');
             context.fillRect(0, 0, size.width, size.height);
-            images.forEach((image, index) => drawFit(context, image, (index % layout.columns) * (layout.cellWidth + layout.gap), Math.floor(index / layout.columns) * (layout.cellHeight + layout.gap), layout.cellWidth, layout.cellHeight, 'cover'));
+            images.forEach((image, index) => drawFit(context, image, (index % layout.columns) * (layout.cellWidth + layout.gap), Math.floor(index / layout.columns) * (layout.cellHeight + layout.gap), layout.cellWidth, layout.cellHeight, 'cover', crop));
         }
         else {
             context.drawImage(images[0].source, 0, 0, size.width, size.height);

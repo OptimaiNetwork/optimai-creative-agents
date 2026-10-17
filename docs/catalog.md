@@ -1,6 +1,6 @@
 # Agent catalog
 
-Choose a template by the result its reviewed implementation produces. The current catalog has **36 templates: 10 canvas, 3 browser vision, 5 writing, 4 interactive and 14 guided entries**. Every template can prepare a prompt; execution uses the runtime listed below.
+Choose a template by the result its reviewed implementation produces. The current catalog has **38 templates: 10 canvas, 3 browser vision, 5 writing, 6 interactive and 14 guided entries**. Every template can prepare a prompt; execution uses the runtime listed below.
 
 These groups follow each template's versioned `workspace` descriptor. The SDK exposes `getAgentWorkspace(id)` for dispatch and derives `CANVAS_LAB_AGENTS` from the same catalog. The two sketch workspaces include browser drawing before guided production; the other 12 guided templates prepare direction directly. Display categories and legacy `runtime` and `executionKind` metadata remain compatible with older recipes. Hosts maintain their own supported-operation allowlist as described in [host integration](./host-integration.md).
 
@@ -59,9 +59,9 @@ The result includes a title, summary, sections and a prompt to review before a p
 
 The runtimes validate structure and task-specific content, allow one bounded repair attempt and report failure when the model still returns invalid output. Model choice and hardware affect speed and creative quality. Review the result before using it for production. Recipe preparation with `compileAgentPrompt` works without a model, as shown in the [quickstart](./quickstart.md).
 
-## Interactive 3D, camera and avatars
+## Interactive 3D, camera, avatars, music and frames
 
-These four templates use shared public engines rather than preparing direction alone. A host owns the interface and its camera permission, recording, selected input and export actions. See the [interactive runtime guide](./runtimes.md#interactive-3d-scenes) and [runnable host example](../examples/interactive/README.md).
+These six templates use shared public engines rather than preparing direction alone. A host owns the interface and its camera permission, recording, selected input and export actions. See the [interactive runtime guide](./runtimes.md#interactive-3d-scenes) and [runnable host example](../examples/interactive/README.md).
 
 | Agent | Template ID | Workspace | Actual result |
 | --- | --- | --- | --- |
@@ -69,6 +69,8 @@ These four templates use shared public engines rather than preparing direction a
 | Scene Lighting | `scene-lighting` | `3d:scene` | Architectural scene with adjustable key light, atmosphere and camera framing; same real scene engine |
 | Camera Stage | `camera-stage` | `camera:effects` | Local webcam or selected image/video filters, with optional tracked halo; canvas output |
 | Avatar Stage | `avatar-stage` | `camera:avatar` | Original procedural 3D avatar driven by local face geometry/blendshapes, or an animated demo |
+| Sound Canvas | `music-reactive` | `music:reactive` | Four original looks driven by a selected song's analyser data; still PNG or host-recorded visualizer |
+| Frame Sculpture | `frame-sculpture` | `frame:sculpture` | Real frames sampled from a short local clip, arranged as an interactive 2.5D sculpture; PNG and composition record |
 
 `scene3DRecipeSettings(id, values)` maps `demo`, `lighting`, `finish`, `view`, lens and exposure into actual engine settings. `cameraRecipeSettings(id, values)` maps effect, look, intensity and mirror controls. Neither recipe can provide a model URL, decoder, renderer script or worker path. Three.js is an optional pinned peer. Face tracking reuses the pinned, verified Face Landmarker in a local CPU worker; basic filters and the avatar demo work without a downloaded face model.
 
@@ -107,4 +109,4 @@ node --input-type=module -e 'import { getAgentTemplate } from "./src/index.mjs";
 
 Scaffold a recipe with a known template ID, then validate the resulting JSON. [Create your first recipe](./quickstart.md) walks through those steps. Unknown template IDs and settings are rejected; new capabilities require a reviewed source contribution following [CONTRIBUTING.md](../CONTRIBUTING.md#new-reviewed-operations).
 
-The [MCP adapter](./mcp.md) exposes all 36 template names. It prepares recipes by default and supports explicit local Ollama execution for the five writers. Canvas and vision execute through a browser host. Sharing source or importing recipe JSON does not create a public catalog listing; see [release and review](./release-and-feature.md).
+The [MCP adapter](./mcp.md) exposes all 38 template names. It prepares recipes by default and supports explicit local Ollama execution for the five writers. Canvas and vision execute through a browser host. Sharing source or importing recipe JSON does not create a public catalog listing; see [release and review](./release-and-feature.md).

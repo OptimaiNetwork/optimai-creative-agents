@@ -20,7 +20,10 @@ export declare function getToolOutputSize(
     values?: LocalToolValues,
 ): LocalImageSize;
 
-/** Run only a reviewed local operation, returning a downloadable PNG without network access. */
+/**
+ * Run only a reviewed local operation, returning a downloadable PNG without network access.
+ * Cover fits (resize and grid) use focus-aware cropping by default; pass `crop: 'center'` to opt out.
+ */
 export declare function runLocalTool(
     operation: LocalToolOperation,
     files: File[],

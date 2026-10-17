@@ -204,3 +204,46 @@ test('export failures and export cancellation do not keep canvas buffers or bitm
         assert.equal(h.canvas.width, 0);
     }, { toBlob: callback => callback(new Blob([new Uint8Array(20 * 1024 * 1024 + 1)])) });
 });
+
+/** An OffscreenCanvas reader whose thumbnail has a detailed subject on the far right. */
+function withFocusReader(run) {
+    const previous = globalThis.OffscreenCanvas;
+    globalThis.OffscreenCanvas = class {
+        constructor(width, height) { this.width = width; this.height = height; }
+        getContext() {
+            return { drawImage() {}, getImageData(x, y, width, height) {
+                const data = new Uint8ClampedArray(width * height * 4);
+                for (let index = 0; index < width * height; index++) {
+                    const column = index % width, subject = column >= width * .86;
+                    data.set(subject ? (index % 3 ? [240, 80, 50, 255] : [250, 220, 90, 255]) : [120, 124, 122, 255], index * 4);
+                }
+                return { data };
+            } };
+        }
+    };
+    return Promise.resolve(run()).finally(() => { if (previous === undefined) delete globalThis.OffscreenCanvas; else globalThis.OffscreenCanvas = previous; });
+}
+
+let decoded = 0;
+const mixedSizes = { createImageBitmap: async () => (decoded++ % 2 ? { width: 300, height: 600, close() {} } : { width: 600, height: 300, close() {} }) };
+test('cover resize and grid keep the subject in frame, with an explicit centred option', async () => withFocusReader(() => browserHarness(async h => {
+    await runtime.runLocalTool('image-resize', [image()], { width: 300, height: 300 });
+    assert.deepEqual(h.calls.draw[0].slice(1), [300, 0, 300, 300, 0, 0, 300, 300], 'A 600×300 source crops toward its right-hand subject.');
+    h.calls.draw.length = 0;
+    await runtime.runLocalTool('image-resize', [image()], { width: 300, height: 300, crop: 'center' });
+    assert.deepEqual(h.calls.draw[0].slice(1), [-150, 0, 600, 300], 'crop: center keeps the classic cover transform.');
+    h.calls.draw.length = 0;
+    await runtime.runLocalTool('image-resize', [image()], { width: 300, height: 300, fit: 'contain' });
+    assert.equal(h.calls.draw.at(-1).length, 5, 'contain never crops.');
+    await runtime.runLocalTool('image-resize', [image()], { width: 1200, height: 600 });
+    assert.equal(h.calls.draw.at(-1).length, 5, 'A matching aspect has nothing to crop and skips analysis.');
+    await assert.rejects(runtime.runLocalTool('image-resize', [image()], { width: 300, crop: 'faces' }), /supported crop/);
+})));
+
+test('grid cells crop a differently shaped image toward its subject', async () => withFocusReader(() => browserHarness(async h => {
+    decoded = 0;
+    await runtime.runLocalTool('image-grid', [image(), image()], { columns: 2, gap: 0 });
+    assert.equal(h.calls.draw.length, 2);
+    assert.equal(h.calls.draw[0].length, 5, 'The first image sets the cell shape, so it is not cropped.');
+    assert.equal(h.calls.draw[1].length, 9, 'The portrait image is cropped to the landscape cell.');
+}, mixedSizes)));

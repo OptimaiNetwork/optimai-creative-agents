@@ -8,7 +8,7 @@ Start with a **recipe** when an existing template already does the job. A recipe
 
 | Goal | Guide | What you will finish with |
 | --- | --- | --- |
-| Choose a capability | [Agent catalog](./catalog.md) | All 36 templates, their execution paths and actual outputs |
+| Choose a capability | [Agent catalog](./catalog.md) | All 38 templates, their execution paths and actual outputs |
 | Create your first recipe | [Quickstart](./quickstart.md) | A validated manga-planning recipe and its prepared prompt, with no model required |
 | Run a browser tool or add optional local AI | [Runtime guide](./runtimes.md) | The correct API, requirements and output for each runtime |
 | Embed recipes in your own application | [Host integration](./host-integration.md) | Validation, reviewed dispatch, selected inputs and portable export |
@@ -18,7 +18,7 @@ Start with a **recipe** when an existing template already does the job. A recipe
 
 ## What runs today
 
-The catalog contains 36 reviewed templates: 10 canvas, 3 browser vision, 5 writing, 4 interactive 3D/camera and 14 guided entries (12 workflows and two sketches). Canvas tools export still-image PNGs. Vision, camera tracking and browser writing use the selected-agent setup policy: supported devices prepare reviewed models automatically; Data Saver and constrained connections offer manual setup; writing can also use an eligible model already installed in a local Ollama service. A guided workflow prepares a brief rather than generating its final media.
+The catalog contains 38 reviewed templates: 10 canvas, 3 browser vision, 5 writing, 6 interactive (3D, camera, music and frames) and 14 guided entries (12 workflows and two sketches). Canvas tools export still-image PNGs. Vision, camera tracking and browser writing use the selected-agent setup policy: supported devices prepare reviewed models automatically; Data Saver and constrained connections offer manual setup; writing can also use an eligible model already installed in a local Ollama service. A guided workflow prepares a brief rather than generating its final media.
 
 The core manifest, canvas and Ollama SDKs use no package dependencies. Browser writing, vision and 3D use pinned optional dependencies installed by the host. The real 3D scene, camera effects, face worker and avatar renderers are public modules shared with Studio. The package has no Studio account system, billing, project database or private asset library.
 

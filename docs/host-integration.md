@@ -91,7 +91,7 @@ Recipe fields and direct engine settings can differ. Use `canvasLabRecipeSetting
 
 ## Normalize portable interactive recipes
 
-`3d:scene`, `camera:effects` and `camera:avatar` are source-reviewed bindings in workspace contract 1.1. Keep these operations on the host allowlist; an untrusted recipe cannot add another binding. Studio consumes the same public engine modules through thin adapters. Its dialog layout, account state, asset picker, credits and production services remain private host code.
+`3d:scene`, `camera:effects` and `camera:avatar` (workspace contract 1.1), and `music:reactive` and `frame:sculpture` (contract 1.2) are source-reviewed bindings. Keep these operations on the host allowlist; an untrusted recipe cannot add another binding. Studio consumes the same public engine modules through thin adapters. Its dialog layout, account state, asset picker, credits and production services remain private host code.
 
 ```js
 import { getAgentWorkspace, validateAgentManifest } from './src/index.mjs';

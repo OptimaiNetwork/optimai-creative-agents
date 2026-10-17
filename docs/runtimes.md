@@ -44,11 +44,11 @@ The engine accepts actual local `File` objects only. PNG, JPEG and WebP signatur
 | Operation | Settings |
 | --- | --- |
 | `image-filter` | `preset`: original, noir, warm, cool or punchy; `intensity`: 0–100 |
-| `image-resize` | `width`, `height`: positive integers up to 4096; `ratio`: original, 1:1, 16:9, 9:16 or 4:5; `fit`: cover or contain; `background`: hex color |
-| `image-grid` | `columns`: 1–4; `gap`: 0–80 pixels; `background`: hex color |
+| `image-resize` | `width`, `height`: positive integers up to 4096; `ratio`: original, 1:1, 16:9, 9:16 or 4:5; `fit`: cover or contain; `crop`: smart or center; `background`: hex color |
+| `image-grid` | `columns`: 1–4; `gap`: 0–80 pixels; `crop`: smart or center; `background`: hex color |
 | `type-overlay` | `title`: 1–300 characters; `fontSize`: 12–240; `color`: hex color; `position`: top, center or bottom |
 
-For a fixed resize ratio, width determines height when supplied; supplying only height determines width. With the original ratio, a single supplied side preserves the source proportions, while supplying both sides creates that exact canvas. The cover or contain setting determines how the image fits this canvas. Browser color-filter support is required for the color-finish operation. Rendering and PNG encoding run in the browser; Node tests use controlled canvas and image fixtures to verify the real exported engine, validation, geometry and resource cleanup.
+For a fixed resize ratio, width determines height when supplied; supplying only height determines width. With the original ratio, a single supplied side preserves the source proportions, while supplying both sides creates that exact canvas. The cover or contain setting determines how the image fits this canvas. Cover fits use [focus-aware cropping](#focus-aware-cropping) unless `crop` is `center`. Browser color-filter support is required for the color-finish operation. Rendering and PNG encoding run in the browser; Node tests use controlled canvas and image fixtures to verify the real exported engine, validation, geometry and resource cleanup.
 
 ### Composition workspaces
 
@@ -61,7 +61,29 @@ const output = await runCanvasLab(CANVAS_LAB_AGENTS['poster-lab'], [], {
 }, controller.signal);
 ```
 
-`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`. `glitch` displaces still-image bands with `amount: 0–100`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. These tools export PNGs, not video or model-generated artwork.
+`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`. `glitch` displaces still-image bands with `amount: 0–100`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. These tools export PNGs, not video or model-generated artwork.
+
+### Focus-aware cropping
+
+A cover fit can only slide its crop along one axis, so a centred crop often cuts off an off-centre subject. Each image is analysed once from a thumbnail of at most 96 pixels on its long side, about a millisecond of work on a recent laptop. Two signals are combined:
+
+- **Detail**: Sobel gradient magnitude of luminance.
+- **Distinctiveness**: OKLab distance from the image's mean color, after the frequency-tuned salient-region method of Achanta et al., 2009.
+
+The crop then moves toward the window that holds the most interest near its centre. A small centre prior breaks ties. Transparent pixels score zero. The analysis has no model, network, face recognition or skin-tone heuristic. Flat images, matching aspect ratios and environments that cannot read canvas pixels keep the centred crop, so the result is never worse than a plain cover fit.
+
+The same engine is available on its own for your own layouts:
+
+```js
+import { analyzeImageFocus, focusCoverRect } from './src/smart-crop.mjs';
+
+const bitmap = await createImageBitmap(file);
+const focus = analyzeImageFocus(bitmap, bitmap.width, bitmap.height); // null keeps a centred crop
+const area = focusCoverRect(bitmap.width, bitmap.height, 1080, 1350, focus);
+context.drawImage(bitmap, area.x, area.y, area.width, area.height, 0, 0, 1080, 1350);
+```
+
+`computeFocusMap(rgba, width, height)` and `findFocusCrop(map, width, height, aspect)` expose the pure steps, which also run in Node. Package consumers import `@optimai/creative-agents/smart-crop`.
 
 To execute a saved composition recipe, normalize its fields before rendering:
 

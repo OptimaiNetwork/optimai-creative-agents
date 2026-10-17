@@ -2,8 +2,11 @@
 // Minimal stdio MCP adapter for the fixed 2025-11-25 protocol. Calls prepare
 // recipes unless a writing-agent call explicitly selects run + a local model.
 // No AI billing, media reads, arbitrary networking or Studio account actions.
+import { readFileSync } from 'node:fs';
 import { AGENT_CATALOG, compileAgentPrompt, validateRecipeValues } from './index.mjs';
 const PROTOCOL = '2025-11-25';
+// One version source: the package manifest that ships beside this adapter.
+const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const MAX_MESSAGE_BYTES = 65536;
 let lifecycle = 'new';
 const activeRuns = new Map();
@@ -44,7 +47,7 @@ async function handle(message) {
     if (lifecycle !== 'new') { error(id, -32600, 'Server has already initialized.'); return; }
     if (typeof params.protocolVersion !== 'string' || !object(params.capabilities) || !object(params.clientInfo) || typeof params.clientInfo.name !== 'string' || typeof params.clientInfo.version !== 'string') { error(id, -32602, 'Provide protocolVersion, capabilities and clientInfo.'); return; }
     lifecycle = 'initializing';
-    response(id, { protocolVersion: PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'optimai-creative-agents', version: '0.3.0' }, instructions: 'Creative agents prepare bounded recipes. Five writing agents can execute an explicitly selected installed Ollama model. Media generation and spending remain in the authorized host workflow.' });
+    response(id, { protocolVersion: PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'optimai-creative-agents', version: VERSION }, instructions: 'Creative agents prepare bounded recipes. Five writing agents can execute an explicitly selected installed Ollama model. Media generation and spending remain in the authorized host workflow.' });
     return;
   }
   if (lifecycle !== 'ready') { error(id, -32600, 'Initialize and send notifications/initialized before using tools.'); return; }

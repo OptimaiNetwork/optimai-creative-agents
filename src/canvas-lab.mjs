@@ -1,5 +1,6 @@
 import { getToolOutputSize, LOCAL_IMAGE_LIMITS, runLocalTool } from './browser-runtime.mjs';
 import { AGENT_CATALOG, getAgentTemplate, validateRecipeValues } from './index.mjs';
+import { analyzeImageFocus, focusCoverRect } from './smart-crop.mjs';
 
 const LAB_OPERATIONS = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition']);
 export const CANVAS_LAB_AGENTS = Object.freeze(Object.fromEntries(AGENT_CATALOG.flatMap(agent =>
@@ -17,6 +18,7 @@ export function canvasLabSettings(operation, values = {}) {
     ratio: option('ratio', '4:5', ['1:1', '4:5', '16:9', '9:16']),
     treatment: option('treatment', 'editorial', ['editorial', 'cinema', 'minimal']),
     amount: number('amount', 35, 0, 100), mix: number('mix', 50, 0, 100),
+    crop: option('crop', 'smart', ['smart', 'center']),
   };
 }
 /** Map portable recipe settings to the actual canvas engine, including v1 aliases. */
@@ -63,7 +65,11 @@ function abortable(work, signal, discard) {
     if (signal.aborted) cancel();
   });
 }
-function fit(ctx, image, x, y, width, height, contain = false) {
+function fit(ctx, image, x, y, width, height, contain = false, focus = null) {
+  if (!contain && focus) {
+    const area = focusCoverRect(image.width, image.height, width, height, focus);
+    ctx.drawImage(image, area.x, area.y, area.width, area.height, x, y, width, height); return;
+  }
   const scale = contain ? Math.min(width / image.width, height / image.height) : Math.max(width / image.width, height / image.height);
   ctx.save(); ctx.beginPath(); ctx.rect(x, y, width, height); ctx.clip();
   ctx.drawImage(image, x + (width - image.width * scale) / 2, y + (height - image.height * scale) / 2, image.width * scale, image.height * scale); ctx.restore();
@@ -100,6 +106,9 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
         images.push(image);
       } catch (error) { image.close(); throw error; }
     }
+    // Keep each subject in frame; environments without pixel reads stay centred.
+    const focus = images.map(image => settings.crop === 'smart' ? analyzeImageFocus(image, image.width, image.height) : null);
+    abort(signal);
     const [rw, rh] = settings.ratio.split(':').map(Number); const width = 1200, height = Math.round(width * rh / rw);
     canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
     const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('This browser cannot create a canvas.');
@@ -107,25 +116,25 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
     if (operation === 'mockup') {
       const phone = settings.layout === 'phone'; const x = phone ? width * .32 : width * .12, y = height * .12, w = phone ? width * .36 : width * .76, h = height * .72;
       ctx.shadowColor = '#0009'; ctx.shadowBlur = 45; ctx.shadowOffsetY = 30; round(ctx, x, y, w, h, phone ? 50 : 18, '#080a09'); ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-      ctx.save(); ctx.beginPath(); ctx.roundRect(x + 12, y + 12, w - 24, h - 24, phone ? 40 : 10); ctx.clip(); fit(ctx, images[0], x + 12, y + 12, w - 24, h - 24); ctx.restore();
+      ctx.save(); ctx.beginPath(); ctx.roundRect(x + 12, y + 12, w - 24, h - 24, phone ? 40 : 10); ctx.clip(); fit(ctx, images[0], x + 12, y + 12, w - 24, h - 24, false, focus[0]); ctx.restore();
       if (phone) round(ctx, x + w * .3, y + 20, w * .4, 25, 16, '#080a09');
       else if (settings.layout === 'desktop') { round(ctx, width * .43, y + h, width * .14, height * .055, 4, '#39423c'); round(ctx, width * .31, y + h + height * .05, width * .38, 12, 5, '#58655b'); }
       ctx.fillStyle = '#b4c4b7'; ctx.font = '500 18px system-ui'; ctx.textAlign = 'center'; ctx.fillText('YOUR DESIGN, IN CONTEXT.', width / 2, height * .93);
     } else if (operation === 'bento') {
       const gap = 22, pad = 38; const heroW = files.length > 1 ? (width - pad * 2 - gap) * .62 : width - pad * 2;
-      fit(ctx, images[0], pad, pad, heroW, height - pad * 2);
-      images.slice(1).forEach((image, index) => { const cellH = (height - pad * 2 - gap * (images.length - 2)) / (images.length - 1); fit(ctx, image, pad + heroW + gap, pad + index * (cellH + gap), width - pad * 2 - heroW - gap, cellH); });
+      fit(ctx, images[0], pad, pad, heroW, height - pad * 2, false, focus[0]);
+      images.slice(1).forEach((image, index) => { const cellH = (height - pad * 2 - gap * (images.length - 2)) / (images.length - 1); fit(ctx, image, pad + heroW + gap, pad + index * (cellH + gap), width - pad * 2 - heroW - gap, cellH, false, focus[index + 1]); });
     } else if (['blend', 'transition'].includes(operation)) {
-      fit(ctx, images[0], 0, 0, width, height); ctx.globalAlpha = settings.mix / 100; fit(ctx, images[1], 0, 0, width, height); ctx.globalAlpha = 1;
+      fit(ctx, images[0], 0, 0, width, height, false, focus[0]); ctx.globalAlpha = settings.mix / 100; fit(ctx, images[1], 0, 0, width, height, false, focus[1]); ctx.globalAlpha = 1;
     } else if (operation === 'glitch') {
-      fit(ctx, images[0], 0, 0, width, height); const amount = settings.amount / 100;
+      fit(ctx, images[0], 0, 0, width, height, false, focus[0]); const amount = settings.amount / 100;
       source = document.createElement('canvas'); source.width = width; source.height = height;
       const sourceContext = source.getContext('2d'); if (!sourceContext) throw new Error('This browser cannot create a glitch canvas.');
       sourceContext.drawImage(canvas, 0, 0);
       for (let index = 0; index < 24; index++) { const y = Math.floor(height * index / 24), h = Math.max(1, Math.floor(height / 70)); const shift = Math.round(Math.sin(index * 13.7) * width * .06 * amount); ctx.drawImage(source, 0, y, width, h, shift, y, width, h); }
       ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .13 * amount; ctx.fillStyle = '#df56dc'; ctx.fillRect(0, 0, width, height); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; source.width = source.height = 1;
     } else {
-      if (images[0]) fit(ctx, images[0], 0, 0, width, height);
+      if (images[0]) fit(ctx, images[0], 0, 0, width, height, false, focus[0]);
       if (operation === 'poster') { const shade = ctx.createLinearGradient(0, height * .25, 0, height); shade.addColorStop(0, '#0000'); shade.addColorStop(1, '#000e'); ctx.fillStyle = shade; ctx.fillRect(0, 0, width, height); }
       const { lines, fontSize } = lettering(ctx, settings, width, height); ctx.fillStyle = settings.color; ctx.textBaseline = 'top'; const start = operation === 'poster' ? height - lines.length * fontSize * 1.1 - height * .12 : (height - lines.length * fontSize * 1.1) / 2;
       if (settings.treatment === 'cinema') { ctx.textAlign = 'center'; } else ctx.textAlign = 'left';
