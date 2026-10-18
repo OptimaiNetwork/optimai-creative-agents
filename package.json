@@ -90,6 +90,10 @@
     "./smart-crop": {
       "types": "./src/smart-crop.d.mts",
       "import": "./src/smart-crop.mjs"
+    },
+    "./verify": {
+      "types": "./src/verify.d.mts",
+      "import": "./src/verify.mjs"
     }
   },
   "files": [

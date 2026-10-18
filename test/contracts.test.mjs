@@ -172,7 +172,7 @@ test('core stays dependency-free and browser peers are optional, pinned and isol
     assert.ok(!content.includes('new Function'));
     assert.ok(!content.includes('frontend/'));
   }
-  for (const file of ['canvas-lab.mjs', 'browser-writing-runtime.mjs', 'browser-writing-worker.mjs', 'vision-runtime.mjs', 'vision-processor.mjs', 'scene-3d.mjs', 'scene-3d-runtime.mjs', 'camera-runtime.mjs', 'camera-renderer.mjs', 'camera-tracking.mjs', 'camera-worker.mjs', 'model-setup.mjs', 'smart-crop.mjs']) {
+  for (const file of ['canvas-lab.mjs', 'browser-writing-runtime.mjs', 'browser-writing-worker.mjs', 'vision-runtime.mjs', 'vision-processor.mjs', 'scene-3d.mjs', 'scene-3d-runtime.mjs', 'camera-runtime.mjs', 'camera-renderer.mjs', 'camera-tracking.mjs', 'camera-worker.mjs', 'model-setup.mjs', 'smart-crop.mjs', 'verify.mjs']) {
     const content = await readFile(join(packageRoot, 'src', file), 'utf8');
     assert.ok(!/frontend\/|backend\/|\.\.\/\.\.\/|eval\(|new Function/.test(content), `${file} cannot import proprietary host code or evaluate recipes.`);
   }

@@ -85,6 +85,34 @@ context.drawImage(bitmap, area.x, area.y, area.width, area.height, 0, 0, 1080, 1
 
 `computeFocusMap(rgba, width, height)` and `findFocusCrop(map, width, height, aspect)` expose the pure steps, which also run in Node. Package consumers import `@optimai/creative-agents/smart-crop`.
 
+### Tier-0 verification
+
+Before paying a model to judge a draft, an agent can reject the obviously broken ones locally. `@optimai/creative-agents/verify` provides deterministic checks with no model, network or dependency. They run in Node and the browser in milliseconds:
+
+| Check | Passes when |
+| --- | --- |
+| `checkTextContrast` | The 5th-percentile WCAG contrast of known-color text over the pixels behind it reaches `minRatio` (4.5 by default; 3 for large text). A low percentile, not the mean, so a busy background cannot hide. |
+| `checkTextSize` | Rendered text is at least `minPx` tall. |
+| `checkTextOverlap` | Text boxes cover at most `maxShare` of the image's visual interest, measured on the focus map above. |
+| `checkSafeZone`, `checkAspect`, `checkDuration`, `checkCount` | Boxes stay inside the safe zone; the delivered size, duration and detector count are within bounds. |
+| `checkPalette` | Enough opaque pixels are within `maxDeltaE` of a brand color in OKLab. |
+| `checkCutAlignment` | Enough edit cuts land within `tolerance` seconds of a beat, from any beat tracker. |
+
+```js
+import { computeFocusMap } from './src/smart-crop.mjs';
+import { checkTextContrast, checkTextOverlap, summarizeChecks } from './src/verify.mjs';
+
+const { data } = context.getImageData(0, 0, 96, 120); // a thumbnail of the poster
+const headline = { x: 0.08, y: 0.06, width: 0.84, height: 0.14 };
+const summary = summarizeChecks([
+  checkTextContrast(data, 96, 120, headline, [255, 255, 255]),
+  checkTextOverlap({ map: computeFocusMap(data, 96, 120), width: 96, height: 120 }, [headline]),
+]);
+if (!summary.pass) console.log('Regenerate before judging:', summary.failed);
+```
+
+Every result is `{ check, pass, score, threshold, confidence, costMs }`. Scores are oriented so that higher is better and `pass` means `score >= threshold`, so a host can calibrate any score into a probability with one monotone fit. `confidence` is a margin from the threshold (0.5–1), not a probability. Pass thumbnails: pixel checks read at most 262,144 pixels.
+
 To execute a saved composition recipe, normalize its fields before rendering:
 
 ```js
