@@ -80,7 +80,7 @@ A broader host can add these reviewed runtime adapters:
 | Browser vision | `vision-runtime` → `downloadVisionModel`, `runBrowserVision` | PNG and analysis; selected-agent setup policy, reviewed local worker and WASM assets |
 | Browser writing | `browser-writing-runtime` → `createBrowserAgentRuntime` | Validated written artifact; selected-agent setup policy, supported WebGPU device and local worker |
 | 3D scene | `scene-3d` → `scene3DRecipeSettings`; `scene-3d-runtime` → `createScene3DStage` | Procedural/local GLB WebGL stage, PNG and scene recipe; optional reviewed Three peer |
-| Camera effects/avatar | `camera-runtime`, `camera-renderer`, `camera-tracking`, `camera-worker` | Canvas effects and original face-driven avatar; explicit permission and local verified tracking worker |
+| Camera effects/avatar | `camera-runtime`, `camera-renderer`, `camera-tracking`, `camera-worker`, `landmark-filter` | Canvas effects and original face-driven avatar; explicit permission and local verified tracking worker |
 | Model preparation policy | `model-setup` → `getModelSetupPolicy` | Pure automatic/manual/unsupported decision; host performs reviewed load calls |
 | Local Ollama writing | `agent-runtime` → `runCreativeAgent` | Validated written artifact; explicitly selected eligible installed model and loopback service |
 | Guided production | `compileAgentPrompt` and a host handoff | Prepared direction; the destination host runs Image, Video, Story, Character or Editor production |

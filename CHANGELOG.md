@@ -12,6 +12,8 @@ Notable changes to OptimAI Creative Agents. Each entry names what a builder or c
   - Pass `crop: 'center'` to opt out.
 - **`@optimai/creative-agents/smart-crop`.** `analyzeImageFocus`, `focusCoverRect`, `computeFocusMap` and `findFocusCrop` for your own layouts. The pure steps run in Node. See [focus-aware cropping](./docs/runtimes.md#focus-aware-cropping).
 - **`@optimai/creative-agents/verify`: tier-0 checks.** Deterministic local checks an agent can run before paying for a model to judge a draft: WCAG text contrast over the actual background (low percentile, not the mean), text size, text over the subject (using the smart-crop focus map), safe zones, aspect, duration, detector counts, OKLab palette coverage and cut-on-beat timing. Every check returns `{ pass, score, threshold, confidence, costMs }` with higher-is-better scores. See [tier-0 verification](./docs/runtimes.md#tier-0-verification).
+- **Steadier, more responsive avatars.** `createFaceRigSmoother()` in `camera-runtime` smooths face rigs with a One-Euro filter: the avatar holds still while the head rests and follows fast turns and blinks without the lag of the fixed 80 ms moving average. In the bundled tests it shows a third less jitter at rest and under half the lag on a quick head turn. `smoothFaceRig` keeps working.
+- **`@optimai/creative-agents/landmark-filter`.** `createOneEuroFilter` and `createOneEuroVectorFilter` (with a `stride` for x,y or x,y,z points) to smooth your own face, hand or pose landmarks. Runs in Node and the browser. See [landmark smoothing](./docs/runtimes.md#landmark-smoothing).
 - **Documentation guard.** `test/docs.test.mjs` checks that the README and guides state the shipped template count, capability groups and package version.
 
 ### Fixed

@@ -4,7 +4,8 @@
 
 | Module | Responsibility |
 | --- | --- |
-| `camera-runtime` | Bounded rig math, smoothing, face-loss reset, safe recipe settings and camera leases |
+| `camera-runtime` | Bounded rig math, speed-adaptive rig smoothing, face-loss reset, safe recipe settings and camera leases |
+| `landmark-filter` | One-Euro scalar and vector filters for face and pose landmarks |
 | `camera-tracking` | One frame in flight, throttling, timeout/cancellation and worker lifecycle |
 | `camera-worker` | Checksum verification and MediaPipe VIDEO inference in a host worker |
 | `camera-renderer` | Canvas effects, face-anchored halo and original procedural avatars |
@@ -41,10 +42,11 @@ For 3D rendering, inject a host's pinned Three module:
 import { createCameraAvatar } from '@optimai/creative-agents/camera-renderer';
 
 const avatar = createCameraAvatar(canvas, 'orbit', { THREE });
-avatar.render(smoothFaceRig(previous, faceRigAt(frame, now, mirror), elapsedMs));
+const smoother = createFaceRigSmoother(); // one per preview loop
+avatar.render(smoother.next(faceRigAt(frame, now, mirror), now));
 avatar.dispose();
 ```
 
-Avatars are original procedural characters. They animate geometry from bounded face coefficients and use no likeness texture. Matrix packing is column-major, matching MediaPipe's serialized MatrixData. Mirroring is applied to the visible output and rig, after unmirrored inference, so left/right face coefficients remain consistent. A missing live face releases the rig toward neutral after 500 ms.
+Avatars are original procedural characters. They animate geometry from bounded face coefficients and use no likeness texture. Matrix packing is column-major, matching MediaPipe's serialized MatrixData. Mirroring is applied to the visible output and rig, after unmirrored inference, so left/right face coefficients remain consistent. A missing live face releases the rig toward neutral after 500 ms. The One-Euro rig smoother keeps the avatar still while the head rests and lets turns and blinks through without the lag of a fixed moving average; see [landmark smoothing](./runtimes.md#landmark-smoothing).
 
 Camera and portrait pixels remain local. Model requests contact only the fixed official weight URL, with credentials omitted and no referrer. Cache and network responses are size-bounded before SHA-256 validation. Hosts retain ownership of consent, local exports and any later cloud Studio handoff.

@@ -87,6 +87,10 @@
       "types": "./src/frame-sculpture.d.mts",
       "import": "./src/frame-sculpture.mjs"
     },
+    "./landmark-filter": {
+      "types": "./src/landmark-filter.d.mts",
+      "import": "./src/landmark-filter.mjs"
+    },
     "./smart-crop": {
       "types": "./src/smart-crop.d.mts",
       "import": "./src/smart-crop.mjs"

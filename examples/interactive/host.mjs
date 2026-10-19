@@ -5,7 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { scene3DRecipeSettings } from '../../src/scene-3d.mjs';
 import { createScene3DStageWithRuntime } from '../../src/scene-3d-runtime.mjs';
-import { cameraRecipeSettings, createCameraLease, faceRigAt, demoFaceRig } from '../../src/camera-runtime.mjs';
+import { cameraRecipeSettings, createCameraLease, createFaceRigSmoother, faceRigAt, demoFaceRig } from '../../src/camera-runtime.mjs';
 import { createCameraAvatar, drawCameraSource, drawCameraEffect, drawFaceHalo } from '../../src/camera-renderer.mjs';
 import { createFaceTracker } from '../../src/camera-tracking.mjs';
 import { VISION_MODELS, loadVisionModelBuffer } from '../../src/vision-runtime.mjs';
@@ -25,7 +25,7 @@ export function createExampleCamera(output, video, values = {}, { onStatus = () 
   const context = output.getContext('2d'), sourceContext = source.getContext('2d');
   if (!context || !sourceContext) throw new Error('Canvas 2D is unavailable.');
   const avatar = createCameraAvatar(avatarCanvas, settings.look, { THREE });
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)'), smoother = createFaceRigSmoother();
   function paint(now) {
     frame = 0; if (closed || document.hidden) return;
     const live = lease.active && video.readyState >= 2;
@@ -34,7 +34,7 @@ export function createExampleCamera(output, video, values = {}, { onStatus = () 
       tracker?.submit(source, now);
     }
     const rig = live && tracker ? faceRigAt(latestFace, now, settings.mirror) : demoFaceRig(reducedMotion.matches ? 0 : now / 1000);
-    avatar.render(rig);
+    avatar.render(smoother.next(rig, now));
     if (live && !settings.avatar) {
       drawCameraEffect(context, source, settings.effect, settings.strength, settings.mirror, now / 1000);
       if (settings.effect === 'halo') drawFaceHalo(context, latestFace, settings.mirror, now / 1000, settings.strength);

@@ -1,3 +1,4 @@
+import { createOneEuroVectorFilter } from './landmark-filter.mjs';
 export const CAMERA_LIMITS = Object.freeze({ width: 1280, height: 720, fps: 30, trackingIntervalMs: 100, trackingTimeoutMs: 8000, modelInitTimeoutMs: 45000, recordingSeconds: 30, recordingBytes: 32 * 1024 * 1024, imageBytes: 20 * 1024 * 1024, imageDimension: 4096, imagePixels: 16_000_000, videoBytes: 50 * 1024 * 1024, videoSeconds: 60 });
 export const NEUTRAL_FACE = Object.freeze({ yaw: 0, pitch: 0, roll: 0, jaw: 0, smile: 0, blinkLeft: 0, blinkRight: 0, brow: 0 });
 /** Reviewed scalar recipe controls; recipe data never supplies code or URLs. */
@@ -28,6 +29,27 @@ export function faceRigFromFrame(frame, mirror = false) {
 export function smoothFaceRig(current, target, elapsedMs) {
     const alpha = 1 - Math.exp(-bounded(elapsedMs, 0, 100) / 80);
     return Object.fromEntries(Object.keys(NEUTRAL_FACE).map(key => { const k = key; return [k, current[k] + (target[k] - current[k]) * alpha]; }));
+}
+/** Default One-Euro tuning: head pose in radians, expressions in 0–1 coefficients. */
+export const FACE_RIG_FILTER = Object.freeze({ pose: Object.freeze({ minCutoff: .6, beta: 3, dCutoff: 1 }), expression: Object.freeze({ minCutoff: 1.5, beta: 6, dCutoff: 1 }) });
+const POSE_KEYS = ['yaw', 'pitch', 'roll'], EXPRESSION_KEYS = ['jaw', 'smile', 'blinkLeft', 'blinkRight', 'brow'];
+/**
+ * Speed-adaptive rig smoothing: still at rest, no lag on fast turns or blinks.
+ * Head rotation adapts to its combined angular speed; each expression adapts on its own.
+ */
+export function createFaceRigSmoother(options = {}) {
+    const o = options && typeof options === 'object' ? options : {};
+    const pose = createOneEuroVectorFilter(3, { ...FACE_RIG_FILTER.pose, ...(o.pose ?? {}), stride: 3 });
+    const expression = createOneEuroVectorFilter(5, { ...FACE_RIG_FILTER.expression, ...(o.expression ?? {}), stride: 1 });
+    return {
+        next(target, timestamp) {
+            const t = target && typeof target === 'object' ? target : NEUTRAL_FACE;
+            const value = key => typeof t[key] === 'number' && Number.isFinite(t[key]) ? t[key] : NEUTRAL_FACE[key];
+            const p = pose.filter(POSE_KEYS.map(value), timestamp), e = expression.filter(EXPRESSION_KEYS.map(value), timestamp);
+            return { yaw: p[0], pitch: p[1], roll: p[2], jaw: e[0], smile: e[1], blinkLeft: e[2], blinkRight: e[3], brow: e[4] };
+        },
+        reset() { pose.reset(); expression.reset(); },
+    };
 }
 export function faceRigAt(frame, now, mirror = false) {
     return faceRigFromFrame(frame && now - frame.timestamp <= 500 && now >= frame.timestamp ? frame : null, mirror);

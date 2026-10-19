@@ -263,7 +263,7 @@ The renderer caps pixel density, renders manual previews only on change, and sus
 `camera-runtime`, `camera-renderer`, `camera-tracking` and `camera-worker` are reusable public modules. They do not import Studio services. The host owns camera permission, selected media decoding, its render loop, snapshot/recording UI and any subsequent handoff. Basic clean/neon/prism/duotone/film canvas effects and the original avatar demo do not require a face-model download. Halo anchoring and face-driven avatar controls use a local Face Landmarker worker.
 
 ```js
-import { cameraRecipeSettings, createCameraLease, faceRigAt } from './src/camera-runtime.mjs';
+import { cameraRecipeSettings, createCameraLease, createFaceRigSmoother, faceRigAt } from './src/camera-runtime.mjs';
 import { createCameraAvatar, drawCameraEffect, drawFaceHalo } from './src/camera-renderer.mjs';
 import { createFaceTracker } from './src/camera-tracking.mjs';
 import { loadVisionModelBuffer } from './src/vision-runtime.mjs';
@@ -285,15 +285,35 @@ const stream = await lease.start(() => navigator.mediaDevices.getUserMedia({
 if (stream) video.srcObject = stream;
 // In your visible preview loop, first draw video into an unmirrored <=1280×720 input canvas:
 tracker.submit(sourceCanvas, performance.now()); // At most one frame in flight; inference stays in worker.
-avatar.render(faceRigAt(latestFace, performance.now(), settings.mirror));
+const now = performance.now(); // Create one smoother per preview: const smoother = createFaceRigSmoother();
+avatar.render(smoother.next(faceRigAt(latestFace, now, settings.mirror), now));
 // Close/hidden/cancel: tracker.dispose(); avatar.dispose(); lease.close(); cancelAnimationFrame(loop);
 ```
 
 The host's same-origin worker entry imports its locally served pinned MediaPipe bundle, then calls `installCameraWorker(vision)`. Use `loadVisionModelBuffer('face-reference')` to obtain cache-first verified bytes; the camera worker checks the exact model length and SHA-256 again before creating the task. `createFaceTracker` transfers ownership of the buffer to the worker. Worker and WASM paths are trusted host code; they must not come from recipe values. Its processing canvas is 640 × 360, face frames are compact, and the tracking pipeline keeps one bitmap/inference in flight at a 100 ms interval. Missing or stale faces return neutral rig values rather than retaining a previous person's motion.
 
-`drawCameraSource` performs a cover crop; `drawCameraEffect` draws selected filters; `drawFaceHalo` draws landmark-aligned graphics. `faceRigFromFrame`, `smoothFaceRig` and `faceRigAt` map bounded transform/blendshape data into an original procedural avatar. Mirroring is applied after inference. Live camera access requires HTTPS/localhost and explicit browser permission, as documented by [getUserMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia). Face Landmarker calls are synchronous, so this implementation follows [Google's Web Worker recommendation](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/web_js).
+`drawCameraSource` performs a cover crop; `drawCameraEffect` draws selected filters; `drawFaceHalo` draws landmark-aligned graphics. `faceRigFromFrame`, `faceRigAt` and `createFaceRigSmoother` map bounded transform/blendshape data into an original procedural avatar. Mirroring is applied after inference. Live camera access requires HTTPS/localhost and explicit browser permission, as documented by [getUserMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia). Face Landmarker calls are synchronous, so this implementation follows [Google's Web Worker recommendation](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/web_js).
 
 The public camera engines render canvases, not a finished recording container. A host can capture snapshots or use a browser-supported `MediaRecorder` on the canvas stream, enforce its recording duration/size limits and offer an explicit download. Studio's host limits recording to 30 seconds/32 MiB. It requests no microphone track for this feature. These effects are not identity face swaps, emotion detection or a guarantee of frame-rate on every device. Stop all camera tracks when the workspace closes or becomes hidden, including late permission responses; `createCameraLease` handles that late-response ownership.
+
+### Landmark smoothing
+
+Raw face and pose landmarks jitter by a pixel or two at rest, and a fixed low-pass that hides the jitter also lags behind a fast turn. `landmark-filter` implements the [One-Euro filter](https://gery.casiez.net/1euro/) (Casiez, Roussel and Vogel, CHI 2012): its cutoff rises with the signal's speed, so values hold still at rest and follow quick moves. It runs anywhere, including Node, and has no dependencies.
+
+```js
+import { createOneEuroFilter, createOneEuroVectorFilter } from '@optimai/creative-agents/landmark-filter';
+
+const x = createOneEuroFilter({ minCutoff: 1, beta: .5 });
+x.filter(rawX, performance.now()); // timestamps in ms; cutoffs in Hz
+
+// 33 pose landmarks × (x, y, z): each landmark adapts to its own 3D speed.
+const pose = createOneEuroVectorFilter(33 * 3, { minCutoff: .8, beta: 2, stride: 3 });
+const smoothed = pose.filter(flatLandmarks, performance.now());
+```
+
+`minCutoff` sets stillness at rest (lower is steadier), `beta` sets how quickly the cutoff opens with speed (higher lags less) and `dCutoff` smooths the speed estimate. With `stride`, components are grouped into points that adapt to their Euclidean speed, so a diagonal move is filtered like a straight one and a moving hand does not unlock a still shoulder. The first sample passes through unchanged. A repeated or earlier timestamp, or a non-finite value, holds the previous output. `reset()` starts over, for example after the subject changes.
+
+`createFaceRigSmoother()` in `camera-runtime` applies this to a `FaceRig`. Head rotation (yaw, pitch, roll) adapts to its combined angular speed; each expression coefficient adapts on its own, so a blink closes fully without unlocking the jaw. Tune with `{ pose, expression }` over the `FACE_RIG_FILTER` defaults. The output stays within the range of its inputs. `smoothFaceRig(current, target, elapsedMs)`, a fixed 80 ms moving average, remains available.
 
 ## Local Ollama writing
 

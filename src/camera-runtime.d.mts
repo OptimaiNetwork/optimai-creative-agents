@@ -1,3 +1,4 @@
+import type { OneEuroOptions } from './landmark-filter.mjs';
 export type CameraEffect = 'clean' | 'neon' | 'prism' | 'duotone' | 'film' | 'halo';
 export type AvatarLook = 'orbit' | 'pixel' | 'luna';
 export type FaceFrame = { found: boolean; timestamp: number; blendshapes: Record<string, number>; matrix: number[]; anchors: { x: number; y: number }[] };
@@ -8,6 +9,10 @@ export declare function cameraRecipeSettings(agentId: string, values?: Record<st
 export declare function bounded(value: unknown, min?: number, max?: number): number;
 export declare function faceRigFromFrame(frame: FaceFrame | null, mirror?: boolean): FaceRig;
 export declare function smoothFaceRig(current: FaceRig, target: FaceRig, elapsedMs: number): FaceRig;
+export type FaceRigFilterOptions = { pose?: OneEuroOptions; expression?: OneEuroOptions };
+export declare const FACE_RIG_FILTER: Readonly<{ pose: Readonly<Required<OneEuroOptions>>; expression: Readonly<Required<OneEuroOptions>> }>;
+export type FaceRigSmoother = { next(target: FaceRig | null, timestampMs: number): FaceRig; reset(): void };
+export declare function createFaceRigSmoother(options?: FaceRigFilterOptions): FaceRigSmoother;
 export declare function faceRigAt(frame: FaceFrame | null, now: number, mirror?: boolean): FaceRig;
 export declare function demoFaceRig(seconds: number): FaceRig;
 export type CameraLease = { stop(): void; close(): void; start(getMedia: () => Promise<MediaStream>): Promise<MediaStream | null>; readonly active: MediaStream | null };
