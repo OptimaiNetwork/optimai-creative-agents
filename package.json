@@ -83,6 +83,10 @@
       "types": "./src/music-reactive.d.mts",
       "import": "./src/music-reactive.mjs"
     },
+    "./beat-tracker": {
+      "types": "./src/beat-tracker.d.mts",
+      "import": "./src/beat-tracker.mjs"
+    },
     "./frame-sculpture": {
       "types": "./src/frame-sculpture.d.mts",
       "import": "./src/frame-sculpture.mjs"

@@ -129,6 +129,27 @@ test('each look responds to audio signals, time changes motion and reduced motio
   }
 });
 
+test('a beat pulse swells geometry without touching colour, and reduced motion ignores it', () => {
+  const colours = trace => trace.filter(call => /^(set:(fillStyle|strokeStyle|globalAlpha)|colorStop)$/.test(call[0]));
+  for (const look of MUSIC_REACTIVE_LOOKS) {
+    const none = contextHarness(), zero = contextHarness(), beat = contextHarness();
+    renderMusicReactiveFrame(none.ctx, { ...frame(look.id), bands: full().bands });
+    renderMusicReactiveFrame(zero.ctx, { ...frame(look.id), bands: full().bands, pulse: 0 });
+    renderMusicReactiveFrame(beat.ctx, { ...frame(look.id), bands: full().bands, pulse: 1 });
+    assert.deepEqual(zero.trace, none.trace, `${look.id}: pulse 0 is the previous frame exactly.`);
+    assert.notDeepEqual(beat.trace, none.trace, `${look.id} responds to the beat.`);
+    assert.deepEqual(colours(beat.trace), colours(none.trace), `${look.id}: a pulse never changes colour or brightness.`);
+    const stillA = contextHarness(), stillB = contextHarness();
+    renderMusicReactiveFrame(stillA.ctx, { ...frame(look.id), reducedMotion: true });
+    renderMusicReactiveFrame(stillB.ctx, { ...frame(look.id), pulse: 1, reducedMotion: true });
+    assert.deepEqual(stillA.trace, stillB.trace);
+  }
+  const hostile = contextHarness(), plain = contextHarness();
+  renderMusicReactiveFrame(hostile.ctx, { ...frame(), pulse: NaN });
+  renderMusicReactiveFrame(plain.ctx, frame());
+  assert.deepEqual(hostile.trace, plain.trace);
+});
+
 test('rendering handles hostile values, long Unicode titles, portrait layouts and restoration on failure', () => {
   const normal = contextHarness(), invalid = contextHarness();
   renderMusicReactiveFrame(normal.ctx, { ...frame(), time: 0, energy: 0, bass: 1, treble: 0 });

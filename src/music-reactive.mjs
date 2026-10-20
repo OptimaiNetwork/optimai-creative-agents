@@ -3,7 +3,8 @@
  * loads a model, sends media, creates a timer, or owns the caller's canvas.
  *
  * Frequency bytes encode the analyser's configured dB range, not PCM amplitude.
- * These are visual control signals, not a loudness, BPM or beat detector.
+ * These are visual control signals, not a loudness, BPM or beat detector; for
+ * onsets, tempo and a flash-limited beat pulse use ./beat-tracker.mjs.
  * https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/getByteFrequencyData
  */
 export const MUSIC_REACTIVE_LOOKS = Object.freeze([
@@ -105,14 +106,14 @@ function backdrop(ctx, width, height, look) {
 }
 
 function orbit(ctx, s) {
-  const { width: w, height: h, time: t, bass, energy, intensity } = s;
+  const { width: w, height: h, time: t, bass, energy, intensity, pulse } = s;
   const cx = w * .5, cy = h * .43, radius = Math.min(w * .43, h * .36);
   const tilt = .42 + Math.sin(t * .12) * .07;
   ctx.save();
   try {
   ctx.translate(cx, cy); ctx.rotate(Math.sin(t * .1) * .18 - .18);
   for (let ring = 0; ring < 19; ring++) {
-    const r = radius * (.19 + ring / 23) * (1 + bass * intensity * .12);
+    const r = radius * (.19 + ring / 23) * (1 + bass * intensity * .12 + pulse * intensity * .05);
     const gradient = ctx.createLinearGradient(-r, -r, r, r);
     gradient.addColorStop(0, `rgba(207,246,119,${.18 + ring / 70})`);
     gradient.addColorStop(.52, 'rgba(109,245,213,.65)');
@@ -141,7 +142,7 @@ function orbit(ctx, s) {
 }
 
 function ribbons(ctx, s) {
-  const { width: w, height: h, time: t, energy, treble, intensity } = s;
+  const { width: w, height: h, time: t, energy, treble, intensity, pulse } = s;
   for (let ribbon = 0; ribbon < 26; ribbon++) {
     const z = ribbon / 25;
     const gradient = ctx.createLinearGradient(0, h * .2, w, h * .7);
@@ -154,7 +155,7 @@ function ribbons(ctx, s) {
       const x = step / 80;
       const envelope = Math.sin(x * Math.PI);
       const wave = Math.sin(x * TAU * 1.1 + t * .38 + z * 1.8) * .12 + Math.sin(x * TAU * 2.1 - t * .22 + z * 2) * (.035 + treble * intensity * .018);
-      const y = h * (.4 + z * .19 + envelope * wave * (1 + energy * intensity * .5)) - x * h * .1;
+      const y = h * (.4 + z * .19 + envelope * wave * (1 + energy * intensity * .5 + pulse * intensity * .3)) - x * h * .1;
       if (!step) ctx.moveTo(x * w, y); else ctx.lineTo(x * w, y);
     }
     ctx.stroke();
@@ -162,7 +163,7 @@ function ribbons(ctx, s) {
 }
 
 function spectrum(ctx, s) {
-  const { width: w, height: h, bass, energy, treble, intensity, bands } = s;
+  const { width: w, height: h, bass, energy, treble, intensity, bands, pulse } = s;
   const count = MUSIC_REACTIVE_LIMITS.bands, left = w * .1, span = w * .8, floor = h * .57;
   const gap = span / count, barWidth = gap * .52;
   const gradient = ctx.createLinearGradient(left, 0, left + span, 0);
@@ -170,7 +171,7 @@ function spectrum(ctx, s) {
   for (let index = 0; index < count; index++) {
     const position = index / (count - 1);
     const signal = bands ? unit(bands[index]) : (position < .2 ? bass : position > .65 ? treble : energy);
-    const height = Math.max(h * .009, Math.pow(signal, .75) * h * .32 * intensity);
+    const height = Math.max(h * .009, Math.pow(signal, .75) * h * .32 * intensity * (1 + pulse * .12));
     const x = left + gap * index;
     ctx.strokeStyle = gradient; ctx.lineWidth = barWidth; ctx.beginPath(); ctx.moveTo(x, floor); ctx.lineTo(x, floor - height); ctx.stroke();
     ctx.globalAlpha = .12; ctx.beginPath(); ctx.moveTo(x, floor + gap); ctx.lineTo(x, floor + gap + height * .34); ctx.stroke(); ctx.globalAlpha = 1;
@@ -180,11 +181,11 @@ function spectrum(ctx, s) {
 }
 
 function aurora(ctx, s) {
-  const { width: w, height: h, time: t, energy, bass, intensity } = s;
+  const { width: w, height: h, time: t, energy, bass, intensity, pulse } = s;
   for (let field = 0; field < 3; field++) {
     const x = w * (.3 + field * .2 + Math.sin(t * .09 + field * 2) * .06);
     const y = h * (.39 + Math.cos(t * .07 + field) * .08);
-    const radius = Math.min(w, h) * (.36 + energy * intensity * .04);
+    const radius = Math.min(w, h) * (.36 + energy * intensity * .04 + pulse * intensity * .025);
     const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
     glow.addColorStop(0, ['#8772d637', '#8ed6be28', '#c5e48224'][field]); glow.addColorStop(1, '#11112400');
     ctx.fillStyle = glow; ctx.fillRect(0, 0, w, h);
@@ -240,6 +241,8 @@ function caption(ctx, width, height, title, artist) {
  * absent the spectrum uses the three aggregate signals without invented beats.
  * Reduced motion produces an invariant cover frame (including audio signals),
  * suitable for a still export. No strobes, flashing backgrounds, or frame noise.
+ * Optional pulse (0–1, e.g. from beat-tracker) swells geometry on the beat; it
+ * never changes colour or brightness, and reduced motion ignores it.
  * Work is fixed/bounded and caller state is restored even if drawing throws.
  */
 export function renderMusicReactiveFrame(ctx, options = {}) {
@@ -256,7 +259,7 @@ export function renderMusicReactiveFrame(ctx, options = {}) {
     width, height, look, intensity: options.intensity == null ? .8 : unit(options.intensity),
     time: reduced ? 0 : clamp(finite(options.time), 0, 86400),
     energy: reduced ? .25 : unit(options.energy), bass: reduced ? .2 : unit(options.bass), treble: reduced ? .15 : unit(options.treble),
-    bands: reduced ? Array(MUSIC_REACTIVE_LIMITS.bands).fill(.23) : options.bands,
+    bands: reduced ? Array(MUSIC_REACTIVE_LIMITS.bands).fill(.23) : options.bands, pulse: reduced ? 0 : unit(options.pulse),
   };
   ctx.save();
   try {

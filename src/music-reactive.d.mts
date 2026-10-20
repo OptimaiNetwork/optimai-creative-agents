@@ -20,6 +20,8 @@ export interface MusicReactiveFrame {
   reducedMotion?: boolean;
   /** Optional 48 measured logarithmic frequency bands. */
   bands?: readonly number[];
+  /** Beat pulse 0–1 (see beat-tracker). Swells geometry only; ignored with reducedMotion. */
+  pulse?: number;
 }
 /** Draws a bounded frame and restores caller canvas state. No network or timers. */
 export function renderMusicReactiveFrame(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, options: MusicReactiveFrame): void;
