@@ -2,7 +2,7 @@
 
 Choose a template by the result its reviewed implementation produces. The current catalog has **38 templates: 10 canvas, 3 browser vision, 5 writing, 6 interactive and 14 guided entries**. Every template can prepare a prompt; execution uses the runtime listed below.
 
-These groups follow each template's versioned `workspace` descriptor. The SDK exposes `getAgentWorkspace(id)` for dispatch and derives `CANVAS_LAB_AGENTS` from the same catalog. The two sketch workspaces include browser drawing before guided production; the other 12 guided templates prepare direction directly. Display categories and legacy `runtime` and `executionKind` metadata remain compatible with older recipes. Hosts maintain their own supported-operation allowlist as described in [host integration](./host-integration.md).
+These groups follow each template's versioned `workspace` descriptor. The SDK exposes `getAgentWorkspace(id)` for dispatch, `getAgentInputPolicy(id)` for file limits, accepted types and browser needs, and derives `CANVAS_LAB_AGENTS` from the same catalog. The two sketch workspaces include browser drawing before guided production; the other 12 guided templates prepare direction directly. Display categories and legacy `runtime` and `executionKind` metadata remain compatible with older recipes. Hosts maintain their own supported-operation allowlist as described in [host integration](./host-integration.md).
 
 ## Canvas tools
 

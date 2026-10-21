@@ -6,6 +6,7 @@ Notable changes to OptimAI Creative Agents. Each entry names what a builder or c
 
 ### Added
 
+- **Input policy in the catalog.** `getAgentInputPolicy(id)` returns how many files an agent takes, which types (as an `accept` string) and how large, the browser features it needs or can use (`AGENT_INPUT_NEEDS`: WebGL, WebGPU, Web Audio, camera…), and whether its result is made on the device. Hosts can build upload controls and "runs on this device" filters from the SDK instead of hard-coding limits per agent. See [input policy](./docs/host-integration.md#input-policy).
 - **Focus-aware cropping for every canvas cover fit.** Image Grid, resize, Mockup Maker, Pixel Layout, Reference Blend, Transition Lab, Glitch Cut, Poster Lab and Letter Pose now keep an off-centre subject in frame instead of cropping from the middle.
   - Each image is analysed once from a thumbnail of at most 96 pixels. The analysis combines Sobel detail with OKLab color distinctiveness, takes about a millisecond, and uses no model, network or face/skin heuristic.
   - Flat images, matching aspect ratios and environments that cannot read canvas pixels keep the classic centred crop.

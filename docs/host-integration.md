@@ -43,6 +43,20 @@ Treat recipe metadata, compiled prompts and model output as untrusted plain text
 
 Use the source catalog's versioned `workspace` descriptor to select an adapter your application already bundles. `getAgentWorkspace(id)` returns its `kind`, reviewed `operation` and optional presentation `headline`; `AGENT_WORKSPACE_CONTRACT_VERSION` is `1.2`; the v1 recipe schema remains unchanged. Template titles, descriptions, fields and artwork remain public presentation data. Legacy `executionKind` and `runtime` exports are retained for older consumers.
 
+### Input policy
+
+`getAgentInputPolicy(id)` tells a host what to ask for before it opens a workspace. It is derived from the same `workspace` descriptor, so it needs no contract bump and no recipe change:
+
+```js
+import { getAgentInputPolicy } from '@optimai/creative-agents';
+
+const { minFiles, maxFiles, accept, maxBytes, needs, optional, onDevice } = getAgentInputPolicy('reference-blend');
+// { minFiles: 2, maxFiles: 2, accept: 'image/png,image/jpeg,image/webp', maxBytes: 20971520,
+//   needs: ['canvas'], optional: [], onDevice: true }
+```
+
+Use `accept` for the file input, `maxFiles > 1` for `multiple`, and `minFiles` for empty-state copy. `needs` lists browser features from `AGENT_INPUT_NEEDS` that the agent cannot run without (`webgl` for 3D and Frame Sculpture, `web-audio` for Sound Canvas, `worker` and `wasm` for vision). `optional` lists features that only enhance it: a camera, face tracking or `media-recorder` export for camera agents, and `webgpu` for writing, which can also use a local Ollama runtime. `onDevice` is `false` only for guided and sketch templates, whose result comes from a host production step. The engines stay the authority: they re-check counts, types and bytes on every run, so a policy is for interface decisions, not validation.
+
 Keep a host-owned allowlist of supported workspace versions and operations. The catalog can describe an operation, but it cannot install an adapter in a running application. A new template that reuses a supported operation can appear and open its workspace after a reviewed SDK upgrade; a new operation or custom interface needs integration and testing first.
 
 For example, this host deliberately exposes the four original still-image processors:

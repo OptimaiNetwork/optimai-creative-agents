@@ -69,6 +69,23 @@ export declare const getAgentTemplate: typeof getToolTemplate;
 export declare const getAgentExecutionKind: (id: string) => AgentExecutionKind | undefined;
 export declare function getAgentWorkspace(id: string): AgentWorkspace | undefined;
 export declare function validateAgentWorkspace(workspace: unknown): string[];
+export type AgentInputNeed = 'canvas' | 'webgl' | 'webgpu' | 'web-audio' | 'worker' | 'wasm' | 'camera' | 'pointer' | 'media-recorder';
+export interface AgentInputPolicy {
+  readonly minFiles: number;
+  readonly maxFiles: number;
+  /** Value for an `<input type="file" accept>` attribute; empty when the agent takes no files. */
+  readonly accept: string;
+  /** Per-file byte cap; 0 when the agent takes no files. */
+  readonly maxBytes: number;
+  /** Browser features the agent cannot run without. */
+  readonly needs: readonly AgentInputNeed[];
+  /** Browser features that add tracking, export or faster models when present. */
+  readonly optional: readonly AgentInputNeed[];
+  /** True when the whole result is produced on the device, without a host production step. */
+  readonly onDevice: boolean;
+}
+export declare const AGENT_INPUT_NEEDS: readonly AgentInputNeed[];
+export declare function getAgentInputPolicy(id: string): AgentInputPolicy | undefined;
 export declare function getToolTemplate(id: string): ToolTemplate | undefined;
 export declare function validateRecipeValues(toolId: string, values: unknown): string[];
 export declare function validateToolManifest(value: unknown): ManifestValidation;

@@ -34,6 +34,29 @@ const WORKSPACE_OPERATIONS = Object.freeze({
   frame: ['sculpture'],
   workflow: [],
 });
+const MiB = 1048576, IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp';
+/** Browser features named by input policies. `needs` blocks the agent; `optional` only enhances it. */
+export const AGENT_INPUT_NEEDS = Object.freeze(['canvas', 'webgl', 'webgpu', 'web-audio', 'worker', 'wasm', 'camera', 'pointer', 'media-recorder']);
+const policy = (minFiles, maxFiles, accept, maxBytes, needs, optional = [], onDevice = true) => freeze({ minFiles, maxFiles, accept, maxBytes, needs, optional, onDevice });
+const camera = policy(0, 1, IMAGE_ACCEPT, 20 * MiB, ['canvas'], ['camera', 'worker', 'wasm', 'media-recorder']);
+// Mirrors the bounds each engine enforces; the engines stay the authority and re-check every input.
+const INPUT_POLICIES = Object.freeze({
+  canvas: (operation) => policy(['poster', 'letter'].includes(operation) ? 0 : ['blend', 'transition'].includes(operation) ? 2 : 1,
+    ['image-grid', 'bento'].includes(operation) ? 8 : ['blend', 'transition'].includes(operation) ? 2 : 1, IMAGE_ACCEPT, 20 * MiB, ['canvas']),
+  vision: () => policy(1, 1, IMAGE_ACCEPT, 20 * MiB, ['canvas', 'worker', 'wasm']),
+  writing: () => policy(0, 0, '', 0, [], ['webgpu', 'worker']),
+  sketch: () => policy(0, 0, '', 0, ['canvas', 'pointer'], [], false),
+  workflow: () => policy(0, 1, IMAGE_ACCEPT, 20 * MiB, [], [], false),
+  '3d': () => policy(0, 1, '.glb,model/gltf-binary', 20 * MiB, ['canvas', 'webgl']),
+  camera: () => camera,
+  music: () => policy(1, 1, 'audio/*,.mp3,.wav,.m4a,.ogg,.flac', 64 * MiB, ['canvas', 'web-audio'], ['media-recorder']),
+  frame: () => policy(1, 1, `video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v,${IMAGE_ACCEPT}`, 64 * MiB, ['canvas', 'webgl']),
+});
+/** Files, MIME accept list, byte cap and browser needs for a template, derived from its workspace descriptor. */
+export function getAgentInputPolicy(id) {
+  const workspace = getAgentWorkspace(id);
+  return workspace && Object.hasOwn(INPUT_POLICIES, workspace.kind) ? INPUT_POLICIES[workspace.kind](workspace.operation) : undefined;
+}
 /** Check source-owned workspace data without accepting code, URLs or privileges. */
 export function validateAgentWorkspace(workspace) {
   const errors = [];
