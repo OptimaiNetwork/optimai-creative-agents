@@ -153,6 +153,29 @@ if (policy.mode === 'automatic') {
 
 Data Saver and 2G connections use manual setup. Large models also use manual setup on 3G or when reported device memory is below 4 GB. A required but unavailable WebGPU environment is unsupported. Automatic mode prepares only the selected reviewed model; it does not download every catalog model. The host still performs capability checks beyond this coarse policy. Cancel preparation when a workspace closes, preserve its user's input and offer a deliberate retry; cancel is not permission to restart a download automatically.
 
+### Setup controller and sizes
+
+`createModelSetupController({ load, check, cancel, bytes, name, policy })` runs the visible setup flow so every host shows the same states: `idle → checking → downloading (loaded, total) → verifying → ready`, or `failed` / `unsupported`. It never fetches by itself. `load({ signal, onProgress })` is your reviewed call (`downloadVisionModel`, browser writer `load()`…), and the optional `check({ signal })` returns `{ ready, available, loading, cached, message }`.
+
+```js
+import { createModelSetupController, describeModelSetup, getModelSetupPolicy } from './src/model-setup.mjs';
+import { BROWSER_AGENT_MODEL } from './src/browser-writing-runtime.mjs';
+
+const size = describeModelSetup(BROWSER_AGENT_MODEL); // { download: '453 MB', memory: 'about 1.7 GB GPU memory', label }
+const setup = createModelSetupController({
+  name: 'writing AI', bytes: BROWSER_AGENT_MODEL.downloadBytes,
+  policy: () => getModelSetupPolicy({ bytes: BROWSER_AGENT_MODEL.downloadBytes, requiresWebGPU: true }, readEnvironment()),
+  check: async () => ({ ...await runtime.status(), cached: await isCached() }),
+  load: ({ signal, onProgress }) => runtime.load({ signal, onProgress }),
+  cancel: () => runtime.cancel(),
+});
+setup.subscribe(state => render(state.state, state.progress, state.progressLabel)); // "120 MB of 453 MB"
+await setup.check({ autoStart: true }); // ready, unsupported, observes a load already running, or starts when cached/automatic
+stopButton.onclick = () => setup.abort(); // back to idle; late progress from the stopped run is ignored
+```
+
+The state object is frozen and replaced on every change, so `subscribe`/`getState` work directly with React's `useSyncExternalStore`. Progress accepts `{ stage | phase, loaded, total, progress, message }`: a fraction is converted to bytes with the declared `bytes`, a reported `total` replaces it, and bytes never move backwards within one run. A `verify` stage becomes `verifying`. A second `start()` joins the running one, a user's `start()` or `abort()` during `check()` wins over the late check result, and a check that finds a load already running polls it (`pollMs`, default 800) instead of starting a duplicate download; `abort()` then calls your `cancel`. `reset({ state, message })` resyncs after the model was released elsewhere. With a `check`, the controller starts in `checking` so no Download button flashes before the first check; `policy` may be a function so browser hints are read at check time rather than during server rendering; `dispose()` on unmount stops only this controller's own download and polling, never a load it merely observed. `formatBytes` uses decimal units as operating systems show downloads (`453 MB`, `3.8 MB`, `1.7 GB`), and `describeModelProgress({ loaded, total })` gives `"120 MB of 453 MB"`.
+
 `downloadVisionModel`, `loadVisionModelBuffer` and browser writer `load()` remain explicit function calls internally. Recipes contain neither download policy nor model/worker URLs. Inference stays separate from setup: preparing a model does not generate a new take, request a camera or trigger paid production.
 
 ## Browser writing
