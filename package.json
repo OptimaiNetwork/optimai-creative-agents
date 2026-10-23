@@ -99,6 +99,10 @@
       "types": "./src/smart-crop.d.mts",
       "import": "./src/smart-crop.mjs"
     },
+    "./color": {
+      "types": "./src/color.d.mts",
+      "import": "./src/color.mjs"
+    },
     "./verify": {
       "types": "./src/verify.d.mts",
       "import": "./src/verify.mjs"

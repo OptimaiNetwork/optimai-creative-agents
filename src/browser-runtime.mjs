@@ -1,3 +1,4 @@
+import { analyzeImageColors, pickAccentColor, pickLegibleColor, toOklab } from './color.mjs';
 import { analyzeImageFocus, focusCoverRect } from './smart-crop.mjs';
 export const LOCAL_IMAGE_LIMITS = Object.freeze({
     files: 8,
@@ -290,13 +291,14 @@ function textLines(context, text, width) {
     }
     return lines;
 }
-function drawTitle(context, size, values) {
+function drawTitle(context, size, values, canvas, image) {
     const text = String(values.title ?? values.text ?? values.label ?? 'Your next big idea').trim();
     if (!text || text.length > 300)
         throw new Error('Add a title between 1 and 300 characters.');
     const requestedSize = numberValue(values, 'fontSize', 64, 12, 240);
     const color = colorValue(values, 'color', '#ffffff');
     const position = optionValue(values, 'position', 'bottom', ['top', 'center', 'bottom']);
+    const ink = optionValue(values, 'ink', 'readable', ['readable', 'image', 'exact']);
     const padding = Math.max(1, Math.round(Math.min(size.width, size.height) * .055));
     const maxWidth = Math.max(1, size.width - padding * 2);
     const maxHeight = Math.max(1, size.height - padding * 2);
@@ -315,13 +317,26 @@ function drawTitle(context, size, values) {
     context.textAlign = 'center';
     context.lineJoin = 'round';
     context.lineWidth = Math.max(1, fontSize * .055);
-    context.strokeStyle = 'rgba(0, 0, 0, .7)';
-    context.fillStyle = color;
+    let fill = color, halo = 'rgba(0, 0, 0, .7)';
+    if (ink !== 'exact') {
+        // Sample what the title covers; at least 3:1 (WCAG AA for large text) over each colour covering 5% of it.
+        const span = Math.min(maxWidth, Math.max(...lines.map(line => context.measureText(line).width)));
+        const surfaces = analyzeImageColors(canvas, size.width, size.height, { region: { x: (size.width - span) / 2, y: startY, width: span, height: blockHeight }, count: 4 })?.filter(surface => surface.weight >= .05);
+        const accent = ink === 'image' ? pickAccentColor(analyzeImageColors(image.source, image.width, image.height) ?? []) : null;
+        if (surfaces?.length) {
+            fill = pickLegibleColor(surfaces, { prefer: [accent, color], minContrast: 3 }).color;
+            // The outline is a halo on the far side of the main background: light behind a darker title.
+            if (toOklab(fill)[0] < surfaces[0].oklch[0]) halo = 'rgba(255, 255, 255, .7)';
+        }
+    }
+    context.strokeStyle = halo;
+    context.fillStyle = fill;
     lines.forEach((line, index) => {
         const y = startY + index * lineHeight;
         context.strokeText(line, size.width / 2, y, maxWidth);
         context.fillText(line, size.width / 2, y, maxWidth);
     });
+    return fill;
 }
 /** Run a reviewed, first-party local operation. This never executes plugin code. */
 export async function runLocalTool(operation, files, values, signal) {
@@ -340,7 +355,7 @@ export async function runLocalTool(operation, files, values, signal) {
         await checkSignature(file, signal);
     }
     const images = [];
-    let canvas;
+    let canvas, ink;
     try {
         for (const file of files) {
             const image = await loadLocalImage(file, signal);
@@ -377,7 +392,7 @@ export async function runLocalTool(operation, files, values, signal) {
         }
         else {
             context.drawImage(images[0].source, 0, 0, size.width, size.height);
-            drawTitle(context, size, values);
+            ink = drawTitle(context, size, values, canvas, images[0]);
         }
         throwIfAborted(signal);
         const blob = await abortable(new Promise((resolve, reject) => {
@@ -387,7 +402,7 @@ export async function runLocalTool(operation, files, values, signal) {
         if (blob.size > LOCAL_IMAGE_LIMITS.bytes)
             throw new Error('The result exceeds 20 MB. Choose smaller dimensions.');
         const base = files[0].name.replace(/\.[^.]*$/, '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'optimai';
-        return { ...size, blob, filename: `${base}-${operation}.png` };
+        return { ...size, blob, filename: `${base}-${operation}.png`, ...(ink ? { ink } : {}) };
     }
     finally {
         images.forEach(image => image.release());

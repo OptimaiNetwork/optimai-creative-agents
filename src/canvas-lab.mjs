@@ -1,5 +1,6 @@
 import { getToolOutputSize, LOCAL_IMAGE_LIMITS, runLocalTool } from './browser-runtime.mjs';
 import { AGENT_CATALOG, getAgentTemplate, validateRecipeValues } from './index.mjs';
+import { analyzeImageColors, pickAccentColor, pickLegibleColor } from './color.mjs';
 import { analyzeImageFocus, focusCoverRect } from './smart-crop.mjs';
 
 const LAB_OPERATIONS = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition']);
@@ -19,6 +20,7 @@ export function canvasLabSettings(operation, values = {}) {
     treatment: option('treatment', 'editorial', ['editorial', 'cinema', 'minimal']),
     amount: number('amount', 35, 0, 100), mix: number('mix', 50, 0, 100),
     crop: option('crop', 'smart', ['smart', 'center']),
+    ink: option('ink', 'readable', ['readable', 'image', 'exact']),
   };
 }
 /** Map portable recipe settings to the actual canvas engine, including v1 aliases. */
@@ -84,6 +86,14 @@ function lettering(ctx, settings, width, height) {
   while ((lines.length * fontSize * 1.1 > height * .65 || lines.some(line => ctx.measureText(line).width > width * .86)) && fontSize > 16) { fontSize -= 2; ctx.font = `900 ${fontSize}px system-ui, sans-serif`; lines = titleLines(ctx, settings.title, width * .82); }
   return { lines, fontSize };
 }
+// Large bold titles: WCAG AA for large text (3:1) over every colour that covers at least 5% of the title area.
+function inkColor(canvas, area, settings, image) {
+  if (settings.ink === 'exact') return settings.color;
+  const surfaces = analyzeImageColors(canvas, canvas.width, canvas.height, { region: area, count: 4 })?.filter(surface => surface.weight >= .05);
+  if (!surfaces?.length) return settings.color;
+  const accent = settings.ink === 'image' && image ? pickAccentColor(analyzeImageColors(image, image.width, image.height) ?? []) : null;
+  return pickLegibleColor(surfaces, { prefer: [accent, settings.color], minContrast: 3 }).color;
+}
 /** Original browser-only canvas utilities. No network, image generation or video codec. */
 export async function runCanvasLab(operation, files = [], values = {}, signal) {
   const settings = canvasLabSettings(operation, values); abort(signal);
@@ -91,7 +101,7 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
   if (!Array.isArray(files) || files.length > maximum) throw new Error(`Choose up to ${maximum} images.`);
   if (!files.length && !['poster', 'letter'].includes(operation)) throw new Error('Add an image to start.');
   if (['blend', 'transition'].includes(operation) && files.length !== 2) throw new Error('Choose two images for this composition.');
-  const images = []; let canvas, source; let pixels = 0;
+  const images = []; let canvas, source, ink; let pixels = 0;
   try {
     // Reuse the signature, dimensions, decode and memory validation of the public processor.
     for (const file of files) {
@@ -136,7 +146,9 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
     } else {
       if (images[0]) fit(ctx, images[0], 0, 0, width, height, false, focus[0]);
       if (operation === 'poster') { const shade = ctx.createLinearGradient(0, height * .25, 0, height); shade.addColorStop(0, '#0000'); shade.addColorStop(1, '#000e'); ctx.fillStyle = shade; ctx.fillRect(0, 0, width, height); }
-      const { lines, fontSize } = lettering(ctx, settings, width, height); ctx.fillStyle = settings.color; ctx.textBaseline = 'top'; const start = operation === 'poster' ? height - lines.length * fontSize * 1.1 - height * .12 : (height - lines.length * fontSize * 1.1) / 2;
+      const { lines, fontSize } = lettering(ctx, settings, width, height); ctx.textBaseline = 'top'; const start = operation === 'poster' ? height - lines.length * fontSize * 1.1 - height * .12 : (height - lines.length * fontSize * 1.1) / 2;
+      const span = Math.min(width * .92, Math.max(...lines.map(line => ctx.measureText(line).width)));
+      ink = inkColor(canvas, { x: settings.treatment === 'cinema' ? (width - span) / 2 : width * .08, y: start, width: span, height: lines.length * fontSize * 1.1 }, settings, images[0]); ctx.fillStyle = ink;
       if (settings.treatment === 'cinema') { ctx.textAlign = 'center'; } else ctx.textAlign = 'left';
       lines.forEach((line, index) => ctx.fillText(line, settings.treatment === 'cinema' ? width / 2 : width * .08, start + index * fontSize * 1.1));
       ctx.font = '500 20px system-ui'; ctx.fillStyle = '#e1e9da'; ctx.textAlign = 'left'; ctx.fillText('AN OPTIMAI ORIGINAL', width * .08, height * .045);
@@ -146,6 +158,6 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
     const blob = await abortable(new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not export this canvas.')), 'image/png')), signal);
     abort(signal);
     if (blob.size > 20 * 1024 * 1024) throw new Error('The exported image is too large. Use a smaller composition.');
-    return { blob, width, height, filename: `optimai-${operation}.png` };
+    return { blob, width, height, filename: `optimai-${operation}.png`, ...(ink ? { ink } : {}) };
   } finally { images.forEach(image => image.close()); if (source) source.width = source.height = 1; if (canvas) canvas.width = canvas.height = 1; }
 }

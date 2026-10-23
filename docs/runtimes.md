@@ -46,7 +46,7 @@ The engine accepts actual local `File` objects only. PNG, JPEG and WebP signatur
 | `image-filter` | `preset`: original, noir, warm, cool or punchy; `intensity`: 0–100 |
 | `image-resize` | `width`, `height`: positive integers up to 4096; `ratio`: original, 1:1, 16:9, 9:16 or 4:5; `fit`: cover or contain; `crop`: smart or center; `background`: hex color |
 | `image-grid` | `columns`: 1–4; `gap`: 0–80 pixels; `crop`: smart or center; `background`: hex color |
-| `type-overlay` | `title`: 1–300 characters; `fontSize`: 12–240; `color`: hex color; `position`: top, center or bottom |
+| `type-overlay` | `title`: 1–300 characters; `fontSize`: 12–240; `color`: hex color; `position`: top, center or bottom; `ink`: readable, image or exact ([readable titles](#readable-titles-and-image-palettes)) |
 
 For a fixed resize ratio, width determines height when supplied; supplying only height determines width. With the original ratio, a single supplied side preserves the source proportions, while supplying both sides creates that exact canvas. The cover or contain setting determines how the image fits this canvas. Cover fits use [focus-aware cropping](#focus-aware-cropping) unless `crop` is `center`. Browser color-filter support is required for the color-finish operation. Rendering and PNG encoding run in the browser; Node tests use controlled canvas and image fixtures to verify the real exported engine, validation, geometry and resource cleanup.
 
@@ -61,7 +61,7 @@ const output = await runCanvasLab(CANVAS_LAB_AGENTS['poster-lab'], [], {
 }, controller.signal);
 ```
 
-`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`. `glitch` displaces still-image bands with `amount: 0–100`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. These tools export PNGs, not video or model-generated artwork.
+`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`. `glitch` displaces still-image bands with `amount: 0–100`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. Poster and letter titles use [readable ink](#readable-titles-and-image-palettes) by default; pass `ink: 'exact'` to draw `color` unchanged. These tools export PNGs, not video or model-generated artwork.
 
 ### Focus-aware cropping
 
@@ -84,6 +84,42 @@ context.drawImage(bitmap, area.x, area.y, area.width, area.height, 0, 0, 1080, 1
 ```
 
 `computeFocusMap(rgba, width, height)` and `findFocusCrop(map, width, height, aspect)` expose the pure steps, which also run in Node. Package consumers import `@optimai/creative-agents/smart-crop`.
+
+### Readable titles and image palettes
+
+A title color that reads on a dark photo can vanish on a bright one. Poster Lab, Letter Pose and Title Frame sample the composition behind the title block (a thumbnail of at most 64 pixels), find its dominant colors, and check the ink against every color that covers at least 5% of that area. The `ink` setting chooses what happens:
+
+| `ink` | Behaviour |
+| --- | --- |
+| `readable` (default) | Keep `color` when it reaches 3:1 WCAG contrast (AA for large text) over each of those colors. Otherwise move only its OKLCH lightness, by the smallest step that passes, so the hue the creator chose survives. |
+| `image` | Start from the photo's accent (its most vivid color that is also present), then apply the same check. Falls back to `color`. |
+| `exact` | Draw `color` unchanged, as before. |
+
+The result reports the ink actually drawn as `output.ink`, so a host can say so ("Ink adjusted to #5c8300 to stay readable"). Title Frame also draws its outline on the far side of the background: a light halo behind a title darker than the image. Environments that cannot read canvas pixels draw `color` unchanged. Saved recipes need no new field.
+
+The color engine is a public module that runs in Node and the browser:
+
+```js
+import { analyzeImageColors, mixColors, pickAccentColor, pickLegibleColor } from '@optimai/creative-agents/color';
+
+const palette = analyzeImageColors(bitmap, bitmap.width, bitmap.height); // [{ color, weight, oklch }], or null
+const accent = pickAccentColor(palette ?? []);                           // '#2452c4', or null for a neutral image
+const behind = analyzeImageColors(canvas, canvas.width, canvas.height, { region: { x: 96, y: 1100, width: 1008, height: 260 } });
+const { color, contrast, passes } = pickLegibleColor(behind, { prefer: [accent, '#c6f87d'], minContrast: 4.5 });
+const hover = mixColors(color, '#ffffff', 0.2);                          // mixed in OKLab
+```
+
+| Export | What it does |
+| --- | --- |
+| `toOklab`, `toOklch`, `fromOklab`, `fromOklch` | Conversions after [Björn Ottosson's OKLab](https://bottosson.github.io/posts/oklab/). Out-of-gamut colors keep lightness and hue and lose chroma. |
+| `parseHexColor`, `formatHexColor` | `#rgb`/`#rrggbb` ↔ `[r, g, b]`. Every function takes either form and returns `#rrggbb`. |
+| `mixColors(a, b, amount)` | Perceptual mix in OKLab: black and white mix to a true mid-grey, red and blue stay colorful. |
+| `contrastRatio`, `relativeLuminance` | WCAG 2.x, shared with [tier-0 verification](#tier-0-verification). Use these for conformance. |
+| `lightnessContrast(text, background)` | A polarity-aware OKLab lightness difference on an Lc-like −100…100 scale, positive for dark text on a light background. It is a simple ranking aid, not APCA. |
+| `pickLegibleColor(backgrounds, { prefer, minContrast })` | Tries each preferred color in order, keeps it or moves its lightness the least distance that passes over every background. With no passing option (black *and* white behind the text) it returns the strongest candidate, often a mid-tone, with `passes: false`: add a scrim. |
+| `dominantColors(rgba, width, height, { count })` | Weighted k-means in OKLab over a 15-bit histogram with deterministic seeding, so the same pixels always give the same palette. Alpha weights each pixel. At most 262,144 pixels and 12 colors. |
+| `pickAccentColor(palette)` | The swatch with the highest chroma × √weight, or null below `minChroma`. |
+| `analyzeImageColors(source, width, height, { region, count })` | Palette of an image, video frame or canvas (or a region of it) from a 64-pixel thumbnail; null when pixels cannot be read. |
 
 ### Tier-0 verification
 

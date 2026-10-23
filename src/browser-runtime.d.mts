@@ -1,7 +1,7 @@
 export type LocalToolOperation = 'image-filter' | 'image-resize' | 'image-grid' | 'type-overlay';
 export type LocalToolValues = Record<string, string | number>;
 export type LocalImageSize = { width: number; height: number };
-export type LocalToolOutput = LocalImageSize & { blob: Blob; filename: string };
+export type LocalToolOutput = LocalImageSize & { blob: Blob; filename: string; /** Title color actually drawn by type-overlay. */ ink?: string };
 
 export declare const LOCAL_IMAGE_LIMITS: Readonly<{
     files: 8;

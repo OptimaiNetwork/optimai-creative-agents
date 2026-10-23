@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as runtime from '../src/browser-runtime.mjs';
+import { contrastRatio } from '../src/color.mjs';
 
 const image = (name = 'test.png', bytes = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0], type = 'image/png') => new File([new Uint8Array(bytes)], name, { type });
 
@@ -247,3 +248,32 @@ test('grid cells crop a differently shaped image toward its subject', async () =
     assert.equal(h.calls.draw[0].length, 5, 'The first image sets the cell shape, so it is not cropped.');
     assert.equal(h.calls.draw[1].length, 9, 'The portrait image is cropped to the landscape cell.');
 }, mixedSizes)));
+
+test('Title Frame keeps its title readable over a bright image with an opposite halo, and ink: exact keeps the legacy look', async () => {
+    const previous = globalThis.OffscreenCanvas;
+    globalThis.OffscreenCanvas = class {
+        constructor(width, height) { this.width = width; this.height = height; }
+        getContext() {
+            return { drawImage() {}, getImageData(x, y, width, height) {
+                const data = new Uint8ClampedArray(width * height * 4);
+                for (let index = 0; index < width * height; index++) data.set(index % 3 ? [244, 246, 248, 255] : [226, 232, 238, 255], index * 4);
+                return { data };
+            } };
+        }
+    };
+    try {
+        await browserHarness(async h => {
+            const readable = await runtime.runLocalTool('type-overlay', [image()], { title: 'Bright sky', color: '#ffffff' });
+            assert.ok(['#f4f6f8', '#e2e8ee'].every(sky => contrastRatio(readable.ink, sky) >= 3), `${readable.ink} reads over the sky.`);
+            assert.equal(h.context.fillStyle, readable.ink);
+            assert.equal(h.context.strokeStyle, 'rgba(255, 255, 255, .7)', 'A dark title gets a light halo.');
+            const exact = await runtime.runLocalTool('type-overlay', [image()], { title: 'Bright sky', color: '#ffffff', ink: 'exact' });
+            assert.equal(exact.ink, '#ffffff');
+            assert.equal(h.context.strokeStyle, 'rgba(0, 0, 0, .7)');
+            await assert.rejects(runtime.runLocalTool('type-overlay', [image()], { ink: 'remote' }), /supported ink/);
+        });
+    } finally { if (previous === undefined) delete globalThis.OffscreenCanvas; else globalThis.OffscreenCanvas = previous; }
+    await browserHarness(async () => {
+        assert.equal((await runtime.runLocalTool('type-overlay', [image()], { color: '#abc' })).ink, '#abc', 'Without pixel reads the chosen color is drawn unchanged.');
+    });
+});

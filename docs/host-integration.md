@@ -90,7 +90,8 @@ A broader host can add these reviewed runtime adapters:
 | Capability | SDK entry and dispatch | Output and host requirements |
 | --- | --- | --- |
 | Original image processing | `browser-runtime` → `runLocalTool` | PNG; selected PNG/JPEG/WebP files and bounded settings |
-| Additional composition | `canvas-lab` → `canvasLabRecipeSettings`, `runCanvasLab` | PNG; normalize defaults, canonical settings and saved v1 aliases |
+| Additional composition | `canvas-lab` → `canvasLabRecipeSettings`, `runCanvasLab` | PNG and the title ink actually drawn; normalize defaults, canonical settings and saved v1 aliases |
+| Color | `color` → `pickLegibleColor`, `analyzeImageColors`, `dominantColors`, `mixColors` | OKLab/OKLCH conversions, WCAG contrast, readable ink and deterministic image palettes; Node and browser |
 | Browser vision | `vision-runtime` → `downloadVisionModel`, `runBrowserVision` | PNG and analysis; selected-agent setup policy, reviewed local worker and WASM assets |
 | Browser writing | `browser-writing-runtime` → `createBrowserAgentRuntime` | Validated written artifact; selected-agent setup policy, supported WebGPU device and local worker |
 | 3D scene | `scene-3d` → `scene3DRecipeSettings`; `scene-3d-runtime` → `createScene3DStage` | Procedural/local GLB WebGL stage, PNG and scene recipe; optional reviewed Three peer |

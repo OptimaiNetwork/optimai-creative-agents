@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AGENT_CATALOG } from '../src/index.mjs';
 import { CANVAS_LAB_AGENTS, canvasLabRecipeSettings, canvasLabSettings, runCanvasLab } from '../src/canvas-lab.mjs';
+import { contrastRatio, toOklch } from '../src/color.mjs';
 
 const image = (name = 'local.png', bytes = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]) => new File([new Uint8Array(bytes)], name, { type: 'image/png' });
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -221,4 +222,35 @@ test('compositions crop each image toward its subject, and crop: center opts out
       assert.ok(h.calls.bitmaps.every(value => value.closed === 1));
     });
   } finally { if (previous === undefined) delete globalThis.OffscreenCanvas; else globalThis.OffscreenCanvas = previous; }
+});
+test('poster and letter titles stay readable over bright images, take an image accent on request, and ink: exact opts out', async () => {
+  const previous = globalThis.OffscreenCanvas;
+  // Thumbnails of the composition read as a bright sky; thumbnails of the source photo read as a blue scene.
+  globalThis.OffscreenCanvas = class {
+    constructor(width, height) { this.width = width; this.height = height; }
+    getContext() { let source; return { drawImage(value) { source = value; }, getImageData(x, y, width, height) {
+      const data = new Uint8ClampedArray(width * height * 4);
+      for (let index = 0; index < width * height; index++) data.set(source?.close ? (index % 4 ? [36, 82, 196, 255] : [240, 236, 228, 255]) : (index % 3 ? [236, 240, 244, 255] : [214, 222, 230, 255]), index * 4);
+      return { data };
+    } }; }
+  };
+  try {
+    assert.equal(canvasLabSettings('poster').ink, 'readable');
+    assert.equal(canvasLabRecipeSettings('poster-lab').ink, 'readable', 'Saved recipes get readable ink without a new recipe field.');
+    assert.throws(() => canvasLabSettings('poster', { ink: 'random' }), /supported ink/);
+    await canvasHarness(async () => {
+      const readable = await runCanvasLab('letter', [image()], { color: '#c6f87d' });
+      assert.notEqual(readable.ink, '#c6f87d');
+      assert.ok(['#ecf0f4', '#d6dee6'].every(sky => contrastRatio(readable.ink, sky) >= 3), 'At least 3:1 over every sky colour.');
+      assert.ok(Math.abs(toOklch(readable.ink)[2] - toOklch('#c6f87d')[2]) < 4, 'The chosen hue is kept.');
+      const accent = await runCanvasLab('poster', [image()], { color: '#c6f87d', ink: 'image' });
+      assert.ok(Math.abs(toOklch(accent.ink)[2] - toOklch('#2452c4')[2]) < 4, 'Image ink takes the photo’s blue.');
+      assert.equal((await runCanvasLab('poster', [image()], { color: '#c6f87d', ink: 'exact' })).ink, '#c6f87d');
+      const blank = await runCanvasLab('poster', [], { color: '#c6f87d', ink: 'image' });
+      assert.ok(Math.abs(toOklch(blank.ink)[2] - toOklch('#c6f87d')[2]) < 4, 'Without an image, image ink tunes the chosen color.');
+    });
+  } finally { if (previous === undefined) delete globalThis.OffscreenCanvas; else globalThis.OffscreenCanvas = previous; }
+  await canvasHarness(async () => {
+    assert.equal((await runCanvasLab('poster', [], { color: '#abcdef' })).ink, '#abcdef', 'Without pixel reads the chosen color is drawn unchanged.');
+  });
 });
