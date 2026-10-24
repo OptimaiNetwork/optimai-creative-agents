@@ -21,7 +21,7 @@ Build image workspaces, design utilities, story treatments and creative workflow
 
 ## What works today
 
-Version `0.4.0` contains **38 agent templates**. They expose different kinds of capability; a production brief and an executed image processor have different outputs.
+Version `0.5.0` contains **38 agent templates**. They expose different kinds of capability; a production brief and an executed image processor have different outputs.
 
 | Capability | Agents | What you receive | Setup |
 | --- | ---: | --- | --- |
@@ -137,6 +137,8 @@ Try the agents at [optimai.studio/agents](https://optimai.studio/agents), or rea
 
 **MCP clients.** Launch the local stdio adapter with Node. It exposes all 38 recipes for preparation; writing agents can run only when explicitly requested with an installed model. The adapter implements protocol version `2025-11-25`. [MCP guide →](./docs/mcp.md)
 
+**AI coding agents.** [`llms.txt`](./llms.txt) maps every public subpath to its exported functions and types, the guides and all template IDs in one short file, generated from the shipped declarations so it cannot drift. Point your coding assistant at it before it writes against the SDK.
+
 **OptimAI Studio.** Import a valid JSON recipe through the local AI Agents builder, or use a reviewed host handoff. Studio's account, generation, billing, persistence and publishing services are separate from this MIT SDK. Importing a recipe does not publish a community listing. [Host integration →](./docs/host-integration.md)
 
 **From a source contribution to Studio.** Catalog presentation, supported workspace bindings and processors live in this package. A reviewed SDK revision passes Studio's compatibility checks before its frontend is deployed. Compatible new catalog templates then appear automatically from the bundled source; new engines or custom interfaces need a host adapter first. A public merge alone does not change the live site. [Source promotion →](./docs/host-integration.md#promote-a-source-release-into-studio)
@@ -165,6 +167,8 @@ Use [issues](https://github.com/OptimaiNetwork/optimai-creative-agents/issues) f
 | [MCP](./docs/mcp.md) | Configure and exercise the stdio adapter |
 | [Contributing](./CONTRIBUTING.md) | Develop a recipe or reviewed engine |
 | [Release and featuring](./docs/release-and-feature.md) | Prepare a reviewable source contribution and release |
+| [`llms.txt`](./llms.txt) | A compact API map for AI coding agents |
+| [Changelog](./CHANGELOG.md) | What each release lets builders and creators do |
 
 ## License and acknowledgments
 

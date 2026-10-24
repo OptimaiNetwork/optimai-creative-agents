@@ -57,6 +57,44 @@ Open a pull request from your branch to `main` in [OptimaiNetwork/optimai-creati
 
 A recipe PR reuses reviewed code. A new operation needs SDK source, declarations, contract and schema updates, meaningful tests and documentation. Merging source does not automatically deploy it to every host; a host must ship the reviewed version before the capability can execute there.
 
+## Cut a release
+
+Maintainers turn the changelog into a release with one command. It edits local files only: it never commits, tags, publishes or calls the network.
+
+```sh
+npm run release:notes -- --dry-run          # preview: next version, highlights, files
+npm run release:notes                       # minor when Unreleased has Added/Changed/Removed, else patch
+npm run release:notes -- patch --date 2026-10-24
+npm run release:notes -- 1.0.0
+```
+
+The command moves everything under `## Unreleased` in [CHANGELOG.md](../CHANGELOG.md) into a `## x.y.z — YYYY-MM-DD` section (today's local date by default) and leaves an empty `Unreleased`. In the same step it bumps `package.json` (the MCP adapter's `serverInfo.version` reads it), the README's version line, adds an `## SDK x.y.z` summary below with the bold lead of each changelog bullet, and regenerates [`llms.txt`](../llms.txt). It refuses an empty `Unreleased`, a version that does not move forward, an existing section or an invalid date, and plans every file before writing any.
+
+Then review the diff, run `npm test` and `npm run verify`, commit, and tag the commit `vx.y.z` yourself. `test/docs.test.mjs` fails if a living document names another version.
+
+Run `npm run llms` after changing exports, declarations, guides or the catalog between releases; `node scripts/release-notes.mjs --check` (and the test suite) report a stale `llms.txt`.
+
+## SDK 0.5.0
+
+Released 2026-10-24 with workspace contract 1.2. The catalog has 38 templates: 10 canvas, 3 browser vision, 5 writing, 6 interactive and 14 guided entries. Portable v1 manifests and saved recipe fields stay compatible.
+
+- A release in one command
+- `llms.txt` for AI coding agents
+- Titles that stay readable on any photo
+- `@optimai/creative-agents/color`
+- One model setup flow with real sizes
+- Input policy in the catalog
+- Focus-aware cropping for every canvas cover fit
+- `@optimai/creative-agents/smart-crop`
+- `@optimai/creative-agents/verify`: tier-0 checks
+- Steadier, more responsive avatars
+- `@optimai/creative-agents/landmark-filter`
+- Sound Canvas can pulse on the beat
+- `@optimai/creative-agents/beat-tracker`
+- Documentation guard
+
+Every change is described in the [changelog](../CHANGELOG.md#050--2026-10-24).
+
 ## SDK 0.4.0
 
 Workspace contract 1.2 adds the `music:reactive` (Sound Canvas) and `frame:sculpture` (Frame Sculpture) engines, bringing the catalog to 38 templates: 10 canvas, 3 vision, 5 writing, 6 interactive and 14 guided entries. Both use selected local media, need no model download, and require a host adapter before they can run. See [music and motion](./MUSIC-MOTION.md). Day-to-day changes are listed in the [changelog](../CHANGELOG.md).

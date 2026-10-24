@@ -4,8 +4,12 @@ Notable changes to OptimAI Creative Agents. Each entry names what a builder or c
 
 ## Unreleased
 
+## 0.5.0 — 2026-10-24
+
 ### Added
 
+- **A release in one command.** `npm run release:notes` turns the notes under *Unreleased* into a dated version section and moves the version in `package.json`, the MCP adapter, the README, the release guide and `llms.txt` together. It picks minor or patch from the kind of notes (or takes `major`, `minor`, `patch` or an exact version), refuses an empty or backwards release, and never commits, tags or publishes. See [cut a release](./docs/release-and-feature.md#cut-a-release).
+- **`llms.txt` for AI coding agents.** One short file maps every public subpath to its exported functions and types, the guides and all 38 template IDs. It is generated from the shipped declarations (`npm run llms`), and a test fails when it falls behind.
 - **Titles that stay readable on any photo.** Poster Lab, Letter Pose and Title Frame check the title color against what is actually behind it. If it would fade into a bright sky or a busy background, only its lightness moves, just enough for 3:1 WCAG contrast, so the hue a creator picked survives. `ink: 'image'` takes the accent color from the photo instead, `ink: 'exact'` keeps the old behaviour, and `output.ink` reports the color drawn. Title Frame's outline now flips to a light halo behind a dark title. No new recipe field. See [readable titles](./docs/runtimes.md#readable-titles-and-image-palettes).
 - **`@optimai/creative-agents/color`.** OKLab and OKLCH conversions with gamut mapping, perceptual mixing, WCAG contrast plus a polarity-aware lightness contrast, `pickLegibleColor` for text over one or many backgrounds, and a deterministic OKLab k-means palette (`dominantColors`, `pickAccentColor`, `analyzeImageColors`). No dependencies; runs in Node and the browser.
 - **One model setup flow with real sizes.** `createModelSetupController()` in `model-setup` runs idle → checking → downloading (loaded, total) → verifying → ready, with failed and unsupported, around your own reviewed `load` and `check` calls. Creators see "120 MB of 453 MB" instead of a bare percentage, Stop always works, a load already running elsewhere is reused instead of downloaded twice, and late progress from a stopped run can't flip the screen back. `formatBytes`, `describeModelProgress` and `describeModelSetup` turn model metadata into labels such as "453 MB · about 1.7 GB GPU memory", so hosts stop hard-coding sizes. See [setup controller](./docs/runtimes.md#setup-controller-and-sizes).

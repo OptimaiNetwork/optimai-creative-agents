@@ -1,0 +1,64 @@
+# OptimAI Creative Agents
+
+> Local-first browser AI, creative workflows and a community builder SDK. MIT-licensed JavaScript SDK, version 0.5.0, workspace contract 1.2, 38 reviewed agent templates. Node.js >=20 and modern browsers; no runtime dependencies.
+
+How to work with this SDK:
+
+- A recipe is a portable v1 JSON manifest: a reviewed template ID, approved setting values and a creative brief. It never carries code, model URLs or credentials.
+- Scaffold with `npm run create`, validate with `node scripts/verify.mjs path/to/agent.json`, and run `npm test` before proposing a change.
+- Import the public subpaths below; each module ships a `.d.mts` declaration beside it. Files without a subpath are internal. `npm run mcp` starts the local stdio MCP adapter.
+- Optional peers stay optional and pinned: `@mlc-ai/web-llm@0.2.85`, `@mediapipe/tasks-vision@1.1.0`, `three@0.186.1`. Canvas, catalog, color, crop, verify and beat modules need none.
+- Selected media stays on the device. Media generation, accounts and billing belong to the host application, not this SDK.
+
+## Modules
+
+- [`@optimai/creative-agents`](src/index.d.mts): MANIFEST_VERSION, AGENT_WORKSPACE_CONTRACT_VERSION, MAX_PROMPT_LENGTH, TOOL_CATALOG, AGENT_CATALOG, TOOL_MANIFEST_SCHEMA, AGENT_MANIFEST_SCHEMA, getAgentTemplate, getAgentExecutionKind, getAgentWorkspace, validateAgentWorkspace, AGENT_INPUT_NEEDS, getAgentInputPolicy, getToolTemplate, validateRecipeValues, validateToolManifest, createToolManifest, compileToolPrompt, validateAgentManifest, createAgentManifest, compileAgentPrompt, verifyRegistry. Types: ToolCategory, StudioMode, LocalOperation, RecipeValues, AgentCategory, AgentExecutionKind, CanvasLabOperation, AgentWorkspace, ToolField, ToolTemplate, ToolManifest, ManifestValidation, AgentField, AgentTemplate, AgentManifest, AgentManifestValidation, AgentInputNeed, AgentInputPolicy.
+- [`@optimai/creative-agents/browser-runtime`](src/browser-runtime.d.mts): LOCAL_IMAGE_LIMITS, validateLocalImageFile, getToolOutputSize, runLocalTool. Types: LocalToolOperation, LocalToolValues, LocalImageSize, LocalToolOutput.
+- [`@optimai/creative-agents/canvas-lab`](src/canvas-lab.d.mts): CANVAS_LAB_AGENTS, canvasLabRecipeSettings, canvasLabSettings, runCanvasLab.
+- [`@optimai/creative-agents/agent-runtime`](src/agent-runtime.d.mts): AgentRuntimeError, LOCAL_AGENT_LIMITS, prepareCreativeAgentTask, validateCreativeAgentOutput, getLocalModelStatus, runCreativeAgent. Types: WritingAgentId, AgentErrorCode, AgentProgress, LocalModel, LocalModelStatus, LocalAgentOptions, CreativeAgentResult, PreparedCreativeAgentTask, CreativeAgentArtifact.
+- [`@optimai/creative-agents/browser-writing-runtime`](src/browser-writing-runtime.d.mts): BROWSER_AGENT_MODEL, BROWSER_AGENT_APP_CONFIG, BrowserAgentError, createBrowserWritingRuntime, browserSupport, createBrowserAgentRuntime. Types: BrowserAgentProgress, BrowserAgentStatus, BrowserAgentOptions, BrowserWritingRuntime, BrowserWritingEngineSession.
+- [`@optimai/creative-agents/browser-writing-worker`](src/browser-writing-worker.d.mts): attachBrowserWritingWorker.
+- [`@optimai/creative-agents/vision-runtime`](src/vision-runtime.d.mts): VISION_MODELS, VISION_LIMITS, VisionError, getVisionAnalysisSize, normalizeVisionValues, getVisionModelStatus, downloadVisionModel, loadVisionModelBuffer, runBrowserVision. Types: VisionOperation, VisionProgress, VisionModel, VisionModelStatus, VisionResult.
+- [`@optimai/creative-agents/vision-processor`](src/vision-processor.d.mts): executeVisionTask, personMaskAlpha, installVisionWorker.
+- [`@optimai/creative-agents/schema`](schema/agent-manifest.schema.json): JSON Schema.
+- [`@optimai/creative-agents/legacy-tool-schema`](schema/tool-manifest.schema.json): JSON Schema.
+- [`@optimai/creative-agents/scene-3d`](src/scene-3d.d.mts): AGENT_3D_LIMITS, SCENE_3D_LIMITS, defaultAgent3DSettings, defaultScene3DSettings, validateScene3DSettings, scene3DRecipeSettings, clean3DModelName, scene3DPrompt, validateAgentGLB. Types: Agent3DDemo, Agent3DLighting, Agent3DMaterial, Agent3DCamera, Agent3DSettings, Scene3DSettings, Scene3DCamera, ValidatedAgentGLB.
+- [`@optimai/creative-agents/scene-3d-runtime`](src/scene-3d-runtime.d.mts): loadScene3DRuntime, createScene3DStage, createScene3DStageWithRuntime, disposeAgent3DObjects. Types: Scene3DRuntime, Agent3DController, Scene3DController.
+- [`@optimai/creative-agents/camera-runtime`](src/camera-runtime.d.mts): CAMERA_LIMITS, NEUTRAL_FACE, cameraRecipeSettings, bounded, faceRigFromFrame, smoothFaceRig, FACE_RIG_FILTER, createFaceRigSmoother, faceRigAt, demoFaceRig, createCameraLease, cameraPermissionMessage, coverCrop. Types: CameraEffect, AvatarLook, FaceFrame, FaceRig, FaceRigFilterOptions, FaceRigSmoother, CameraLease.
+- [`@optimai/creative-agents/camera-tracking`](src/camera-tracking.d.mts): createFaceTracker. Types: FaceTrackerOptions, FaceTracker.
+- [`@optimai/creative-agents/camera-renderer`](src/camera-renderer.d.mts): drawCameraSource, drawCameraEffect, drawFaceHalo, createCameraAvatar.
+- [`@optimai/creative-agents/camera-worker`](src/camera-worker.d.mts): installCameraWorker.
+- [`@optimai/creative-agents/model-setup`](src/model-setup.d.mts): getModelSetupPolicy, formatBytes, describeModelProgress, describeModelSetup, createModelSetupController. Types: ModelSetupPolicy, ModelSetupDescription, ModelSetupStateName, ModelSetupState, ModelSetupProgressEvent, ModelSetupCheck, ModelSetupController.
+- [`@optimai/creative-agents/music-reactive`](src/music-reactive.d.mts): MUSIC_REACTIVE_LOOKS, MUSIC_REACTIVE_LIMITS, extractMusicReactiveFeatures, smoothMusicReactiveFeatures, renderMusicReactiveFrame. Types: MusicReactiveLook, MusicReactiveFeatures, MusicReactiveFrame.
+- [`@optimai/creative-agents/beat-tracker`](src/beat-tracker.d.mts): BEAT_TRACKER_DEFAULTS, BEAT_TRACKER_LIMITS, logBandSpectrum, spectralFlux, estimateTempo, createFlashLimiter, prefersReducedMotion, createBeatTracker. Types: BeatTrackerOptions, TempoEstimate, FlashLimiter, BeatFrame, BeatTracker.
+- [`@optimai/creative-agents/frame-sculpture`](src/frame-sculpture.d.mts): FRAME_SCULPTURE_LIMITS, defaultFrameSculptureSettings, validateFrameSculptureSettings, frameSampleTimes, frameTextureSize, frameSculpturePose, releaseFrameSamples, validateFrameSamples, extractFrameSamples, createFrameSculptureDemo, createFrameSculptureStage, createFrameSculptureStageWithRuntime. Types: FrameSculptureSettings, FrameSample, FrameSamplesResult, FrameSculptureRuntime, FrameSculptureController.
+- [`@optimai/creative-agents/landmark-filter`](src/landmark-filter.d.mts): ONE_EURO_DEFAULTS, oneEuroAlpha, createOneEuroFilter, createOneEuroVectorFilter. Types: OneEuroOptions, OneEuroFilter, OneEuroVectorFilter.
+- [`@optimai/creative-agents/smart-crop`](src/smart-crop.d.mts): SMART_CROP_LIMITS, computeFocusMap, findFocusCrop, focusCoverRect, analyzeImageFocus. Types: FocusMap, FocusCrop.
+- [`@optimai/creative-agents/color`](src/color.d.mts): COLOR_LIMITS, parseHexColor, formatHexColor, relativeLuminance, contrastRatio, toOklab, toOklch, fromOklab, fromOklch, mixColors, lightnessContrast, pickLegibleColor, dominantColors, pickAccentColor, analyzeImageColors. Types: ColorInput, PaletteSwatch, LegibleColor.
+- [`@optimai/creative-agents/verify`](src/verify.d.mts): VERIFY_LIMITS, relativeLuminance, contrastRatio, srgbToOklab, deltaEOK, checkTextContrast, checkTextSize, checkTextOverlap, checkSafeZone, checkAspect, checkDuration, checkCount, checkPalette, checkCutAlignment, summarizeChecks. Types: RGB, Box, FocusMap, CheckResult.
+
+## Guides
+
+- [Builder guides](docs/README.md): Build a focused creative tool, remix an existing agent, or embed a reviewed runtime in your own application.
+- [Create your first recipe](docs/quickstart.md): This guide creates Cloud Companion, a manga-planning recipe based on the reviewed Story Seed template.
+- [Agent catalog](docs/catalog.md): Choose a template by the result its reviewed implementation produces.
+- [Runtimes and model setup](docs/runtimes.md): Choose the runtime for the result you need.
+- [Integrate agents into your application](docs/host-integration.md): A host reads a recipe, validates it, resolves a reviewed implementation and supplies the user's selected inputs.
+- [Reusable camera and avatar agents](docs/CAMERA.md): `camera-stage` and `avatar-stage` share portable browser engines.
+- [Music and motion engines](docs/MUSIC-MOTION.md): Two browser engines extend the catalog in SDK 0.4.0 / workspace contract 1.2.
+- [Connect the local MCP adapter](docs/mcp.md): The optional adapter exposes all 38 reviewed templates to an MCP client over local stdio.
+- [Share, contribute and prepare for review](docs/release-and-feature.md): The SDK source is public at OptimaiNetwork/optimai-creative-agents.
+
+## Templates
+
+- Canvas (10): `mockup-maker`, `image-finish`, `reference-blend`, `image-grid`, `title-frame`, `pixel-layout`, `poster-lab`, `transition-lab`, `glitch-cut`, `letter-pose`
+- Browser vision (3): `select-and-replace`, `motion-pose`, `face-performance`
+- Writing (5): `cast-notes`, `style-brief`, `storyboard-builder`, `prompt-branches`, `story-seed`
+- Interactive (6): `music-reactive`, `frame-sculpture`, `camera-stage`, `model-turntable`, `scene-lighting`, `avatar-stage`
+- Guided (14): `sketch-to-scene`, `world-finder`, `shot-atlas`, `motion-finish`, `sketch-to-motion`, `dream-signal`, `frame-fit`, `rough-cut`, `rhythm-cut`, `frame-study`, `motion-tracker`, `depth-motion`, `scene-scout`, `scene-remix`
+
+## Optional
+
+- [Changelog](CHANGELOG.md): what each release lets builders and creators do.
+- [Contributing](CONTRIBUTING.md): how new reviewed operations, tests and docs are proposed.
+- [Manifest schema](schema/agent-manifest.schema.json): the strict v1 recipe format.
