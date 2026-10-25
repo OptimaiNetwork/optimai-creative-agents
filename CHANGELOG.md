@@ -4,6 +4,11 @@ Notable changes to OptimAI Creative Agents. Each entry names what a builder or c
 
 ## Unreleased
 
+### Added
+
+- **Image Finish looks the same in every browser.** The noir, warm, cool and punchy finishes are now graded pixel by pixel in OKLab (tone curve, vibrance, white balance, split toning and seeded grain) instead of the browser's canvas filter, which some browsers ignore. The same image, preset, intensity and `seed` give identical bytes, large images stay cancellable, and `output.colorEngine` says which engine ran; `colorEngine: 'css'` keeps the old look. No new recipe field. See [pixel color grade](./docs/runtimes.md#pixel-color-grade).
+- **`@optimai/creative-agents/color-grade`.** Build your own looks: `resolveGrade` turns a preset or settings (exposure, contrast, fade, saturation, vibrance, temperature, tint, split tone, grain) into a validated grade, `gradePixels` applies it to any RGBA buffer in place, band by band if you like, and `gradeColor` previews it on a single color. No dependencies; runs in Node and the browser.
+
 ## 0.5.0 — 2026-10-24
 
 ### Added

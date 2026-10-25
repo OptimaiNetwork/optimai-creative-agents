@@ -63,6 +63,7 @@ async function browserHarness(run, overrides = {}) {
     if (overrides.noBitmap) global.createImageBitmap = undefined;
     if (overrides.toBlob) canvas.toBlob = overrides.toBlob;
     if (overrides.getContext) canvas.getContext = overrides.getContext;
+    if (overrides.context) { const custom = overrides.context(calls); canvas.getContext = () => custom; }
     try { await run({ calls, canvas, context }); }
     finally { for (const [key, value] of Object.entries(previous)) if (value === undefined) delete global[key]; else global[key] = value; }
 }
@@ -276,4 +277,71 @@ test('Title Frame keeps its title readable over a bright image with an opposite 
     await browserHarness(async () => {
         assert.equal((await runtime.runLocalTool('type-overlay', [image()], { color: '#abc' })).ink, '#abc', 'Without pixel reads the chosen color is drawn unchanged.');
     });
+});
+
+/** A 2D context with readable pixels: every drawn pixel is a muted orange. */
+const pixelContext = ({ tainted = false } = {}) => calls => ({
+    save() {}, restore() {}, clearRect() { calls.cleared = true; },
+    drawImage(...args) { calls.draw.push(args); },
+    set filter(value) { calls.filter.push(value); },
+    getImageData(x, y, width, height) {
+        calls.reads = (calls.reads || 0) + 1;
+        if (tainted) throw new DOMException('Tainted.', 'SecurityError');
+        const data = new Uint8ClampedArray(width * height * 4);
+        for (let index = 0; index < data.length; index += 4) data.set([200, 140, 90, 255], index);
+        return { data, width, height };
+    },
+    putImageData(pixels) { calls.put = pixels; },
+});
+
+test('Image Finish grades per pixel in OKLab, without ctx.filter, and reports the engine', async () => {
+    const { gradePixels, resolveGrade } = await import('../src/color-grade.mjs');
+    await browserHarness(async h => {
+        const output = await runtime.runLocalTool('image-filter', [image()], { preset: 'warm', intensity: 60 });
+        assert.equal(output.colorEngine, 'pixel');
+        assert.deepEqual(h.calls.filter, [], 'No CSS filter is used.');
+        const expected = gradePixels(new Uint8ClampedArray([200, 140, 90, 255]), 1, 1, resolveGrade('warm', 0.6));
+        assert.notDeepEqual([...expected], [200, 140, 90, 255]);
+        assert.deepEqual([...h.calls.put.data.slice(0, 4)], [...expected], 'The canvas receives exactly the engine output.');
+        assert.deepEqual([...h.calls.put.data.slice(-4)], [...expected], 'Every band is graded.');
+        h.calls.reads = 0; h.calls.put = null;
+        assert.equal((await runtime.runLocalTool('image-filter', [image()], { preset: 'original' })).colorEngine, 'pixel');
+        assert.equal(h.calls.reads, 0, 'original draws the image without reading pixels.');
+        await runtime.runLocalTool('image-filter', [image()], { preset: 'noir', seed: 9 });
+        const first = h.calls.put.data.slice();
+        await runtime.runLocalTool('image-filter', [image()], { preset: 'noir', seed: 9 });
+        assert.deepEqual(h.calls.put.data, first, 'The same seed reproduces the grain exactly.');
+        await assert.rejects(runtime.runLocalTool('image-filter', [image()], { seed: -1 }), /Seed must be a whole number/);
+        await assert.rejects(runtime.runLocalTool('image-filter', [image()], { colorEngine: 'webgl' }), /supported colorEngine/);
+        assert.equal(h.calls.closed, 6, 'Every decoded image is released.');
+    }, { context: pixelContext() });
+});
+
+test('Image Finish falls back to the CSS filter on request or when pixels cannot be read', async () => {
+    await browserHarness(async h => {
+        const output = await runtime.runLocalTool('image-filter', [image()], { preset: 'noir', intensity: 50, colorEngine: 'css' });
+        assert.equal(output.colorEngine, 'css');
+        assert.ok(h.calls.filter.some(value => value.includes('grayscale(0.5)')));
+        assert.equal(h.calls.reads, undefined, 'colorEngine: css never reads pixels.');
+    }, { context: pixelContext() });
+    await browserHarness(async h => {
+        const output = await runtime.runLocalTool('image-filter', [image()], { preset: 'cool' });
+        assert.equal(output.colorEngine, 'css');
+        assert.ok(h.calls.cleared, 'The ungraded draw is cleared before the fallback.');
+        assert.ok(h.calls.filter.some(value => value.includes('hue-rotate')));
+    }, { context: pixelContext({ tainted: true }) });
+});
+
+test('a large Image Finish yields between bands and can be cancelled mid-grade', async () => {
+    let released = 0;
+    await browserHarness(async h => {
+        const controller = new AbortController();
+        const running = runtime.runLocalTool('image-filter', [image()], { preset: 'punchy' }, controller.signal);
+        while (!h.calls.reads) await new Promise(resolve => setImmediate(resolve));
+        controller.abort();
+        await assert.rejects(running, { name: 'AbortError' });
+        assert.equal(h.calls.put, undefined, 'A cancelled grade never reaches the canvas.');
+        assert.equal(released, 1);
+        assert.equal(h.canvas.width, 0);
+    }, { context: pixelContext(), createImageBitmap: async () => ({ width: 2000, height: 1000, close() { released++; } }) });
 });

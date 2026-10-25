@@ -103,6 +103,10 @@
       "types": "./src/color.d.mts",
       "import": "./src/color.mjs"
     },
+    "./color-grade": {
+      "types": "./src/color-grade.d.mts",
+      "import": "./src/color-grade.mjs"
+    },
     "./verify": {
       "types": "./src/verify.d.mts",
       "import": "./src/verify.mjs"

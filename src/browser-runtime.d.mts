@@ -1,7 +1,7 @@
 export type LocalToolOperation = 'image-filter' | 'image-resize' | 'image-grid' | 'type-overlay';
 export type LocalToolValues = Record<string, string | number>;
 export type LocalImageSize = { width: number; height: number };
-export type LocalToolOutput = LocalImageSize & { blob: Blob; filename: string; /** Title color actually drawn by type-overlay. */ ink?: string };
+export type LocalToolOutput = LocalImageSize & { blob: Blob; filename: string; /** Title color actually drawn by type-overlay. */ ink?: string; /** How image-filter graded: `pixel` (OKLab engine) or the `css` filter fallback. */ colorEngine?: 'pixel' | 'css' };
 
 export declare const LOCAL_IMAGE_LIMITS: Readonly<{
     files: 8;
@@ -23,6 +23,7 @@ export declare function getToolOutputSize(
 /**
  * Run only a reviewed local operation, returning a downloadable PNG without network access.
  * Cover fits (resize and grid) use focus-aware cropping by default; pass `crop: 'center'` to opt out.
+ * image-filter grades per pixel in OKLab (`colorEngine: 'pixel'`, optional `seed` for grain); `colorEngine: 'css'` keeps the legacy filter.
  */
 export declare function runLocalTool(
     operation: LocalToolOperation,

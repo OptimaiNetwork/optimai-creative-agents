@@ -1,3 +1,4 @@
+import { gradePixels, isIdentityGrade, resolveGrade } from './color-grade.mjs';
 import { analyzeImageColors, pickAccentColor, pickLegibleColor, toOklab } from './color.mjs';
 import { analyzeImageFocus, focusCoverRect } from './smart-crop.mjs';
 export const LOCAL_IMAGE_LIMITS = Object.freeze({
@@ -260,6 +261,35 @@ function filterValue(preset, amount) {
         default: return 'none';
     }
 }
+/**
+ * Draw and grade the image per pixel in bands of rows, yielding between bands so
+ * large images stay cancellable. Returns false, with nothing drawn, when the
+ * context cannot read pixels; the caller then uses the CSS filter fallback.
+ */
+async function gradeCanvas(context, image, size, grade, seed, signal) {
+    if (typeof context.getImageData !== 'function' || typeof context.putImageData !== 'function')
+        return false;
+    context.drawImage(image.source, 0, 0, size.width, size.height);
+    if (isIdentityGrade(grade))
+        return true;
+    let pixels;
+    try {
+        pixels = context.getImageData(0, 0, size.width, size.height);
+    }
+    catch {
+        context.clearRect?.(0, 0, size.width, size.height);
+        return false;
+    }
+    const band = Math.max(1, Math.floor(262_144 / size.width));
+    for (let row = 0; row < size.height; row += band) {
+        gradePixels(pixels.data, size.width, size.height, grade, { seed, rows: [row, Math.min(size.height, row + band)] });
+        if (row + band < size.height)
+            await new Promise(resolve => setTimeout(resolve, 0));
+        throwIfAborted(signal);
+    }
+    context.putImageData(pixels, 0, 0);
+    return true;
+}
 function textLines(context, text, width) {
     const lines = [];
     for (const paragraph of text.split('\n')) {
@@ -355,7 +385,7 @@ export async function runLocalTool(operation, files, values, signal) {
         await checkSignature(file, signal);
     }
     const images = [];
-    let canvas, ink;
+    let canvas, ink, colorEngine;
     try {
         for (const file of files) {
             const image = await loadLocalImage(file, signal);
@@ -374,9 +404,15 @@ export async function runLocalTool(operation, files, values, signal) {
         context.imageSmoothingQuality = 'high';
         if (operation === 'image-filter') {
             const preset = optionValue(values, 'preset', 'warm', ['original', 'noir', 'warm', 'cool', 'punchy']);
-            context.filter = filterValue(preset, numberValue(values, 'intensity', 100, 0, 100, false));
-            context.drawImage(images[0].source, 0, 0, size.width, size.height);
-            context.filter = 'none';
+            const intensity = numberValue(values, 'intensity', 100, 0, 100, false);
+            const engine = optionValue(values, 'colorEngine', 'pixel', ['pixel', 'css']);
+            const seed = numberValue(values, 'seed', 0, 0, 0xffffffff);
+            colorEngine = engine === 'pixel' && await gradeCanvas(context, images[0], size, resolveGrade(preset, intensity / 100), seed, signal) ? 'pixel' : 'css';
+            if (colorEngine === 'css') {
+                context.filter = filterValue(preset, intensity);
+                context.drawImage(images[0].source, 0, 0, size.width, size.height);
+                context.filter = 'none';
+            }
         }
         else if (operation === 'image-resize') {
             context.fillStyle = colorValue(values, 'background', '#101312');
@@ -402,7 +438,7 @@ export async function runLocalTool(operation, files, values, signal) {
         if (blob.size > LOCAL_IMAGE_LIMITS.bytes)
             throw new Error('The result exceeds 20 MB. Choose smaller dimensions.');
         const base = files[0].name.replace(/\.[^.]*$/, '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'optimai';
-        return { ...size, blob, filename: `${base}-${operation}.png`, ...(ink ? { ink } : {}) };
+        return { ...size, blob, filename: `${base}-${operation}.png`, ...(ink ? { ink } : {}), ...(colorEngine ? { colorEngine } : {}) };
     }
     finally {
         images.forEach(image => image.release());

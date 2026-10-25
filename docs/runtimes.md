@@ -43,12 +43,12 @@ The engine accepts actual local `File` objects only. PNG, JPEG and WebP signatur
 
 | Operation | Settings |
 | --- | --- |
-| `image-filter` | `preset`: original, noir, warm, cool or punchy; `intensity`: 0–100 |
+| `image-filter` | `preset`: original, noir, warm, cool or punchy; `intensity`: 0–100; `colorEngine`: pixel or css; `seed`: 0–4294967295 for grain ([pixel color grade](#pixel-color-grade)) |
 | `image-resize` | `width`, `height`: positive integers up to 4096; `ratio`: original, 1:1, 16:9, 9:16 or 4:5; `fit`: cover or contain; `crop`: smart or center; `background`: hex color |
 | `image-grid` | `columns`: 1–4; `gap`: 0–80 pixels; `crop`: smart or center; `background`: hex color |
 | `type-overlay` | `title`: 1–300 characters; `fontSize`: 12–240; `color`: hex color; `position`: top, center or bottom; `ink`: readable, image or exact ([readable titles](#readable-titles-and-image-palettes)) |
 
-For a fixed resize ratio, width determines height when supplied; supplying only height determines width. With the original ratio, a single supplied side preserves the source proportions, while supplying both sides creates that exact canvas. The cover or contain setting determines how the image fits this canvas. Cover fits use [focus-aware cropping](#focus-aware-cropping) unless `crop` is `center`. Browser color-filter support is required for the color-finish operation. Rendering and PNG encoding run in the browser; Node tests use controlled canvas and image fixtures to verify the real exported engine, validation, geometry and resource cleanup.
+For a fixed resize ratio, width determines height when supplied; supplying only height determines width. With the original ratio, a single supplied side preserves the source proportions, while supplying both sides creates that exact canvas. The cover or contain setting determines how the image fits this canvas. Cover fits use [focus-aware cropping](#focus-aware-cropping) unless `crop` is `center`. The color finish grades every pixel itself and needs no browser color-filter support. Rendering and PNG encoding run in the browser; Node tests use controlled canvas and image fixtures to verify the real exported engine, validation, geometry and resource cleanup.
 
 ### Composition workspaces
 
@@ -84,6 +84,39 @@ context.drawImage(bitmap, area.x, area.y, area.width, area.height, 0, 0, 1080, 1
 ```
 
 `computeFocusMap(rgba, width, height)` and `findFocusCrop(map, width, height, aspect)` expose the pure steps, which also run in Node. Package consumers import `@optimai/creative-agents/smart-crop`.
+
+### Pixel color grade
+
+Image Finish used to rely on the browser's canvas `filter`, which some browser versions lack, and there the presets silently did nothing. It now grades every pixel itself, in OKLab, so a finish looks the same in every browser and the same image, preset, intensity and seed always give identical bytes.
+
+Each pixel goes from sRGB to linear light (exposure), then to OKLab, where the look is applied:
+
+| Setting | Range (identity) | What it does |
+| --- | --- | --- |
+| `exposure` | −2 to 2 stops (0) | Scales linear light. |
+| `contrast` | −1 to 1 (0) | An S-curve on lightness through black, white and mid grey, so mid grey stays put. |
+| `fade` | 0 to 0.3 (0) | Lifts the blacks. |
+| `saturation` | 0 to 2 (1) | Scales chroma; 0 is monochrome. |
+| `vibrance` | −1 to 1 (0) | Boosts muted colors more than vivid ones. |
+| `temperature`, `tint` | −1 to 1 (0) | Shift along OKLab b (blue ↔ yellow) and a (green ↔ magenta), weighted by lightness so blacks stay neutral. |
+| `shadowHue`/`shadowTint`, `highlightHue`/`highlightTint` | 0–360°, 0 to 0.1 (0) | Split toning: one hue pushed into the shadows, another into the highlights. |
+| `grain` | 0 to 1 (0) | Seeded luminance grain, strongest in the midtones, keyed on pixel coordinates. |
+
+The five presets (`original`, `noir`, `warm`, `cool`, `punchy`) are combinations of these settings; `intensity` scales every setting from the identity, so 0 is always the untouched image. Large images are graded in bands of rows and stay cancellable. `output.colorEngine` reports `pixel`. Pass `colorEngine: 'css'` for the previous filter look; it is also the fallback when a context cannot read its own pixels. Saved recipes need no new field.
+
+The engine is a public module that runs on any RGBA buffer in Node and the browser:
+
+```js
+import { GRADE_PRESETS, gradeColor, gradePixels, resolveGrade } from '@optimai/creative-agents/color-grade';
+
+const pixels = ctx.getImageData(0, 0, width, height);
+gradePixels(pixels.data, width, height, resolveGrade('warm', 0.6));                  // in place
+gradePixels(pixels.data, width, height, resolveGrade({ fade: 0.08, grain: 0.3, shadowHue: 200, shadowTint: 0.03 }), { seed: 42 });
+ctx.putImageData(pixels, 0, 0);
+const swatch = gradeColor('#d8b48c', 'cool');                                         // preset chips and previews
+```
+
+`gradePixels(rgba, width, height, grade, { seed, rows })` grades in place and keeps alpha; `rows: [start, end)` grades one band with the same result as a single pass. `resolveGrade(presetOrSettings, amount)` validates and freezes a grade. Live camera effects still use the canvas filter.
 
 ### Readable titles and image palettes
 
