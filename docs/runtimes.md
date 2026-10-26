@@ -61,7 +61,7 @@ const output = await runCanvasLab(CANVAS_LAB_AGENTS['poster-lab'], [], {
 }, controller.signal);
 ```
 
-`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`. `glitch` displaces still-image bands with `amount: 0–100`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. Poster and letter titles use [readable ink](#readable-titles-and-image-palettes) by default; pass `ink: 'exact'` to draw `color` unchanged. These tools export PNGs, not video or model-generated artwork.
+`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`. `glitch` displaces still-image bands with `amount: 0–100`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. Poster and letter titles use [readable ink](#readable-titles-and-image-palettes) by default; pass `ink: 'exact'` to draw `color` unchanged. Titles are set in [balanced lines](#balanced-titles) with optical tracking and leading. These tools export PNGs, not video or model-generated artwork.
 
 ### Focus-aware cropping
 
@@ -176,6 +176,24 @@ const hover = mixColors(color, '#ffffff', 0.2);                          // mixe
 | `dominantColors(rgba, width, height, { count })` | Weighted k-means in OKLab over a 15-bit histogram with deterministic seeding, so the same pixels always give the same palette. Alpha weights each pixel. At most 262,144 pixels and 12 colors. |
 | `pickAccentColor(palette)` | The swatch with the highest chroma × √weight, or null below `minChroma`. |
 | `analyzeImageColors(source, width, height, { region, count })` | Palette of an image, video frame or canvas (or a region of it) from a 64-pixel thumbnail; null when pixels cannot be read. |
+
+### Balanced titles
+
+Poster Lab, Letter Pose and Title Frame set their titles with a line breaker instead of first-fit wrapping. At the largest size that fits, the title keeps the fewest lines it needs, and the words are spread across those lines so they are as even as possible: no long first line over a lone last word. Hard line breaks in the title are kept. A title shrinks before any word is split between characters, and Poster Lab and Letter Pose shrink a long title rather than dropping its last lines. Type is optically sized: tracking tightens from +0.01em at 16px to −0.02em at 128px and leading from 1.25 to 1.08, so large titles sit tight and small ones stay open. `output.lines` reports the lines as drawn. Saved recipes need no new field.
+
+The typesetter is a public module that works with any measure function, in Node or the browser:
+
+```js
+import { breakLines, canvasMeasure, fitTitle, opticalSize } from '@optimai/creative-agents/typeset';
+
+const measure = canvasMeasure(context, size => `800 ${size}px Inter, system-ui`);
+const title = fitTitle('Make something remarkable for the people you love', { measure, width: 900, height: 500, maxSize: 160, maxLines: 4 });
+context.font = `800 ${title.fontSize}px Inter, system-ui`;
+context.letterSpacing = `${title.tracking}px`;
+title.lines.forEach((line, index) => context.fillText(line, 60, 80 + index * title.lineHeight));
+```
+
+`breakLines(text, { measure, width, fontSize, wrap, tracking })` breaks at one size. `wrap` is `balance` (default: the minimum number of lines, every line as even as possible), `pretty` (paragraph style: even lines and a free last line, but never a lone short word) or `greedy` (first fit). It is a small dynamic program over whole words, the idea behind Knuth–Plass line breaking without hyphenation. `fitTitle` searches sizes from `maxSize` down to `minSize`, measures each word and character once, and reports `fits: false` when nothing fits and `split: true` when a word had to be broken. `opticalSize(fontSize)` returns the tracking (em) and leading it uses; pass `tracking` or `leading` to override them.
 
 ### Tier-0 verification
 

@@ -111,6 +111,10 @@
       "types": "./src/lut.d.mts",
       "import": "./src/lut.mjs"
     },
+    "./typeset": {
+      "types": "./src/typeset.d.mts",
+      "import": "./src/typeset.mjs"
+    },
     "./verify": {
       "types": "./src/verify.d.mts",
       "import": "./src/verify.mjs"

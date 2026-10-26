@@ -3,6 +3,7 @@ import test from 'node:test';
 import { AGENT_CATALOG } from '../src/index.mjs';
 import { CANVAS_LAB_AGENTS, canvasLabRecipeSettings, canvasLabSettings, runCanvasLab } from '../src/canvas-lab.mjs';
 import { contrastRatio, toOklch } from '../src/color.mjs';
+import { fitTitle } from '../src/typeset.mjs';
 
 const image = (name = 'local.png', bytes = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]) => new File([new Uint8Array(bytes)], name, { type: 'image/png' });
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -253,4 +254,23 @@ test('poster and letter titles stay readable over bright images, take an image a
   await canvasHarness(async () => {
     assert.equal((await runCanvasLab('poster', [], { color: '#abcdef' })).ink, '#abcdef', 'Without pixel reads the chosen color is drawn unchanged.');
   });
+});
+test('poster and letter titles break into balanced lines with optical tracking and leading', async () => {
+  const spacing = [];
+  await canvasHarness(async h => {
+    const title = 'The quiet studio on every device';
+    const poster = await runCanvasLab('poster', [], { title, ink: 'exact' });
+    const layout = fitTitle(title, { measure: (text, size) => text.length * size * .6, width: 984, height: 975, maxSize: 150, minSize: 16, maxLines: 6 });
+    assert.deepEqual(poster.lines, ['The quiet', 'studio', 'on every', 'device'], 'No lone short word left at the end of a line.');
+    assert.deepEqual(poster.lines, layout.lines);
+    const drawn = h.calls.text.filter(call => poster.lines.includes(call.args[0]));
+    assert.deepEqual(drawn.map(call => call.args[0]), poster.lines);
+    drawn.slice(1).forEach((call, index) => assert.ok(Math.abs(call.args[2] - drawn[index].args[2] - layout.lineHeight) < 1e-9, 'Optical leading between lines.'));
+    assert.ok(drawn.every(call => call.args[3] === 1200 * .86), 'Lines are bounded to the frame.');
+    assert.deepEqual(spacing.slice(0, 2), [`${layout.tracking}px`, '0px'], 'Tracking for the title only, reset for the credit line.');
+    const letter = await runCanvasLab('letter', [], { title: 'MAKE SOMETHING\nREMARKABLE.', ink: 'exact' });
+    assert.deepEqual(letter.lines, ['MAKE', 'SOMETHING', 'REMARKABLE.'], 'Hard breaks are kept.');
+    const long = await runCanvasLab('poster', [], { title: Array(30).fill('word').join(' '), ink: 'exact' });
+    assert.ok(long.lines.length <= 6 && long.lines.join(' ').split(' ').length === 30, 'Long titles shrink instead of losing words.');
+  }, { context: (canvas, context) => Object.defineProperty(context, 'letterSpacing', { configurable: true, get: () => spacing.at(-1) ?? '0px', set: value => { if (value !== '0px' || spacing.length) spacing.push(value); } }) });
 });

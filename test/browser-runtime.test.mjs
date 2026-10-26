@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as runtime from '../src/browser-runtime.mjs';
 import { contrastRatio } from '../src/color.mjs';
+import { fitTitle } from '../src/typeset.mjs';
 
 const image = (name = 'test.png', bytes = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0], type = 'image/png') => new File([new Uint8Array(bytes)], name, { type });
 
@@ -372,3 +373,19 @@ test('a large Image Finish yields between bands and can be cancelled mid-grade',
         assert.equal(h.canvas.width, 0);
     }, { context: pixelContext(), createImageBitmap: async () => ({ width: 2000, height: 1000, close() { released++; } }) });
 });
+
+test('Title Frame sets balanced lines at the largest size that fits, with optical tracking reset afterwards', async () => browserHarness(async h => {
+    const spacing = [];
+    Object.defineProperty(h.context, 'letterSpacing', { get: () => spacing.at(-1) ?? '0px', set: value => { if (value !== '0px' || spacing.length) spacing.push(value); } });
+    const title = 'Your next big idea starts on this little canvas';
+    const output = await runtime.runLocalTool('type-overlay', [image()], { title, fontSize: 48, color: '#ffffff', ink: 'exact' });
+    const layout = fitTitle(title, { measure: (text, size) => Array.from(text).length * size * .6, width: 566, height: 266, maxSize: 48 });
+    assert.deepEqual(output.lines, ['Your next big', 'idea starts on', 'this little canvas'], 'Greedy wrapping left “little canvas” short.');
+    assert.deepEqual(output.lines, layout.lines);
+    assert.deepEqual(h.calls.text.map(call => call[0]), output.lines);
+    assert.ok(Math.abs(h.calls.text[1][2] - h.calls.text[0][2] - layout.lineHeight) < 1e-9, 'Optical leading.');
+    assert.equal(h.context.font, '700 48px system-ui, -apple-system, sans-serif');
+    assert.deepEqual(spacing, [`${layout.tracking}px`, '0px']);
+    const tall = await runtime.runLocalTool('type-overlay', [image()], { title: Array(40).fill('tall').join(' '), fontSize: 240, ink: 'exact' });
+    assert.equal(tall.lines.join(' ').split(' ').length, 40, 'Every word is kept when the title shrinks.');
+}));
