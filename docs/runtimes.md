@@ -43,7 +43,7 @@ The engine accepts actual local `File` objects only. PNG, JPEG and WebP signatur
 
 | Operation | Settings |
 | --- | --- |
-| `image-filter` | `preset`: original, noir, warm, cool or punchy; `intensity`: 0–100; `colorEngine`: pixel or css; `seed`: 0–4294967295 for grain ([pixel color grade](#pixel-color-grade)) |
+| `image-filter` | `preset`: original, noir, warm, cool or punchy; `intensity`: 0–100; `colorEngine`: pixel or css; `seed`: 0–4294967295 for grain ([pixel color grade](#pixel-color-grade)); `film`: none, golden, teal-amber or matte; `lut`: `.cube` text ([LUTs and film looks](#luts-and-film-looks)) |
 | `image-resize` | `width`, `height`: positive integers up to 4096; `ratio`: original, 1:1, 16:9, 9:16 or 4:5; `fit`: cover or contain; `crop`: smart or center; `background`: hex color |
 | `image-grid` | `columns`: 1–4; `gap`: 0–80 pixels; `crop`: smart or center; `background`: hex color |
 | `type-overlay` | `title`: 1–300 characters; `fontSize`: 12–240; `color`: hex color; `position`: top, center or bottom; `ink`: readable, image or exact ([readable titles](#readable-titles-and-image-palettes)) |
@@ -117,6 +117,29 @@ const swatch = gradeColor('#d8b48c', 'cool');                                   
 ```
 
 `gradePixels(rgba, width, height, grade, { seed, rows })` grades in place and keeps alpha; `rows: [start, end)` grades one band with the same result as a single pass. `resolveGrade(presetOrSettings, amount)` validates and freezes a grade. Live camera effects still use the canvas filter.
+
+### LUTs and film looks
+
+After the grade, Image Finish can apply a 3D lookup table: one of three original film looks (`film`: `golden`, `teal-amber` or `matte`) or a creator's own `.cube` file (`lut`: the file's text, which wins over `film`). `intensity` scales the LUT together with the grade, the look is applied in the same cancellable bands, and `output.lut` names what was applied. A look needs the pixel engine: with `colorEngine: 'css'`, or where a context cannot read its pixels, the run fails with a clear message instead of silently dropping the look. Both settings are engine-only, so saved recipes need no new field.
+
+| Film | Character |
+| --- | --- |
+| `golden` | Warm highlights, slightly green-cool shadows, a gentle black lift and soft whites. |
+| `teal-amber` | Teal-blue shadows and amber skin tones with stronger contrast. |
+| `matte` | Lifted blacks, softened whites and muted color. |
+
+The parser is strict and bounded: 3D tables only, `LUT_3D_SIZE` 2–65 before the table, optional `TITLE`, `DOMAIN_MIN`/`DOMAIN_MAX` (or `LUT_3D_INPUT_RANGE`) and `#` comments, exactly size³ rows of three numbers, and at most 16 MiB. 1D tables, unknown keywords, duplicates and stray rows are refused with the line number. Tables are indexed on encoded sRGB, red fastest, as grading tools export them; inputs outside the domain clamp to its edge.
+
+```js
+import { applyLut, createLut, filmLut, formatCubeLut, lutColor, parseCubeLut } from '@optimai/creative-agents/lut';
+
+const lut = parseCubeLut(await file.text());                                          // throws with the line it refused
+applyLut(pixels.data, width, height, lut, { amount: 0.8 });                           // trilinear, in place, alpha kept
+const chip = lutColor('#c08060', filmLut('teal-amber'));                              // swatches for a film row
+const cube = formatCubeLut(createLut(([r, g, b]) => [b, g, r], { size: 17, title: 'Swap' })); // bake and export your own
+```
+
+`applyLut(rgba, width, height, lut, { amount, rows })` gives identical bytes whole or band by band, and an identity table is lossless. `FILM_LOOKS` holds each film as a few numbers (gains, saturation, split tone, contrast, black and white points); `filmLut(name)` bakes it once into a shared 33³ table.
 
 ### Readable titles and image palettes
 

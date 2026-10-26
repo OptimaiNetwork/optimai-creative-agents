@@ -317,6 +317,33 @@ test('Image Finish grades per pixel in OKLab, without ctx.filter, and reports th
     }, { context: pixelContext() });
 });
 
+test('Image Finish applies a film look or a creator .cube after the grade, scaled by intensity', async () => {
+    const { gradePixels, resolveGrade } = await import('../src/color-grade.mjs');
+    const { applyLut, filmLut, formatCubeLut, createLut } = await import('../src/lut.mjs');
+    await browserHarness(async h => {
+        const output = await runtime.runLocalTool('image-filter', [image()], { preset: 'warm', intensity: 80, film: 'golden' });
+        assert.equal(output.lut, 'Golden');
+        const graded = gradePixels(new Uint8ClampedArray([200, 140, 90, 255]), 1, 1, resolveGrade('warm', 0.8));
+        const expected = applyLut(graded, 1, 1, filmLut('golden'), { amount: 0.8 });
+        assert.deepEqual([...h.calls.put.data.slice(0, 4)], [...expected], 'The film look runs after the grade, at the same intensity.');
+        assert.deepEqual([...h.calls.put.data.slice(-4)], [...expected]);
+        await runtime.runLocalTool('image-filter', [image()], { preset: 'original', film: 'matte' });
+        assert.deepEqual([...h.calls.put.data.slice(0, 4)], [...applyLut(new Uint8ClampedArray([200, 140, 90, 255]), 1, 1, filmLut('matte'))], 'A film look alone still reads pixels.');
+        const cube = formatCubeLut(createLut(([r, g, b]) => [b, g, r], { size: 2, title: 'My swap' }));
+        const custom = await runtime.runLocalTool('image-filter', [image()], { preset: 'original', film: 'golden', lut: cube });
+        assert.equal(custom.lut, 'My swap', 'A creator .cube wins over the film row.');
+        assert.deepEqual([...h.calls.put.data.slice(0, 4)], [90, 140, 200, 255]);
+        assert.equal((await runtime.runLocalTool('image-filter', [image()], { film: 'golden', intensity: 0 })).lut, undefined, 'Intensity 0 applies nothing.');
+        assert.equal((await runtime.runLocalTool('image-filter', [image()], { preset: 'noir' })).lut, undefined);
+        await assert.rejects(runtime.runLocalTool('image-filter', [image()], { film: 'vintage' }), /supported film/);
+        await assert.rejects(runtime.runLocalTool('image-filter', [image()], { lut: 'LUT_1D_SIZE 4' }), /1D LUTs are not supported/);
+        await assert.rejects(runtime.runLocalTool('image-filter', [image()], { film: 'golden', colorEngine: 'css' }), /need the pixel color engine/);
+    }, { context: pixelContext() });
+    await browserHarness(async () => {
+        await assert.rejects(runtime.runLocalTool('image-filter', [image()], { film: 'golden' }), /cannot read image pixels/, 'A look is never silently dropped.');
+    }, { context: pixelContext({ tainted: true }) });
+});
+
 test('Image Finish falls back to the CSS filter on request or when pixels cannot be read', async () => {
     await browserHarness(async h => {
         const output = await runtime.runLocalTool('image-filter', [image()], { preset: 'noir', intensity: 50, colorEngine: 'css' });

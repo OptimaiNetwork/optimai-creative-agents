@@ -107,6 +107,10 @@
       "types": "./src/color-grade.d.mts",
       "import": "./src/color-grade.mjs"
     },
+    "./lut": {
+      "types": "./src/lut.d.mts",
+      "import": "./src/lut.mjs"
+    },
     "./verify": {
       "types": "./src/verify.d.mts",
       "import": "./src/verify.mjs"

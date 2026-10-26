@@ -36,6 +36,7 @@ How to work with this SDK:
 - [`@optimai/creative-agents/smart-crop`](src/smart-crop.d.mts): SMART_CROP_LIMITS, computeFocusMap, findFocusCrop, focusCoverRect, analyzeImageFocus. Types: FocusMap, FocusCrop.
 - [`@optimai/creative-agents/color`](src/color.d.mts): COLOR_LIMITS, parseHexColor, formatHexColor, relativeLuminance, contrastRatio, toOklab, toOklch, fromOklab, fromOklch, mixColors, lightnessContrast, pickLegibleColor, dominantColors, pickAccentColor, analyzeImageColors. Types: ColorInput, PaletteSwatch, LegibleColor.
 - [`@optimai/creative-agents/color-grade`](src/color-grade.d.mts): GRADE_LIMITS, GRADE_PRESETS, resolveGrade, isIdentityGrade, gradePixels, gradeColor. Types: GradeSettings, GradePreset, ResolvedGrade.
+- [`@optimai/creative-agents/lut`](src/lut.d.mts): LUT_LIMITS, FILM_LOOKS, parseCubeLut, formatCubeLut, createLut, applyLut, lutColor, filmLut. Types: CubeLut, FilmLook, FilmLookSettings.
 - [`@optimai/creative-agents/verify`](src/verify.d.mts): VERIFY_LIMITS, relativeLuminance, contrastRatio, srgbToOklab, deltaEOK, checkTextContrast, checkTextSize, checkTextOverlap, checkSafeZone, checkAspect, checkDuration, checkCount, checkPalette, checkCutAlignment, summarizeChecks. Types: RGB, Box, FocusMap, CheckResult.
 
 ## Guides

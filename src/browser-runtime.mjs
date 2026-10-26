@@ -1,4 +1,5 @@
 import { gradePixels, isIdentityGrade, resolveGrade } from './color-grade.mjs';
+import { applyLut, filmLut, parseCubeLut } from './lut.mjs';
 import { analyzeImageColors, pickAccentColor, pickLegibleColor, toOklab } from './color.mjs';
 import { analyzeImageFocus, focusCoverRect } from './smart-crop.mjs';
 export const LOCAL_IMAGE_LIMITS = Object.freeze({
@@ -262,15 +263,16 @@ function filterValue(preset, amount) {
     }
 }
 /**
- * Draw and grade the image per pixel in bands of rows, yielding between bands so
- * large images stay cancellable. Returns false, with nothing drawn, when the
- * context cannot read pixels; the caller then uses the CSS filter fallback.
+ * Draw and grade the image per pixel in bands of rows, then apply the optional
+ * LUT to the same band, yielding between bands so large images stay cancellable.
+ * Returns false, with nothing drawn, when the context cannot read pixels; the
+ * caller then uses the CSS filter fallback.
  */
-async function gradeCanvas(context, image, size, grade, seed, signal) {
+async function gradeCanvas(context, image, size, grade, seed, signal, lut, amount) {
     if (typeof context.getImageData !== 'function' || typeof context.putImageData !== 'function')
         return false;
     context.drawImage(image.source, 0, 0, size.width, size.height);
-    if (isIdentityGrade(grade))
+    if (isIdentityGrade(grade) && !(lut && amount))
         return true;
     let pixels;
     try {
@@ -282,7 +284,10 @@ async function gradeCanvas(context, image, size, grade, seed, signal) {
     }
     const band = Math.max(1, Math.floor(262_144 / size.width));
     for (let row = 0; row < size.height; row += band) {
-        gradePixels(pixels.data, size.width, size.height, grade, { seed, rows: [row, Math.min(size.height, row + band)] });
+        const rows = [row, Math.min(size.height, row + band)];
+        gradePixels(pixels.data, size.width, size.height, grade, { seed, rows });
+        if (lut)
+            applyLut(pixels.data, size.width, size.height, lut, { amount, rows });
         if (row + band < size.height)
             await new Promise(resolve => setTimeout(resolve, 0));
         throwIfAborted(signal);
@@ -368,6 +373,21 @@ function drawTitle(context, size, values, canvas, image) {
     });
     return fill;
 }
+// The last parsed .cube text, so a live preview does not re-parse the same file on every edit.
+let cubeCache = { text: null, lut: null };
+/** The engine-only look for image-filter: a creator's `.cube` (text or parsed) wins over a built-in `film`. */
+function lookValue(values) {
+    const lut = values?.lut;
+    if (lut != null && lut !== '') {
+        if (typeof lut !== 'string')
+            return lut;
+        if (cubeCache.text !== lut)
+            cubeCache = { text: lut, lut: parseCubeLut(lut) };
+        return cubeCache.lut;
+    }
+    const film = optionValue(values, 'film', 'none', ['none', 'golden', 'teal-amber', 'matte']);
+    return film === 'none' ? null : filmLut(film);
+}
 /** Run a reviewed, first-party local operation. This never executes plugin code. */
 export async function runLocalTool(operation, files, values, signal) {
     checkOperation(operation);
@@ -385,7 +405,7 @@ export async function runLocalTool(operation, files, values, signal) {
         await checkSignature(file, signal);
     }
     const images = [];
-    let canvas, ink, colorEngine;
+    let canvas, ink, colorEngine, lut;
     try {
         for (const file of files) {
             const image = await loadLocalImage(file, signal);
@@ -407,7 +427,12 @@ export async function runLocalTool(operation, files, values, signal) {
             const intensity = numberValue(values, 'intensity', 100, 0, 100, false);
             const engine = optionValue(values, 'colorEngine', 'pixel', ['pixel', 'css']);
             const seed = numberValue(values, 'seed', 0, 0, 0xffffffff);
-            colorEngine = engine === 'pixel' && await gradeCanvas(context, images[0], size, resolveGrade(preset, intensity / 100), seed, signal) ? 'pixel' : 'css';
+            const look = lookValue(values);
+            colorEngine = engine === 'pixel' && await gradeCanvas(context, images[0], size, resolveGrade(preset, intensity / 100), seed, signal, look, intensity / 100) ? 'pixel' : 'css';
+            if (look && colorEngine === 'css')
+                throw new Error('Film looks and .cube files need the pixel color engine, and this browser cannot read image pixels.');
+            if (look && intensity)
+                lut = look.title || 'Custom LUT';
             if (colorEngine === 'css') {
                 context.filter = filterValue(preset, intensity);
                 context.drawImage(images[0].source, 0, 0, size.width, size.height);
@@ -438,7 +463,7 @@ export async function runLocalTool(operation, files, values, signal) {
         if (blob.size > LOCAL_IMAGE_LIMITS.bytes)
             throw new Error('The result exceeds 20 MB. Choose smaller dimensions.');
         const base = files[0].name.replace(/\.[^.]*$/, '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'optimai';
-        return { ...size, blob, filename: `${base}-${operation}.png`, ...(ink ? { ink } : {}), ...(colorEngine ? { colorEngine } : {}) };
+        return { ...size, blob, filename: `${base}-${operation}.png`, ...(ink ? { ink } : {}), ...(colorEngine ? { colorEngine } : {}), ...(lut ? { lut } : {}) };
     }
     finally {
         images.forEach(image => image.release());
