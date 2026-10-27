@@ -38,6 +38,7 @@ How to work with this SDK:
 - [`@optimai/creative-agents/color-grade`](src/color-grade.d.mts): GRADE_LIMITS, GRADE_PRESETS, resolveGrade, isIdentityGrade, gradePixels, gradeColor. Types: GradeSettings, GradePreset, ResolvedGrade.
 - [`@optimai/creative-agents/lut`](src/lut.d.mts): LUT_LIMITS, FILM_LOOKS, parseCubeLut, formatCubeLut, createLut, applyLut, lutColor, filmLut. Types: CubeLut, FilmLook, FilmLookSettings.
 - [`@optimai/creative-agents/typeset`](src/typeset.d.mts): TYPESET_LIMITS, WRAP_MODES, opticalSize, breakLines, fitTitle, canvasMeasure. Types: WrapMode, MeasureText, LineBreaks, TitleLayout.
+- [`@optimai/creative-agents/text-placement`](src/text-placement.d.mts): TEXT_POSITIONS, PLACEMENT_LIMITS, regionInterest, placeTextBlock, fitScrim, chooseTitleInk. Types: TextPosition, Size, Rect, TextPlacement, TitlePlacement, TextScrim, FittedScrim.
 - [`@optimai/creative-agents/verify`](src/verify.d.mts): VERIFY_LIMITS, relativeLuminance, contrastRatio, srgbToOklab, deltaEOK, checkTextContrast, checkTextSize, checkTextOverlap, checkSafeZone, checkAspect, checkDuration, checkCount, checkPalette, checkCutAlignment, summarizeChecks. Types: RGB, Box, FocusMap, CheckResult.
 
 ## Guides

@@ -1,7 +1,8 @@
 import { getToolOutputSize, LOCAL_IMAGE_LIMITS, runLocalTool } from './browser-runtime.mjs';
 import { AGENT_CATALOG, getAgentTemplate, validateRecipeValues } from './index.mjs';
-import { analyzeImageColors, pickAccentColor, pickLegibleColor } from './color.mjs';
+import { analyzeImageColors, pickAccentColor } from './color.mjs';
 import { analyzeImageFocus, focusCoverRect } from './smart-crop.mjs';
+import { chooseTitleInk, placeTextBlock, TEXT_POSITIONS } from './text-placement.mjs';
 import { canvasMeasure, fitTitle } from './typeset.mjs';
 
 const LAB_OPERATIONS = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition']);
@@ -22,6 +23,8 @@ export function canvasLabSettings(operation, values = {}) {
     amount: number('amount', 35, 0, 100), mix: number('mix', 50, 0, 100),
     crop: option('crop', 'smart', ['smart', 'center']),
     ink: option('ink', 'readable', ['readable', 'image', 'exact']),
+    position: option('position', 'auto', TEXT_POSITIONS),
+    scrim: option('scrim', 'auto', ['auto', 'off']),
   };
 }
 /** Map portable recipe settings to the actual canvas engine, including v1 aliases. */
@@ -85,13 +88,15 @@ function lettering(ctx, settings, width, height) {
   ctx.font = font(layout.fontSize); if ('letterSpacing' in ctx) ctx.letterSpacing = `${layout.tracking}px`;
   return { ...layout, lines: layout.lines.slice(0, 6), height: Math.min(6, layout.lines.length) * layout.lineHeight };
 }
-// Large bold titles: WCAG AA for large text (3:1) over every colour that covers at least 5% of the title area.
+// Large bold titles: WCAG AA for large text (3:1) over every colour that covers at least 5% of the title area,
+// keeping the chosen ink behind a scrim rather than greying it out.
 function inkColor(canvas, area, settings, image) {
-  if (settings.ink === 'exact') return settings.color;
+  if (settings.ink === 'exact') return { ink: settings.color, scrim: null };
   const surfaces = analyzeImageColors(canvas, canvas.width, canvas.height, { region: area, count: 4 })?.filter(surface => surface.weight >= .05);
-  if (!surfaces?.length) return settings.color;
+  if (!surfaces?.length) return { ink: settings.color, scrim: null };
   const accent = settings.ink === 'image' && image ? pickAccentColor(analyzeImageColors(image, image.width, image.height) ?? []) : null;
-  return pickLegibleColor(surfaces, { prefer: [accent, settings.color], minContrast: 3 }).color;
+  const { ink, scrim } = chooseTitleInk(surfaces, { prefer: [accent, settings.color], minContrast: 3, scrim: settings.scrim === 'auto' });
+  return { ink, scrim };
 }
 /** Original browser-only canvas utilities. No network, image generation or video codec. */
 export async function runCanvasLab(operation, files = [], values = {}, signal) {
@@ -100,7 +105,7 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
   if (!Array.isArray(files) || files.length > maximum) throw new Error(`Choose up to ${maximum} images.`);
   if (!files.length && !['poster', 'letter'].includes(operation)) throw new Error('Add an image to start.');
   if (['blend', 'transition'].includes(operation) && files.length !== 2) throw new Error('Choose two images for this composition.');
-  const images = []; let canvas, source, ink, lines; let pixels = 0;
+  const images = []; let canvas, source, ink, lines, placement, scrim; let pixels = 0;
   try {
     // Reuse the signature, dimensions, decode and memory validation of the public processor.
     for (const file of files) {
@@ -144,12 +149,25 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
       ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .13 * amount; ctx.fillStyle = '#df56dc'; ctx.fillRect(0, 0, width, height); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; source.width = source.height = 1;
     } else {
       if (images[0]) fit(ctx, images[0], 0, 0, width, height, false, focus[0]);
-      if (operation === 'poster') { const shade = ctx.createLinearGradient(0, height * .25, 0, height); shade.addColorStop(0, '#0000'); shade.addColorStop(1, '#000e'); ctx.fillStyle = shade; ctx.fillRect(0, 0, width, height); }
-      const type = lettering(ctx, settings, width, height); lines = type.lines; ctx.textBaseline = 'top'; const start = operation === 'poster' ? height - type.height - height * .12 : (height - type.height) / 2;
-      const span = Math.min(width * .92, type.width);
-      ink = inkColor(canvas, { x: settings.treatment === 'cinema' ? (width - span) / 2 : width * .08, y: start, width: span, height: type.height }, settings, images[0]); ctx.fillStyle = ink;
-      if (settings.treatment === 'cinema') { ctx.textAlign = 'center'; } else ctx.textAlign = 'left';
-      lines.forEach((line, index) => ctx.fillText(line, settings.treatment === 'cinema' ? width / 2 : width * .08, start + index * type.lineHeight, width * .86));
+      const type = lettering(ctx, settings, width, height); lines = type.lines; ctx.textBaseline = 'top';
+      const cinema = settings.treatment === 'cinema', span = Math.min(width * .84, type.width);
+      // The title goes to the calmest part of the composed image, below the credit line; a blank artboard keeps the classic layout.
+      const calm = settings.position === 'auto' && images[0] ? analyzeImageFocus(canvas, width, height) : null;
+      const bounds = { x: width * .08, y: height * .1, width: width * .84, height: height * (operation === 'poster' ? .78 : .8) };
+      const place = placeTextBlock(calm, { canvas: { width, height }, block: { width: span, height: type.height }, bounds, position: settings.position,
+        home: { x: cinema ? .5 : 0, y: operation === 'poster' ? 1 : .5 }, columns: !cinema && span < bounds.width * .8 ? 3 : 1 });
+      placement = { position: place.position, x: Math.round(place.x), y: Math.round(place.y), moved: place.moved };
+      // The poster shade darkens toward the top when the title moved there, otherwise toward the bottom as before.
+      if (operation === 'poster') { const top = place.moved && place.position === 'top'; const shade = ctx.createLinearGradient(0, top ? height * .75 : height * .25, 0, top ? 0 : height); shade.addColorStop(0, '#0000'); shade.addColorStop(1, '#000e'); ctx.fillStyle = shade; ctx.fillRect(0, 0, width, height); }
+      ({ ink, scrim } = inkColor(canvas, { x: place.x, y: place.y, width: span, height: type.height }, settings, images[0]));
+      if (scrim) {
+        const pad = type.lineHeight * .35, [r, g, b] = [1, 3, 5].map(index => parseInt(scrim.color.slice(index, index + 2), 16));
+        // Only the blurred shadow of a panel drawn off the canvas lands on it, so the scrim has no hard edge.
+        ctx.save(); ctx.fillStyle = ctx.shadowColor = `rgba(${r}, ${g}, ${b}, ${scrim.opacity})`; ctx.shadowBlur = pad * 2; ctx.shadowOffsetX = width * 2;
+        ctx.beginPath(); ctx.roundRect(place.x - pad - width * 2, place.y - pad * .6, span + pad * 2, type.height + pad * 1.2, pad); ctx.fill(); ctx.restore();
+      }
+      ctx.fillStyle = ink; ctx.textAlign = cinema ? 'center' : 'left';
+      lines.forEach((line, index) => ctx.fillText(line, cinema ? place.x + span / 2 : place.x, place.y + index * type.lineHeight, width * .86));
       if ('letterSpacing' in ctx) ctx.letterSpacing = '0px'; ctx.font = '500 20px system-ui'; ctx.fillStyle = '#e1e9da'; ctx.textAlign = 'left'; ctx.fillText('AN OPTIMAI ORIGINAL', width * .08, height * .045);
       ctx.strokeStyle = '#fff7'; ctx.lineWidth = 2; ctx.strokeRect(width * .04, height * .025, width * .92, height * .95);
     }
@@ -157,6 +175,6 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
     const blob = await abortable(new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not export this canvas.')), 'image/png')), signal);
     abort(signal);
     if (blob.size > 20 * 1024 * 1024) throw new Error('The exported image is too large. Use a smaller composition.');
-    return { blob, width, height, filename: `optimai-${operation}.png`, ...(ink ? { ink, lines } : {}) };
+    return { blob, width, height, filename: `optimai-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}) };
   } finally { images.forEach(image => image.close()); if (source) source.width = source.height = 1; if (canvas) canvas.width = canvas.height = 1; }
 }

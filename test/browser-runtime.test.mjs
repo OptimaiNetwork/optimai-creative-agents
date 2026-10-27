@@ -265,7 +265,7 @@ test('Title Frame keeps its title readable over a bright image with an opposite 
     };
     try {
         await browserHarness(async h => {
-            const readable = await runtime.runLocalTool('type-overlay', [image()], { title: 'Bright sky', color: '#ffffff' });
+            const readable = await runtime.runLocalTool('type-overlay', [image()], { title: 'Bright sky', color: '#ffffff', scrim: 'off' });
             assert.ok(['#f4f6f8', '#e2e8ee'].every(sky => contrastRatio(readable.ink, sky) >= 3), `${readable.ink} reads over the sky.`);
             assert.equal(h.context.fillStyle, readable.ink);
             assert.equal(h.context.strokeStyle, 'rgba(255, 255, 255, .7)', 'A dark title gets a light halo.');
@@ -389,3 +389,45 @@ test('Title Frame sets balanced lines at the largest size that fits, with optica
     const tall = await runtime.runLocalTool('type-overlay', [image()], { title: Array(40).fill('tall').join(' '), fontSize: 240, ink: 'exact' });
     assert.equal(tall.lines.join(' ').split(' ').length, 40, 'Every word is kept when the title shrinks.');
 }));
+
+test('Title Frame position: auto avoids the subject, and a failing white title keeps its colour behind a scrim', async () => {
+    const previous = globalThis.OffscreenCanvas;
+    // Focus thumbnails (96 px) show a busy subject in the lower half; colour thumbnails (≤64 px) read as a bright sky.
+    globalThis.OffscreenCanvas = class {
+        constructor(width, height) { this.width = width; this.height = height; }
+        getContext() {
+            const thumb = this;
+            return { drawImage() {}, getImageData(x, y, width, height) {
+                const data = new Uint8ClampedArray(width * height * 4);
+                for (let index = 0; index < width * height; index++) {
+                    const row = Math.floor(index / width), focus = Math.max(thumb.width, thumb.height) > 64;
+                    data.set(focus ? (row > height * .5 ? (index % 3 ? [236, 78, 52, 255] : [252, 214, 96, 255]) : [118, 124, 120, 255]) : (index % 3 ? [244, 246, 248, 255] : [226, 232, 238, 255]), index * 4);
+                }
+                return { data };
+            } };
+        }
+    };
+    const painted = []; let custom;
+    try {
+        await browserHarness(async h => {
+            const auto = await runtime.runLocalTool('type-overlay', [image()], { title: 'Bright sky', color: '#ffffff', position: 'auto' });
+            assert.equal(auto.placement.moved, true);
+            assert.notEqual(auto.placement.position, 'bottom');
+            assert.equal(Math.round(h.calls.text[0][2]), auto.placement.y);
+            assert.ok(h.calls.text[0][2] + 64 * 1.2 <= 150, 'The title ends above the subject.');
+            assert.equal(auto.ink, '#ffffff');
+            assert.equal(auto.scrim.color, '#000000');
+            assert.ok(painted.some(fill => fill === `rgba(0, 0, 0, ${auto.scrim.opacity})`), 'The scrim is painted behind the title.');
+            assert.equal(custom.strokeStyle, 'rgba(0, 0, 0, .7)', 'White over the scrim keeps a dark halo.');
+            const bottom = await runtime.runLocalTool('type-overlay', [image()], { title: 'Bright sky', color: '#ffffff' });
+            assert.deepEqual([bottom.placement.position, bottom.placement.moved], ['bottom', false], 'The catalog default stays bottom.');
+            await assert.rejects(runtime.runLocalTool('type-overlay', [image()], { position: 'left' }), /supported position/);
+            await assert.rejects(runtime.runLocalTool('type-overlay', [image()], { scrim: 'always' }), /supported scrim/);
+        }, { context: calls => (custom = {
+            save() {}, restore() {}, beginPath() {}, rect() {}, clip() {}, fillRect() {}, roundRect() {}, fill() { painted.push(this.fillStyle); },
+            drawImage(...args) { calls.draw.push(args); },
+            measureText(text) { return { width: Array.from(text).length * Number(this.font?.match(/(\d+)px/)?.[1] || 10) * .6 }; },
+            strokeText() {}, fillText(...args) { calls.text.push(args); },
+        }) });
+    } finally { if (previous === undefined) delete globalThis.OffscreenCanvas; else globalThis.OffscreenCanvas = previous; }
+});

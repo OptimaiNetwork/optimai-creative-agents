@@ -90,9 +90,9 @@ A broader host can add these reviewed runtime adapters:
 | Capability | SDK entry and dispatch | Output and host requirements |
 | --- | --- | --- |
 | Original image processing | `browser-runtime` → `runLocalTool` | PNG; selected PNG/JPEG/WebP files and bounded settings |
-| Additional composition | `canvas-lab` → `canvasLabRecipeSettings`, `runCanvasLab` | PNG and the title ink actually drawn; normalize defaults, canonical settings and saved v1 aliases |
+| Additional composition | `canvas-lab` → `canvasLabRecipeSettings`, `runCanvasLab` | PNG and the title ink, lines, placement and scrim actually drawn; normalize defaults, canonical settings and saved v1 aliases |
 | Color | `color` → `pickLegibleColor`, `analyzeImageColors`, `dominantColors`, `mixColors`; `color-grade` → `gradePixels`, `resolveGrade`, `gradeColor`; `lut` → `parseCubeLut`, `applyLut`, `filmLut`, `lutColor` | OKLab/OKLCH conversions, WCAG contrast, readable ink, deterministic image palettes, a per-pixel OKLab grade and strict `.cube` LUTs; Node and browser |
-| Typography | `typeset` → `fitTitle`, `breakLines`, `opticalSize`, `canvasMeasure` | Balanced or paragraph line breaks and optical tracking and leading for titles, against any measure function; Node and browser |
+| Typography | `typeset` → `fitTitle`, `breakLines`, `opticalSize`, `canvasMeasure`; `text-placement` → `placeTextBlock`, `chooseTitleInk`, `fitScrim`, `regionInterest` | Balanced or paragraph line breaks and optical tracking and leading for titles, against any measure function; title placement in the calmest region of a focus map and the lightest scrim that keeps an ink readable; Node and browser |
 | Browser vision | `vision-runtime` → `downloadVisionModel`, `runBrowserVision` | PNG and analysis; selected-agent setup policy, reviewed local worker and WASM assets |
 | Browser writing | `browser-writing-runtime` → `createBrowserAgentRuntime` | Validated written artifact; selected-agent setup policy, supported WebGPU device and local worker |
 | 3D scene | `scene-3d` → `scene3DRecipeSettings`; `scene-3d-runtime` → `createScene3DStage` | Procedural/local GLB WebGL stage, PNG and scene recipe; optional reviewed Three peer |

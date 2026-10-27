@@ -147,7 +147,7 @@ A title color that reads on a dark photo can vanish on a bright one. Poster Lab,
 
 | `ink` | Behaviour |
 | --- | --- |
-| `readable` (default) | Keep `color` when it reaches 3:1 WCAG contrast (AA for large text) over each of those colors. Otherwise move only its OKLCH lightness, by the smallest step that passes, so the hue the creator chose survives. |
+| `readable` (default) | Keep `color` when it reaches 3:1 WCAG contrast (AA for large text) over each of those colors. When a small lightness move is enough, move only its OKLCH lightness, by the smallest step that passes, so the hue the creator chose survives. When it would take a big move (white turning grey over a bright sky), keep the color and draw the lightest scrim that passes behind the title instead; see [calm title placement](#calm-title-placement). `scrim: 'off'` always moves the lightness. |
 | `image` | Start from the photo's accent (its most vivid color that is also present), then apply the same check. Falls back to `color`. |
 | `exact` | Draw `color` unchanged, as before. |
 
@@ -194,6 +194,27 @@ title.lines.forEach((line, index) => context.fillText(line, 60, 80 + index * tit
 ```
 
 `breakLines(text, { measure, width, fontSize, wrap, tracking })` breaks at one size. `wrap` is `balance` (default: the minimum number of lines, every line as even as possible), `pretty` (paragraph style: even lines and a free last line, but never a lone short word) or `greedy` (first fit). It is a small dynamic program over whole words, the idea behind Knuth–Plass line breaking without hyphenation. `fitTitle` searches sizes from `maxSize` down to `minSize`, measures each word and character once, and reports `fits: false` when nothing fits and `split: true` when a word had to be broken. `opticalSize(fontSize)` returns the tracking (em) and leading it uses; pass `tracking` or `leading` to override them.
+
+### Calm title placement
+
+Poster Lab and Letter Pose place their titles with `position: 'auto'` by default: the title block goes to the calmest part of the composed image instead of over the subject. The smart-crop focus map of the composition (the same 96-pixel analysis used for cropping) is turned into a summed-area table, and the block is scored at a grid of spots inside the frame, below the credit line. Each spot's score is the interest under the block plus a little breathing room, relative to the image's average, plus a gentle cost for leaving the layout's usual spot (bottom for Poster Lab, centre for Letter Pose). The title moves only when the new spot is clearly calmer (by a quarter of the image's average interest), so a flat, evenly busy or ambiguous image keeps the classic layout. Left-aligned compositions can also move sideways. The Poster Lab shade follows a title that moved to the top; otherwise it darkens the bottom as before. A blank artboard, an image whose pixels cannot be read, and the fixed `top`, `center` and `bottom` positions never search.
+
+Title Frame keeps its `position` field (`bottom` by default) and also accepts `position: 'auto'`.
+
+A scrim is drawn only when the chosen ink still fails 3:1 contrast where the title landed and a small lightness move would not fix it: a soft rounded panel, black behind light ink and white behind dark ink, at the lowest opacity (in 1% steps, from 15% so it is never invisibly faint, up to 60%) that passes over every color behind the title. If even that falls short, the ink also moves over what the scrim leaves. `output.placement` (`{ position, x, y, moved }`) and `output.scrim` (`{ color, opacity }` or null) report what was drawn; `scrim: 'off'` and `ink: 'exact'` keep the earlier behaviour. Saved recipes need no new field.
+
+The placement steps are a public module that runs in Node and the browser:
+
+```js
+import { analyzeImageFocus } from '@optimai/creative-agents/smart-crop';
+import { chooseTitleInk, placeTextBlock } from '@optimai/creative-agents/text-placement';
+
+const focus = analyzeImageFocus(canvas, canvas.width, canvas.height);
+const place = placeTextBlock(focus, { canvas, block: { width: title.width, height: title.height }, bounds: { x: 60, y: 120, width: 960, height: 1200 }, home: { x: 0, y: 1 } });
+const { ink, scrim } = chooseTitleInk(backgroundsUnder(place), { prefer: ['#ffffff'], minContrast: 3 });
+```
+
+`placeTextBlock` also takes `homeBias` (default 0.25, in units of average interest), `minGain` (default 0.25), `columns`, `rows` (at most 33 each) and `breathing` (pixels, default 4% of the shorter side), and returns `interest` and `homeInterest` so you can explain a move. `regionInterest(focus, rect, canvas)` scores any rectangle, and `fitScrim(backgrounds, ink, { minContrast, minOpacity, maxOpacity, color })` returns the lightest scrim on its own, with the backgrounds as seen through it.
 
 ### Tier-0 verification
 

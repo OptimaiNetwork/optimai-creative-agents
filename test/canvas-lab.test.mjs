@@ -240,7 +240,7 @@ test('poster and letter titles stay readable over bright images, take an image a
     assert.equal(canvasLabRecipeSettings('poster-lab').ink, 'readable', 'Saved recipes get readable ink without a new recipe field.');
     assert.throws(() => canvasLabSettings('poster', { ink: 'random' }), /supported ink/);
     await canvasHarness(async () => {
-      const readable = await runCanvasLab('letter', [image()], { color: '#c6f87d' });
+      const readable = await runCanvasLab('letter', [image()], { color: '#c6f87d', scrim: 'off' });
       assert.notEqual(readable.ink, '#c6f87d');
       assert.ok(['#ecf0f4', '#d6dee6'].every(sky => contrastRatio(readable.ink, sky) >= 3), 'At least 3:1 over every sky colour.');
       assert.ok(Math.abs(toOklch(readable.ink)[2] - toOklch('#c6f87d')[2]) < 4, 'The chosen hue is kept.');
@@ -273,4 +273,53 @@ test('poster and letter titles break into balanced lines with optical tracking a
     const long = await runCanvasLab('poster', [], { title: Array(30).fill('word').join(' '), ink: 'exact' });
     assert.ok(long.lines.length <= 6 && long.lines.join(' ').split(' ').length === 30, 'Long titles shrink instead of losing words.');
   }, { context: (canvas, context) => Object.defineProperty(context, 'letterSpacing', { configurable: true, get: () => spacing.at(-1) ?? '0px', set: value => { if (value !== '0px' || spacing.length) spacing.push(value); } }) });
+});
+test('poster and letter titles move to the calmest part of the image, keep white ink behind a scrim, and fixed positions keep the classic layout', async () => {
+  const previous = globalThis.OffscreenCanvas;
+  // Focus thumbnails (≤96 px) show a busy subject in the lower half; colour thumbnails (≤64 px) read as a bright sky.
+  globalThis.OffscreenCanvas = class {
+    constructor(width, height) { this.width = width; this.height = height; }
+    getContext() { const thumb = this; return { drawImage() {}, getImageData(x, y, width, height) {
+      const data = new Uint8ClampedArray(width * height * 4);
+      for (let index = 0; index < width * height; index++) {
+        const row = Math.floor(index / width), focus = Math.max(thumb.width, thumb.height) > 64;
+        data.set(focus ? (row > height * .55 ? (index % 3 ? [236, 78, 52, 255] : [252, 214, 96, 255]) : [118, 124, 120, 255]) : (index % 3 ? [236, 240, 244, 255] : [214, 222, 230, 255]), index * 4);
+      }
+      return { data };
+    } }; }
+  };
+  try {
+    assert.equal(canvasLabSettings('poster').position, 'auto');
+    assert.equal(canvasLabRecipeSettings('poster-lab').position, 'auto', 'Saved recipes get auto placement without a new recipe field.');
+    assert.equal(canvasLabSettings('letter').scrim, 'auto');
+    assert.throws(() => canvasLabSettings('poster', { position: 'left' }), /supported position/);
+    assert.throws(() => canvasLabSettings('poster', { scrim: 'always' }), /supported scrim/);
+    const fills = [];
+    await canvasHarness(async h => {
+      const title = 'A new beginning';
+      const auto = await runCanvasLab('poster', [image()], { title, color: '#ffffff' });
+      assert.equal(auto.placement.moved, true);
+      assert.notEqual(auto.placement.position, 'bottom');
+      const first = h.calls.text.find(call => call.args[0] === auto.lines[0]);
+      assert.equal(Math.round(first.args[2]), auto.placement.y, 'The first line is drawn where the block was placed.');
+      assert.ok(auto.placement.y < 1500 * .55, 'The title sits above the subject.');
+      assert.equal(auto.ink, '#ffffff', 'White stays white…');
+      assert.equal(auto.scrim.color, '#000000', '…over a black scrim.');
+      assert.ok(auto.scrim.opacity > 0 && auto.scrim.opacity <= .6);
+      assert.ok(fills.some(fill => fill.startsWith('rgba(0, 0, 0, ')), 'The scrim is painted.');
+      const mark = h.calls.text.length;
+      const fixed = await runCanvasLab('poster', [image()], { title, color: '#ffffff', position: 'bottom' });
+      const layout = fitTitle(title, { measure: (text, size) => text.length * size * .6, width: 984, height: 975, maxSize: 150, minSize: 16, maxLines: 6 });
+      assert.equal(h.calls.text.slice(mark).find(call => call.args[0] === fixed.lines[0]).args[2], 1500 * .88 - layout.height, 'position: bottom is the classic poster layout.');
+      assert.deepEqual([fixed.placement.position, fixed.placement.x, fixed.placement.moved], ['bottom', 96, false]);
+      const off = await runCanvasLab('letter', [image()], { title, color: '#ffffff', scrim: 'off' });
+      assert.equal(off.scrim, null); assert.notEqual(off.ink, '#ffffff', 'With the scrim off the ink moves instead, as before.');
+      const exact = await runCanvasLab('poster', [image()], { title, color: '#ffffff', ink: 'exact' });
+      assert.deepEqual([exact.ink, exact.scrim], ['#ffffff', null]);
+    }, { context: (canvas, context) => ({ ...context, fill() { fills.push(this.fillStyle); }, drawImage: context.drawImage, fillText: context.fillText, measureText: context.measureText }) });
+  } finally { if (previous === undefined) delete globalThis.OffscreenCanvas; else globalThis.OffscreenCanvas = previous; }
+  await canvasHarness(async () => {
+    const blank = await runCanvasLab('letter', [], { color: '#c6f87d' });
+    assert.deepEqual([blank.placement.position, blank.placement.moved, blank.scrim], ['center', false, null], 'A blank artboard keeps the classic centred letter.');
+  });
 });

@@ -1,7 +1,8 @@
 import { gradePixels, isIdentityGrade, resolveGrade } from './color-grade.mjs';
 import { applyLut, filmLut, parseCubeLut } from './lut.mjs';
-import { analyzeImageColors, pickAccentColor, pickLegibleColor, toOklab } from './color.mjs';
+import { analyzeImageColors, pickAccentColor, toOklab } from './color.mjs';
 import { analyzeImageFocus, focusCoverRect } from './smart-crop.mjs';
+import { chooseTitleInk, placeTextBlock, TEXT_POSITIONS } from './text-placement.mjs';
 import { canvasMeasure, fitTitle } from './typeset.mjs';
 export const LOCAL_IMAGE_LIMITS = Object.freeze({
     files: 8,
@@ -302,8 +303,9 @@ function drawTitle(context, size, values, canvas, image) {
         throw new Error('Add a title between 1 and 300 characters.');
     const requestedSize = numberValue(values, 'fontSize', 64, 12, 240);
     const color = colorValue(values, 'color', '#ffffff');
-    const position = optionValue(values, 'position', 'bottom', ['top', 'center', 'bottom']);
+    const position = optionValue(values, 'position', 'bottom', TEXT_POSITIONS);
     const ink = optionValue(values, 'ink', 'readable', ['readable', 'image', 'exact']);
+    const scrimMode = optionValue(values, 'scrim', 'auto', ['auto', 'off']);
     const padding = Math.max(1, Math.round(Math.min(size.width, size.height) * .055));
     const maxWidth = Math.max(1, size.width - padding * 2);
     const maxHeight = Math.max(1, size.height - padding * 2);
@@ -313,21 +315,40 @@ function drawTitle(context, size, values, canvas, image) {
     context.font = font(fontSize);
     if ('letterSpacing' in context)
         context.letterSpacing = `${tracking}px`;
-    const startY = position === 'top' ? padding : position === 'center' ? (size.height - blockHeight) / 2 : size.height - padding - blockHeight;
+    // `auto` moves the block to the calmest band of the drawn image, starting from the bottom.
+    const blockWidth = Math.min(maxWidth, span);
+    const place = position === 'auto' ? placeTextBlock(analyzeImageFocus(canvas, size.width, size.height), { canvas: size, block: { width: blockWidth, height: blockHeight }, bounds: { x: padding, y: padding, width: maxWidth, height: maxHeight }, home: { x: .5, y: 1 } }) : null;
+    const startY = place ? place.y : position === 'top' ? padding : position === 'center' ? (size.height - blockHeight) / 2 : size.height - padding - blockHeight;
     context.textBaseline = 'top';
     context.textAlign = 'center';
     context.lineJoin = 'round';
     context.lineWidth = Math.max(1, fontSize * .055);
-    let fill = color, halo = 'rgba(0, 0, 0, .7)';
+    let fill = color, halo = 'rgba(0, 0, 0, .7)', scrim = null;
     if (ink !== 'exact') {
-        // Sample what the title covers; at least 3:1 (WCAG AA for large text) over each colour covering 5% of it.
-        const surfaces = analyzeImageColors(canvas, size.width, size.height, { region: { x: (size.width - Math.min(maxWidth, span)) / 2, y: startY, width: Math.min(maxWidth, span), height: blockHeight }, count: 4 })?.filter(surface => surface.weight >= .05);
+        // Sample what the title covers; at least 3:1 (WCAG AA for large text) over each colour covering 5% of it,
+        // keeping the chosen colour behind a scrim rather than greying it out.
+        const surfaces = analyzeImageColors(canvas, size.width, size.height, { region: { x: (size.width - blockWidth) / 2, y: startY, width: blockWidth, height: blockHeight }, count: 4 })?.filter(surface => surface.weight >= .05);
         const accent = ink === 'image' ? pickAccentColor(analyzeImageColors(image.source, image.width, image.height) ?? []) : null;
         if (surfaces?.length) {
-            fill = pickLegibleColor(surfaces, { prefer: [accent, color], minContrast: 3 }).color;
-            // The outline is a halo on the far side of the main background: light behind a darker title.
-            if (toOklab(fill)[0] < surfaces[0].oklch[0]) halo = 'rgba(255, 255, 255, .7)';
+            const chosen = chooseTitleInk(surfaces, { prefer: [accent, color], minContrast: 3, scrim: scrimMode === 'auto' });
+            fill = chosen.ink; scrim = chosen.scrim;
+            // The outline is a halo on the far side of what the title sits on: light behind a darker title.
+            if (toOklab(fill)[0] < toOklab(chosen.surfaces[0])[0]) halo = 'rgba(255, 255, 255, .7)';
         }
+    }
+    if (scrim) {
+        const pad = lineHeight * .35, [r, g, b] = [1, 3, 5].map(index => parseInt(scrim.color.slice(index, index + 2), 16));
+        context.save?.();
+        context.fillStyle = context.shadowColor = `rgba(${r}, ${g}, ${b}, ${scrim.opacity})`;
+        // Only the blurred shadow of a panel drawn off the canvas lands on it, so the scrim has no hard edge.
+        context.shadowBlur = pad * 2;
+        context.shadowOffsetX = size.width * 2;
+        context.beginPath?.();
+        context.roundRect?.((size.width - blockWidth) / 2 - pad - size.width * 2, startY - pad * .6, blockWidth + pad * 2, blockHeight + pad * 1.2, pad);
+        context.fill?.();
+        context.restore?.();
+        context.shadowBlur = 0;
+        context.shadowOffsetX = 0;
     }
     context.strokeStyle = halo;
     context.fillStyle = fill;
@@ -338,7 +359,7 @@ function drawTitle(context, size, values, canvas, image) {
     });
     if ('letterSpacing' in context)
         context.letterSpacing = '0px';
-    return { ink: fill, lines };
+    return { ink: fill, lines, placement: { position: place?.position ?? position, x: Math.round((size.width - blockWidth) / 2), y: Math.round(startY), moved: place?.moved ?? false }, scrim };
 }
 // The last parsed .cube text, so a live preview does not re-parse the same file on every edit.
 let cubeCache = { text: null, lut: null };
@@ -372,7 +393,7 @@ export async function runLocalTool(operation, files, values, signal) {
         await checkSignature(file, signal);
     }
     const images = [];
-    let canvas, ink, lines, colorEngine, lut;
+    let canvas, ink, lines, placement, scrim, colorEngine, lut;
     try {
         for (const file of files) {
             const image = await loadLocalImage(file, signal);
@@ -420,7 +441,7 @@ export async function runLocalTool(operation, files, values, signal) {
         }
         else {
             context.drawImage(images[0].source, 0, 0, size.width, size.height);
-            ({ ink, lines } = drawTitle(context, size, values, canvas, images[0]));
+            ({ ink, lines, placement, scrim } = drawTitle(context, size, values, canvas, images[0]));
         }
         throwIfAborted(signal);
         const blob = await abortable(new Promise((resolve, reject) => {
@@ -430,7 +451,7 @@ export async function runLocalTool(operation, files, values, signal) {
         if (blob.size > LOCAL_IMAGE_LIMITS.bytes)
             throw new Error('The result exceeds 20 MB. Choose smaller dimensions.');
         const base = files[0].name.replace(/\.[^.]*$/, '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'optimai';
-        return { ...size, blob, filename: `${base}-${operation}.png`, ...(ink ? { ink, lines } : {}), ...(colorEngine ? { colorEngine } : {}), ...(lut ? { lut } : {}) };
+        return { ...size, blob, filename: `${base}-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}), ...(colorEngine ? { colorEngine } : {}), ...(lut ? { lut } : {}) };
     }
     finally {
         images.forEach(image => image.release());

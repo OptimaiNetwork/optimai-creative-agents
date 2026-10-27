@@ -115,6 +115,10 @@
       "types": "./src/typeset.d.mts",
       "import": "./src/typeset.mjs"
     },
+    "./text-placement": {
+      "types": "./src/text-placement.d.mts",
+      "import": "./src/text-placement.mjs"
+    },
     "./verify": {
       "types": "./src/verify.d.mts",
       "import": "./src/verify.mjs"
