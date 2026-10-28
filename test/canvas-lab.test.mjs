@@ -323,3 +323,62 @@ test('poster and letter titles move to the calmest part of the image, keep white
     assert.deepEqual([blank.placement.position, blank.placement.moved, blank.scrim], ['center', false, null], 'A blank artboard keeps the classic centred letter.');
   });
 });
+
+// A 2D context with pixel reads: each canvas holds the level of the shot drawn on it last (40 for the first, 220 for the second;
+// each two-image run decodes four bitmaps, and the second and fourth are the shots).
+const pixelContext = (canvas, context, calls) => Object.assign(context, {
+  drawImage(source, ...args) { calls.draw.push({ canvas, alpha: this.globalAlpha, args: [source, ...args] }); const shot = calls.bitmaps.indexOf(source) % 4; canvas.level = shot === 1 ? 40 : shot === 3 ? 220 : source.level ?? 0; },
+  getImageData(x, y, width, height) { return { width, height, data: new Uint8ClampedArray(width * height * 4).fill(canvas.level ?? 0) }; },
+  createImageData(width, height) { return { width, height, data: new Uint8ClampedArray(width * height * 4) }; },
+  putImageData(image, x, y) { (calls.put ??= []).push({ canvas, image, x, y }); },
+});
+test('Transition Lab draws real wipes, irises, light keys and pushes with a strip of the whole move', async () => canvasHarness(async h => {
+  const pair = () => [image('first.png'), image('second.png')];
+  const radial = await runCanvasLab('transition', pair(), canvasLabRecipeSettings('transition-lab', { ratio: '1:1', mix: 50 }));
+  assert.deepEqual(radial.transition, { style: 'radial', direction: 'right', pace: 'quick', progress: 0.5 }, 'the template defaults: match cut, quick, the middle frame');
+  const frame = h.calls.put.find(call => call.image.width === 1200).image, level = (x, y) => frame.data[(y * 1200 + x) * 4];
+  assert.deepEqual([level(600, 600), level(0, 0)], [220, 40], 'the iris shows the second shot at the centre and the first in the corner');
+  assert.deepEqual(radial.strip.frames, [0, 25, 50, 75, 100]);
+  assert.equal(radial.strip.blob.type, 'image/png');
+  const thumbs = h.calls.put.filter(call => call.image.width !== 1200);
+  assert.equal(thumbs.length, 5);
+  assert.deepEqual([radial.strip.width, radial.strip.height], [12 + 5 * (thumbs[0].image.width + 12), thumbs[0].image.height + 24]);
+  assert.deepEqual([thumbs[0].image.data[0], thumbs[4].image.data[0]], [40, 220], 'the strip runs from the first shot to the second');
+  assert.ok(thumbs.every((call, index) => call.x === 12 + index * (call.image.width + 12) && call.y === 12));
+
+  h.calls.put = [];
+  const wipe = await runCanvasLab('transition', pair(), canvasLabRecipeSettings('transition-lab', { transition: 'light wipe', ratio: '16:9', mix: 30 }));
+  assert.deepEqual(wipe.transition, { style: 'wipe', direction: 'right', pace: 'quick', progress: 0.216 }, 'time is eased in and out');
+  const wide = h.calls.put.find(call => call.image.width === 1200).image;
+  assert.deepEqual([wide.data[0], wide.data[(1199) * 4]], [220, 40], 'a rightward wipe reveals the second shot from the left');
+  assert.equal(canvasLabRecipeSettings('transition-lab', { transition: 'camera move' }).transition, 'push');
+  assert.equal(canvasLabRecipeSettings('transition-lab', { transition: 'morph' }).transition, 'luma');
+  assert.equal(canvasLabRecipeSettings('transition-lab', { pace: 'slow cinematic' }).pace, 'slow cinematic');
+
+  const still = await runCanvasLab('transition', pair(), { transition: 'push', direction: 'up', frames: 0, mix: 100 });
+  assert.equal(still.strip, null);
+  assert.equal(still.transition.progress, 1);
+  assert.ok(h.calls.bitmaps.every(value => value.closed === 1));
+  assert.ok(h.calls.canvases.every(value => value.width <= 1 && value.height <= 1), 'thumbnail and strip canvases are released');
+  assert.equal(h.calls.network, 0);
+}, { context: pixelContext }));
+
+test('a dissolve, or a canvas without pixel reads, crossfades at the eased time and says what it drew', async () => {
+  await canvasHarness(async h => {
+    const output = await runCanvasLab('transition', [image(), image()], { transition: 'wipe', mix: 25 });
+    assert.deepEqual(output.transition, { style: 'dissolve', requested: 'wipe', direction: 'right', pace: 'gentle', progress: 0.156 });
+    assert.equal(output.strip, null);
+    const composition = h.calls.draw.filter(value => value.canvas === h.calls.canvases.at(-1));
+    assert.deepEqual(composition.map(value => value.alpha), [1, 0.15625]);
+  });
+  await canvasHarness(async h => {
+    const output = await runCanvasLab('transition', [image(), image()], { transition: 'dissolve', mix: 50, frames: 0 });
+    assert.deepEqual(output.transition, { style: 'dissolve', direction: 'right', pace: 'gentle', progress: 0.5 });
+    assert.equal(h.calls.put, undefined, 'a dissolve needs no pixel reads');
+  }, { context: pixelContext });
+  const blend = await new Promise(resolve => canvasHarness(async () => resolve(await runCanvasLab('blend', [image(), image()], { mix: 40 }))));
+  assert.equal(blend.transition, undefined, 'Reference Blend is unchanged');
+  for (const [values, pattern] of [[{ frames: 1 }, /frames/], [{ frames: 13 }, /frames/], [{ frames: 2.5 }, /frames/], [{ transition: '__proto__' }, /transition/], [{ transition: 'teleport' }, /transition/], [{ direction: 'north' }, /direction/], [{ pace: 'rapid' }, /pace/]]) {
+    assert.throws(() => canvasLabSettings('transition', values), pattern);
+  }
+});

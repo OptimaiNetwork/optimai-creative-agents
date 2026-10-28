@@ -4,6 +4,7 @@ import { analyzeImageColors, pickAccentColor } from './color.mjs';
 import { analyzeImageFocus, focusCoverRect } from './smart-crop.mjs';
 import { chooseTitleInk, placeTextBlock, TEXT_POSITIONS } from './text-placement.mjs';
 import { canvasMeasure, fitTitle } from './typeset.mjs';
+import { composeTransition, resolveTransition, TRANSITION_DIRECTIONS, TRANSITION_LIMITS, TRANSITION_PACES, TRANSITION_STYLES, TRANSITION_TECHNIQUES, transitionProgress, transitionTimes } from './transition.mjs';
 
 const LAB_OPERATIONS = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition']);
 export const CANVAS_LAB_AGENTS = Object.freeze(Object.fromEntries(AGENT_CATALOG.flatMap(agent =>
@@ -25,6 +26,11 @@ export function canvasLabSettings(operation, values = {}) {
     ink: option('ink', 'readable', ['readable', 'image', 'exact']),
     position: option('position', 'auto', TEXT_POSITIONS),
     scrim: option('scrim', 'auto', ['auto', 'off']),
+    // Recipe technique names ('light wipe') are accepted as aliases of the styles they draw.
+    transition: Object.hasOwn(TRANSITION_TECHNIQUES, values.transition ?? '') ? TRANSITION_TECHNIQUES[values.transition] : option('transition', 'radial', TRANSITION_STYLES),
+    direction: option('direction', 'right', TRANSITION_DIRECTIONS),
+    pace: option('pace', 'gentle', Object.keys(TRANSITION_PACES)),
+    frames: (() => { const value = number('frames', 5, 0, TRANSITION_LIMITS.frames); if (!Number.isInteger(value) || value === 1) throw new Error(`frames must be 0 or a whole number from 2 to ${TRANSITION_LIMITS.frames}.`); return value; })(),
   };
 }
 /** Map portable recipe settings to the actual canvas engine, including v1 aliases. */
@@ -47,6 +53,7 @@ export function canvasLabRecipeSettings(templateId, values = {}) {
     title, color, ratio: ratio === 'original' ? '4:5' : ratio,
     layout: operation === 'mockup' ? settings.layout ?? 'phone' : 'phone',
     treatment, amount, mix: settings.mix ?? 50,
+    ...(operation === 'transition' ? { transition: settings.transition, pace: settings.pace } : {}),
   });
 }
 const abort = signal => { if (signal?.aborted) throw new DOMException('Cancelled.', 'AbortError'); };
@@ -98,6 +105,18 @@ function inkColor(canvas, area, settings, image) {
   const { ink, scrim } = chooseTitleInk(surfaces, { prefer: [accent, settings.color], minContrast: 3, scrim: settings.scrim === 'auto' });
   return { ink, scrim };
 }
+const readable = ctx => typeof ctx.getImageData === 'function' && typeof ctx.putImageData === 'function' && typeof ctx.createImageData === 'function';
+// Draw both shots at one size and read their pixels, or null where pixels cannot be read.
+function shotPixels(ctx, images, focus, width, height) {
+  if (!readable(ctx)) return null;
+  try { return images.map((image, index) => { fit(ctx, image, 0, 0, width, height, false, focus[index]); return ctx.getImageData(0, 0, width, height); }); }
+  catch { return null; } // A tainted canvas falls back to a dissolve.
+}
+function paintTransition(ctx, shots, width, height, progress, plan, x = 0, y = 0) {
+  const image = ctx.createImageData(width, height);
+  composeTransition(shots[0].data, shots[1].data, width, height, progress, plan, image.data);
+  ctx.putImageData(image, x, y);
+}
 /** Original browser-only canvas utilities. No network, image generation or video codec. */
 export async function runCanvasLab(operation, files = [], values = {}, signal) {
   const settings = canvasLabSettings(operation, values); abort(signal);
@@ -105,7 +124,7 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
   if (!Array.isArray(files) || files.length > maximum) throw new Error(`Choose up to ${maximum} images.`);
   if (!files.length && !['poster', 'letter'].includes(operation)) throw new Error('Add an image to start.');
   if (['blend', 'transition'].includes(operation) && files.length !== 2) throw new Error('Choose two images for this composition.');
-  const images = []; let canvas, source, ink, lines, placement, scrim; let pixels = 0;
+  const images = []; let canvas, source, thumb, film, ink, lines, placement, scrim, transition, strip; let pixels = 0;
   try {
     // Reuse the signature, dimensions, decode and memory validation of the public processor.
     for (const file of files) {
@@ -138,7 +157,28 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
       const gap = 22, pad = 38; const heroW = files.length > 1 ? (width - pad * 2 - gap) * .62 : width - pad * 2;
       fit(ctx, images[0], pad, pad, heroW, height - pad * 2, false, focus[0]);
       images.slice(1).forEach((image, index) => { const cellH = (height - pad * 2 - gap * (images.length - 2)) / (images.length - 1); fit(ctx, image, pad + heroW + gap, pad + index * (cellH + gap), width - pad * 2 - heroW - gap, cellH, false, focus[index + 1]); });
-    } else if (['blend', 'transition'].includes(operation)) {
+    } else if (operation === 'transition') {
+      const plan = resolveTransition({ style: settings.transition, direction: settings.direction, pace: settings.pace });
+      const progress = transitionProgress(settings.mix / 100, plan.ease), shots = plan.style === 'dissolve' ? null : shotPixels(ctx, images, focus, width, height);
+      // A dissolve, or a canvas that cannot read pixels, crossfades at the eased progress.
+      if (shots) paintTransition(ctx, shots, width, height, progress, plan);
+      else { fit(ctx, images[0], 0, 0, width, height, false, focus[0]); ctx.globalAlpha = progress; fit(ctx, images[1], 0, 0, width, height, false, focus[1]); ctx.globalAlpha = 1; }
+      transition = { style: shots ? plan.style : 'dissolve', ...(shots || plan.style === 'dissolve' ? {} : { requested: plan.style }), direction: plan.direction, pace: settings.pace, progress: Math.round(progress * 1000) / 1000 };
+      if (shots && settings.frames) {
+        // The whole move as a strip of small frames, evenly spaced in time.
+        const times = transitionTimes(settings.frames), gap = 12, tw = Math.floor(Math.min(320, (2400 - gap * (times.length + 1)) / times.length)), th = Math.round(tw * height / width);
+        thumb = document.createElement('canvas'); thumb.width = tw; thumb.height = th;
+        const thumbContext = thumb.getContext('2d'), small = thumbContext && shotPixels(thumbContext, images, focus, tw, th);
+        film = document.createElement('canvas'); film.width = gap + times.length * (tw + gap); film.height = th + gap * 2;
+        const filmContext = film.getContext('2d');
+        if (small && filmContext && readable(filmContext)) {
+          filmContext.fillStyle = '#0b100e'; filmContext.fillRect(0, 0, film.width, film.height);
+          times.forEach((time, index) => { abort(signal); paintTransition(filmContext, small, tw, th, transitionProgress(time, plan.ease), plan, gap + index * (tw + gap), gap); });
+          const blob = await abortable(new Promise((resolve, reject) => film.toBlob(value => value ? resolve(value) : reject(new Error('Could not export the transition strip.')), 'image/png')), signal);
+          strip = { blob, width: film.width, height: film.height, frames: times.map(time => Math.round(time * 100)) };
+        }
+      }
+    } else if (operation === 'blend') {
       fit(ctx, images[0], 0, 0, width, height, false, focus[0]); ctx.globalAlpha = settings.mix / 100; fit(ctx, images[1], 0, 0, width, height, false, focus[1]); ctx.globalAlpha = 1;
     } else if (operation === 'glitch') {
       fit(ctx, images[0], 0, 0, width, height, false, focus[0]); const amount = settings.amount / 100;
@@ -175,6 +215,6 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
     const blob = await abortable(new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not export this canvas.')), 'image/png')), signal);
     abort(signal);
     if (blob.size > 20 * 1024 * 1024) throw new Error('The exported image is too large. Use a smaller composition.');
-    return { blob, width, height, filename: `optimai-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}) };
-  } finally { images.forEach(image => image.close()); if (source) source.width = source.height = 1; if (canvas) canvas.width = canvas.height = 1; }
+    return { blob, width, height, filename: `optimai-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}), ...(transition ? { transition, strip: strip ?? null } : {}) };
+  } finally { images.forEach(image => image.close()); for (const value of [source, thumb, film, canvas]) if (value) value.width = value.height = 1; }
 }

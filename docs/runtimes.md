@@ -61,7 +61,7 @@ const output = await runCanvasLab(CANVAS_LAB_AGENTS['poster-lab'], [], {
 }, controller.signal);
 ```
 
-`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`. `glitch` displaces still-image bands with `amount: 0–100`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. Poster and letter titles use [readable ink](#readable-titles-and-image-palettes) by default; pass `ink: 'exact'` to draw `color` unchanged. Titles are set in [balanced lines](#balanced-titles) with optical tracking and leading. These tools export PNGs, not video or model-generated artwork.
+`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`; `transition` draws a real [still transition](#still-transitions) at that time rather than a crossfade. `glitch` displaces still-image bands with `amount: 0–100`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. Poster and letter titles use [readable ink](#readable-titles-and-image-palettes) by default; pass `ink: 'exact'` to draw `color` unchanged. Titles are set in [balanced lines](#balanced-titles) with optical tracking and leading. These tools export PNGs, not video or model-generated artwork.
 
 ### Focus-aware cropping
 
@@ -215,6 +215,24 @@ const { ink, scrim } = chooseTitleInk(backgroundsUnder(place), { prefer: ['#ffff
 ```
 
 `placeTextBlock` also takes `homeBias` (default 0.25, in units of average interest), `minGain` (default 0.25), `columns`, `rows` (at most 33 each) and `breathing` (pixels, default 4% of the shorter side), and returns `interest` and `homeInterest` so you can explain a move. `regionInterest(focus, rect, canvas)` scores any rectangle, and `fitScrim(backgrounds, ink, { minContrast, minOpacity, maxOpacity, color })` returns the lightest scrim on its own, with the backgrounds as seen through it.
+
+### Still transitions
+
+Transition Lab draws one frame of a move between two shots at `mix` (0–100, the time through the move) and a strip of the whole move. `transition` picks the move: `wipe` (a feathered edge travelling in `direction`: `right`, `left`, `down` or `up`), `radial` (an iris opening from the centre), `luma` (the brightest parts of the first shot give way first, like light burning through), `push` (both shots slide together in `direction`) or `dissolve`. The recipe's technique names are aliases: *match cut* draws `radial`, *camera move* `push`, *light wipe* `wipe` and *morph* `luma`. `pace` sets the feathered edge (`quick` 4%, `gentle` 15%, `slow cinematic` 35% of the move) and time is eased in and out, so the default middle frame is the true midpoint and evenly spaced frames read as motion. Frame 0 is exactly the first shot and frame 100 exactly the second.
+
+`frames` (default 5; 0, or 2–12) sets the strip: one PNG of evenly spaced frames, each at most 320 pixels wide. The result adds `output.transition` (`{ style, direction, pace, progress }`, with `requested` when a canvas that cannot read its pixels fell back to a dissolve) and `output.strip` (`{ blob, width, height, frames }`, where `frames` lists each frame's time in percent, or null). A dissolve needs no pixel reads. Reference Blend keeps its plain `mix` crossfade, and saved recipes need no new field. This is a still preview, not an encoded video.
+
+The compositor is a public module that works on any RGBA buffers in Node and the browser:
+
+```js
+import { composeTransition, resolveTransition, transitionProgress, transitionTimes } from '@optimai/creative-agents/transition';
+
+const plan = resolveTransition({ style: 'wipe', direction: 'left', pace: 'gentle' });
+const frame = composeTransition(first.data, second.data, width, height, transitionProgress(0.4, plan.ease), plan);
+const times = transitionTimes(8);                                                    // 0, 1/7 … 1 for a contact sheet
+```
+
+`resolveTransition` also takes `ease` (`linear`, `in-out` or `out`), `softness` (0 for a hard edge, up to 1) and `center` (`[x, y]` fractions, to open an iris on a subject). Every style but `push` can write into one of its inputs; the output is opaque.
 
 ### Tier-0 verification
 

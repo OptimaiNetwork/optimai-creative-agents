@@ -87,7 +87,7 @@ export const catalog = [
     'Animate the selected sketch into a short shot. Action: {{action}}. Camera: {{camera}}. Preserve composition and character identity. Visual direction: {{style}}.',
     [text('action', 'Action', 'a gentle breeze moves through the scene'), camera(), style()], { workspace: { kind: 'sketch', operation: 'draw' } }),
   template('transition-lab', 'Transition Lab', 'Transition Machine', 'video', 'shuffle', '#d8b5db',
-    'Scrub a crossfade between two still images and export a frame for your motion brief.',
+    'Scrub a wipe, iris, light key or push between two stills, preview the whole move and export any frame for your motion brief.',
     'Create a transition between the selected first and last frames. Technique: {{transition}}. Duration feel: {{pace}}. Keep spatial continuity; avoid unwanted new subjects.',
     [select('transition', 'Technique', ['match cut', 'camera move', 'light wipe', 'morph']), select('pace', 'Timing', ['quick', 'gentle', 'slow cinematic']), artboard(), number('mix', 'Transition frame', 50, 0, 100)], { workspace: canvas('transition', 'Explore the in-between frame.') }),
   template('dream-signal', 'Dream Signal', 'Weirdcore', 'video', 'orbit', '#b6a7d9',

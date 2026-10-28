@@ -17,7 +17,7 @@ These 10 tools render selected images or text into still-image PNGs in the brows
 | Reference Blend | `reference-blend` | `blend` | Two images composited at a selected blend percentage; PNG |
 | Pixel Layout | `pixel-layout` | `bento` | Static hero-and-details layout containing up to eight images; PNG |
 | Poster Lab | `poster-lab` | `poster` | Title artboard with an optional background image; PNG |
-| Transition Lab | `transition-lab` | `transition` | A still preview combining exactly two images at a selected mix; PNG |
+| Transition Lab | `transition-lab` | `transition` | A still frame of a wipe, iris, light-key or push between exactly two images at a selected time, plus a strip of the whole move; PNG |
 | Glitch Cut | `glitch-cut` | `glitch` | Displaced bands and a color treatment on one still image; PNG |
 | Letter Pose | `letter-pose` | `letter` | Typographic artboard with an optional background image; PNG |
 

@@ -119,6 +119,10 @@
       "types": "./src/text-placement.d.mts",
       "import": "./src/text-placement.mjs"
     },
+    "./transition": {
+      "types": "./src/transition.d.mts",
+      "import": "./src/transition.mjs"
+    },
     "./verify": {
       "types": "./src/verify.d.mts",
       "import": "./src/verify.mjs"
