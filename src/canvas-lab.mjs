@@ -4,6 +4,7 @@ import { analyzeImageColors, pickAccentColor } from './color.mjs';
 import { analyzeImageFocus, focusCoverRect } from './smart-crop.mjs';
 import { chooseTitleInk, placeTextBlock, TEXT_POSITIONS } from './text-placement.mjs';
 import { canvasMeasure, fitTitle } from './typeset.mjs';
+import { GLITCH_EFFECTS, GLITCH_LIMITS, GLITCH_TREATMENTS, glitchPixels, planGlitch } from './glitch.mjs';
 import { composeTransition, resolveTransition, TRANSITION_DIRECTIONS, TRANSITION_LIMITS, TRANSITION_PACES, TRANSITION_STYLES, TRANSITION_TECHNIQUES, transitionProgress, transitionTimes } from './transition.mjs';
 
 const LAB_OPERATIONS = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition']);
@@ -30,6 +31,9 @@ export function canvasLabSettings(operation, values = {}) {
     transition: Object.hasOwn(TRANSITION_TECHNIQUES, values.transition ?? '') ? TRANSITION_TECHNIQUES[values.transition] : option('transition', 'radial', TRANSITION_STYLES),
     direction: option('direction', 'right', TRANSITION_DIRECTIONS),
     pace: option('pace', 'gentle', Object.keys(TRANSITION_PACES)),
+    // Recipe treatment names ('colour trails') are accepted as aliases of the effects they draw.
+    effect: Object.hasOwn(GLITCH_TREATMENTS, values.effect ?? '') ? GLITCH_TREATMENTS[values.effect] : option('effect', 'blocks', GLITCH_EFFECTS),
+    seed: (() => { const value = number('seed', 1, 0, GLITCH_LIMITS.seed); if (!Number.isInteger(value)) throw new Error(`seed must be a whole number from 0 to ${GLITCH_LIMITS.seed}.`); return value; })(),
     frames: (() => { const value = number('frames', 5, 0, TRANSITION_LIMITS.frames); if (!Number.isInteger(value) || value === 1) throw new Error(`frames must be 0 or a whole number from 2 to ${TRANSITION_LIMITS.frames}.`); return value; })(),
   };
 }
@@ -54,6 +58,7 @@ export function canvasLabRecipeSettings(templateId, values = {}) {
     layout: operation === 'mockup' ? settings.layout ?? 'phone' : 'phone',
     treatment, amount, mix: settings.mix ?? 50,
     ...(operation === 'transition' ? { transition: settings.transition, pace: settings.pace } : {}),
+    ...(operation === 'glitch' ? { effect: settings.effect, seed: settings.seed } : {}),
   });
 }
 const abort = signal => { if (signal?.aborted) throw new DOMException('Cancelled.', 'AbortError'); };
@@ -124,7 +129,7 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
   if (!Array.isArray(files) || files.length > maximum) throw new Error(`Choose up to ${maximum} images.`);
   if (!files.length && !['poster', 'letter'].includes(operation)) throw new Error('Add an image to start.');
   if (['blend', 'transition'].includes(operation) && files.length !== 2) throw new Error('Choose two images for this composition.');
-  const images = []; let canvas, source, thumb, film, ink, lines, placement, scrim, transition, strip; let pixels = 0;
+  const images = []; let canvas, source, thumb, film, ink, lines, placement, scrim, transition, strip, glitch; let pixels = 0;
   try {
     // Reuse the signature, dimensions, decode and memory validation of the public processor.
     for (const file of files) {
@@ -181,12 +186,18 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
     } else if (operation === 'blend') {
       fit(ctx, images[0], 0, 0, width, height, false, focus[0]); ctx.globalAlpha = settings.mix / 100; fit(ctx, images[1], 0, 0, width, height, false, focus[1]); ctx.globalAlpha = 1;
     } else if (operation === 'glitch') {
-      fit(ctx, images[0], 0, 0, width, height, false, focus[0]); const amount = settings.amount / 100;
-      source = document.createElement('canvas'); source.width = width; source.height = height;
-      const sourceContext = source.getContext('2d'); if (!sourceContext) throw new Error('This browser cannot create a glitch canvas.');
-      sourceContext.drawImage(canvas, 0, 0);
-      for (let index = 0; index < 24; index++) { const y = Math.floor(height * index / 24), h = Math.max(1, Math.floor(height / 70)); const shift = Math.round(Math.sin(index * 13.7) * width * .06 * amount); ctx.drawImage(source, 0, y, width, h, shift, y, width, h); }
-      ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .13 * amount; ctx.fillStyle = '#df56dc'; ctx.fillRect(0, 0, width, height); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; source.width = source.height = 1;
+      fit(ctx, images[0], 0, 0, width, height, false, focus[0]);
+      const plan = planGlitch(width, height, settings); let frame = null;
+      if (readable(ctx)) try { frame = ctx.getImageData(0, 0, width, height); } catch { frame = null; } // A tainted canvas draws the seeded bands only.
+      if (frame) { glitchPixels(frame.data, width, height, plan, frame.data); ctx.putImageData(frame, 0, 0); }
+      else {
+        source = document.createElement('canvas'); source.width = width; source.height = height;
+        const sourceContext = source.getContext('2d'); if (!sourceContext) throw new Error('This browser cannot create a glitch canvas.');
+        sourceContext.drawImage(canvas, 0, 0);
+        for (const band of plan.bands) ctx.drawImage(source, 0, band.y, width, band.height, band.shift, band.y, width, band.height);
+        ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .13 * settings.amount / 100; ctx.fillStyle = '#df56dc'; ctx.fillRect(0, 0, width, height); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+      }
+      glitch = { effect: plan.effect, seed: plan.seed, amount: plan.amount, engine: frame ? 'pixels' : 'bands' };
     } else {
       if (images[0]) fit(ctx, images[0], 0, 0, width, height, false, focus[0]);
       const type = lettering(ctx, settings, width, height); lines = type.lines; ctx.textBaseline = 'top';
@@ -215,6 +226,6 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
     const blob = await abortable(new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not export this canvas.')), 'image/png')), signal);
     abort(signal);
     if (blob.size > 20 * 1024 * 1024) throw new Error('The exported image is too large. Use a smaller composition.');
-    return { blob, width, height, filename: `optimai-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}), ...(transition ? { transition, strip: strip ?? null } : {}) };
+    return { blob, width, height, filename: `optimai-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}), ...(transition ? { transition, strip: strip ?? null } : {}), ...(glitch ? { glitch } : {}) };
   } finally { images.forEach(image => image.close()); for (const value of [source, thumb, film, canvas]) if (value) value.width = value.height = 1; }
 }

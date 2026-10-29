@@ -119,6 +119,10 @@
       "types": "./src/text-placement.d.mts",
       "import": "./src/text-placement.mjs"
     },
+    "./glitch": {
+      "types": "./src/glitch.d.mts",
+      "import": "./src/glitch.mjs"
+    },
     "./transition": {
       "types": "./src/transition.d.mts",
       "import": "./src/transition.mjs"

@@ -61,7 +61,7 @@ const output = await runCanvasLab(CANVAS_LAB_AGENTS['poster-lab'], [], {
 }, controller.signal);
 ```
 
-`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`; `transition` draws a real [still transition](#still-transitions) at that time rather than a crossfade. `glitch` displaces still-image bands with `amount: 0–100`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. Poster and letter titles use [readable ink](#readable-titles-and-image-palettes) by default; pass `ink: 'exact'` to draw `color` unchanged. Titles are set in [balanced lines](#balanced-titles) with optical tracking and leading. These tools export PNGs, not video or model-generated artwork.
+`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`; `transition` draws a real [still transition](#still-transitions) at that time rather than a crossfade. `glitch` draws a [seeded glitch](#seeded-glitch) on one still image with `amount: 0–100`, an `effect` and a `seed`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. Poster and letter titles use [readable ink](#readable-titles-and-image-palettes) by default; pass `ink: 'exact'` to draw `color` unchanged. Titles are set in [balanced lines](#balanced-titles) with optical tracking and leading. These tools export PNGs, not video or model-generated artwork.
 
 ### Focus-aware cropping
 
@@ -234,6 +234,24 @@ const times = transitionTimes(8);                                               
 
 `resolveTransition` also takes `ease` (`linear`, `in-out` or `out`), `softness` (0 for a hard edge, up to 1) and `center` (`[x, y]` fractions, to open an iris on a subject). Every style but `push` can write into one of its inputs; the output is opaque.
 
+### Seeded glitch
+
+Glitch Cut draws a still-image glitch from a seed, so a shared recipe brings back the exact same picture. `effect` picks the look: `blocks` (shifted row bands and shuffled blocks), `trails` (a wide RGB split smeared into colour trails) or `echoes` (faint offset copies and deeper scanlines). The recipe's treatment names are aliases: *block displacement* draws `blocks`, *colour trails* `trails` and *frame echoes* `echoes`. `amount` (0–100, default 35) scales every part of it, and 0 is the untouched image. `seed` (a whole number from 0 to 999999, default 1) is a recipe field: the same image, effect, amount and seed give identical bytes on every engine, and another seed gives another arrangement. It is a still effect and never flashes.
+
+The result adds `output.glitch` (`{ effect, seed, amount, engine }`). `engine` is `pixels` for the full glitch, or `bands` where a canvas cannot read its pixels: then only the seeded band shifts and a soft tint are drawn, still reproducible from the seed.
+
+The glitch is a public module that works on any RGBA buffer in Node and the browser:
+
+```js
+import { glitchPixels, planGlitch, randomGlitchSeed } from '@optimai/creative-agents/glitch';
+
+const seed = randomGlitchSeed();                                        // keep it to reproduce this look
+const plan = planGlitch(width, height, { effect: 'trails', amount: 60, seed });
+glitchPixels(image.data, width, height, plan, image.data);              // in place
+```
+
+`planGlitch` returns the layout (row `bands` with their `shift`, `blocks` with their move, the RGB `split`, `scanlines` and `echoes`) so a host can explain or animate it. `mulberry32(seed)` is the generator underneath, and `resolveGlitch` validates settings on their own. The plan uses only the generator and basic arithmetic, never `Math.sin` or other functions whose last bit can differ between engines.
+
 ### Tier-0 verification
 
 Before paying a model to judge a draft, an agent can reject the obviously broken ones locally. `@optimai/creative-agents/verify` provides deterministic checks with no model, network or dependency. They run in Node and the browser in milliseconds:
@@ -273,7 +291,7 @@ const settings = canvasLabRecipeSettings('poster-lab', {
 const output = await runCanvasLab(settings.operation, [], settings, controller.signal);
 ```
 
-The normalizer merges source defaults, maps legacy poster `format` to `ratio`, letter `text` to `title`, `style` to `treatment` and glitch `intensity` to `amount`. Explicit canonical values win. It validates recipe values and the final engine settings. Do not merge defaults into supplied values before calling it: that would conceal whether a canonical setting was explicitly selected. Raw `runCanvasLab` remains available for applications using direct bounded engine settings.
+The normalizer merges source defaults, maps legacy poster `format` to `ratio`, letter `text` to `title`, `style` to `treatment`, glitch `intensity` to `amount` and glitch treatment names to `effect`. Explicit canonical values win. It validates recipe values and the final engine settings. Do not merge defaults into supplied values before calling it: that would conceal whether a canonical setting was explicitly selected. Raw `runCanvasLab` remains available for applications using direct bounded engine settings.
 
 ## Selected-agent model setup
 

@@ -18,7 +18,7 @@ These 10 tools render selected images or text into still-image PNGs in the brows
 | Pixel Layout | `pixel-layout` | `bento` | Static hero-and-details layout containing up to eight images; PNG |
 | Poster Lab | `poster-lab` | `poster` | Title artboard with an optional background image; PNG |
 | Transition Lab | `transition-lab` | `transition` | A still frame of a wipe, iris, light-key or push between exactly two images at a selected time, plus a strip of the whole move; PNG |
-| Glitch Cut | `glitch-cut` | `glitch` | Displaced bands and a color treatment on one still image; PNG |
+| Glitch Cut | `glitch-cut` | `glitch` | A seeded glitch (shifted bands and blocks, colour trails or echoes, RGB split and scanlines) on one still image; the same seed redraws it exactly; PNG |
 | Letter Pose | `letter-pose` | `letter` | Typographic artboard with an optional background image; PNG |
 
 Inputs must be selected PNG, JPEG or WebP files, each at most 20 MiB and 4096 pixels per side. The original image processors enforce a 16-million-pixel budget for retained images and output; compositions validate each input through that processor and enforce a shared budget for normalized inputs. Compositions have a 1200-pixel output width and ratios of 1:1, 4:5, 16:9 or 9:16. Exported PNGs are limited to 20 MiB.

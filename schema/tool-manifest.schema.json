@@ -1429,6 +1429,11 @@
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 100
+                },
+                "seed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 999999
                 }
               }
             }

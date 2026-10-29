@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createHash } from 'node:crypto';
 import { AGENT_CATALOG } from '../src/index.mjs';
 import { CANVAS_LAB_AGENTS, canvasLabRecipeSettings, canvasLabSettings, runCanvasLab } from '../src/canvas-lab.mjs';
 import { contrastRatio, toOklch } from '../src/color.mjs';
 import { fitTitle } from '../src/typeset.mjs';
+import { planGlitch } from '../src/glitch.mjs';
 
 const image = (name = 'local.png', bytes = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]) => new File([new Uint8Array(bytes)], name, { type: 'image/png' });
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -382,3 +384,36 @@ test('a dissolve, or a canvas without pixel reads, crossfades at the eased time 
     assert.throws(() => canvasLabSettings('transition', values), pattern);
   }
 });
+
+test('Glitch Cut draws a seeded glitch that a saved recipe reproduces exactly', async () => canvasHarness(async h => {
+  const settings = canvasLabRecipeSettings('glitch-cut', { effect: 'colour trails', amount: 60, seed: 4242 });
+  assert.deepEqual([settings.effect, settings.amount, settings.seed], ['trails', 60, 4242]);
+  assert.deepEqual([canvasLabRecipeSettings('glitch-cut').effect, canvasLabRecipeSettings('glitch-cut').seed], ['blocks', 1], 'v1 recipes keep working with the defaults');
+  assert.equal(canvasLabRecipeSettings('glitch-cut', { intensity: 'medium' }).amount, 60);
+  assert.throws(() => canvasLabRecipeSettings('glitch-cut', { seed: 1_000_000 }), /whole number/);
+  assert.throws(() => canvasLabSettings('glitch', { seed: 2.5 }), /seed/);
+  assert.throws(() => canvasLabSettings('glitch', { effect: 'melt' }), /supported effect/);
+  const first = await runCanvasLab('glitch', [image()], settings);
+  assert.deepEqual(first.glitch, { effect: 'trails', seed: 4242, amount: 60, engine: 'pixels' });
+  // Each run starts from the same decoded shot (the harness keys shot levels on bitmap order).
+  const frame = () => { const data = h.calls.put.find(call => call.image.width === 1200).image.data; h.calls.put = []; assert.ok(h.calls.bitmaps.every(value => value.closed === 1)); h.calls.bitmaps.length = 0; return data; };
+  const sum = data => createHash('sha256').update(data).digest('hex');
+  const drawn = frame();
+  await runCanvasLab('glitch', [image()], settings);
+  assert.equal(sum(frame()), sum(drawn), 'the same seed, the same bytes');
+  const plan = planGlitch(1200, 1500, settings), level = y => drawn[(y * 1200 + 600) * 4 + 1];
+  assert.ok(level(0) < level(plan.scanlines.period - 1), 'scanlines darken alternate rows');
+  await runCanvasLab('glitch', [image()], { ...settings, amount: 0 });
+  const untouched = frame();
+  assert.ok(untouched.every((value, index) => index % 4 === 3 || value === untouched[0]), 'amount 0 leaves the image as it was');
+  assert.ok(h.calls.bitmaps.every(value => value.closed === 1));
+  assert.equal(h.calls.network, 0);
+}, { context: pixelContext }));
+
+test('without pixel reads Glitch Cut still shifts the seeded bands', async () => canvasHarness(async h => {
+  const output = await runCanvasLab('glitch', [image()], { effect: 'blocks', amount: 50, seed: 77 });
+  assert.deepEqual(output.glitch, { effect: 'blocks', seed: 77, amount: 50, engine: 'bands' });
+  const plan = planGlitch(1200, 1500, { effect: 'blocks', amount: 50, seed: 77 }), main = h.calls.canvases.find(canvas => canvas.width <= 1 && h.calls.draw.some(call => call.canvas === canvas && call.args.length === 9));
+  const bands = h.calls.draw.filter(call => call.canvas === main && call.args.length === 9);
+  assert.deepEqual(bands.map(call => [call.args[2], call.args[4], call.args[5], call.args[6]]), plan.bands.map(band => [band.y, band.height, band.shift, band.y]));
+}));
