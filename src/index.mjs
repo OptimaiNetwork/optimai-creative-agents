@@ -3,7 +3,7 @@ import { catalog } from './catalog.mjs';
 export const MANIFEST_VERSION = '1.0';
 // Bundled workspace metadata is separate from the portable recipe format.
 // Hosts keep their own adapter allowlist and promote reviewed source revisions.
-export const AGENT_WORKSPACE_CONTRACT_VERSION = '1.2';
+export const AGENT_WORKSPACE_CONTRACT_VERSION = '1.3';
 export const MAX_PROMPT_LENGTH = 12000;
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const DANGEROUS_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
@@ -24,7 +24,7 @@ export const getAgentTemplate = getToolTemplate;
 export function getAgentExecutionKind(id) { return getAgentTemplate(id)?.executionKind; }
 export function getAgentWorkspace(id) { return getAgentTemplate(id)?.workspace; }
 const WORKSPACE_OPERATIONS = Object.freeze({
-  canvas: ['image-filter', 'image-resize', 'image-grid', 'type-overlay', 'mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition'],
+  canvas: ['image-filter', 'image-resize', 'image-grid', 'type-overlay', 'mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition', 'print'],
   vision: ['person-cutout', 'pose-reference', 'face-reference'],
   writing: ['cast-notes', 'style-brief', 'storyboard-builder', 'prompt-branches', 'story-seed'],
   sketch: ['draw'],

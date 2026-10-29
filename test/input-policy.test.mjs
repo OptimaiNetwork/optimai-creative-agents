@@ -26,7 +26,7 @@ test('every template has a frozen, self-consistent input policy', () => {
 
 test('policies replace host-side file limits for canvas compositions', () => {
   const files = Object.fromEntries(AGENT_CATALOG.filter((agent) => agent.workspace.kind === 'canvas').map((agent) => [agent.workspace.operation, [getAgentInputPolicy(agent.id).minFiles, getAgentInputPolicy(agent.id).maxFiles]]));
-  assert.deepEqual(files, { mockup: [1, 1], 'image-filter': [1, 1], blend: [2, 2], 'image-grid': [1, 8], 'type-overlay': [1, 1], bento: [1, 8], poster: [0, 1], transition: [2, 2], glitch: [1, 1], letter: [0, 1] });
+  assert.deepEqual(files, { mockup: [1, 1], 'image-filter': [1, 1], blend: [2, 2], 'image-grid': [1, 8], 'type-overlay': [1, 1], bento: [1, 8], poster: [0, 1], transition: [2, 2], glitch: [1, 1], letter: [0, 1], print: [1, 1] });
   assert.equal(getAgentInputPolicy('reference-blend').minFiles, 2);
   assert.ok(byKind('canvas').every((policy) => policy.accept === 'image/png,image/jpeg,image/webp' && policy.maxBytes === LOCAL_IMAGE_LIMITS.bytes && policy.onDevice));
   assert.ok(byKind('canvas').every((policy) => policy.maxFiles <= LOCAL_IMAGE_LIMITS.files));
@@ -34,7 +34,7 @@ test('policies replace host-side file limits for canvas compositions', () => {
 
 test('canvas policies agree with the counts the engine enforces', async () => {
   const image = () => ({ type: 'image/png', size: 8 });
-  for (const operation of ['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition']) {
+  for (const operation of ['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition', 'print']) {
     const agent = AGENT_CATALOG.find((item) => item.workspace.kind === 'canvas' && item.workspace.operation === operation);
     const { minFiles, maxFiles } = getAgentInputPolicy(agent.id);
     await assert.rejects(runCanvasLab(operation, Array.from({ length: maxFiles + 1 }, image)), /Choose up to/, operation);
@@ -55,6 +55,6 @@ test('byte caps and needs match each engine and workspace', () => {
 test('onDevice is false only where a host production step follows', () => {
   const off = AGENT_CATALOG.filter((agent) => !getAgentInputPolicy(agent.id).onDevice).map((agent) => getAgentWorkspace(agent.id).kind);
   assert.deepEqual([...new Set(off)].sort(), ['sketch', 'workflow']);
-  assert.equal(AGENT_CATALOG.filter((agent) => getAgentInputPolicy(agent.id).onDevice).length, 24);
+  assert.equal(AGENT_CATALOG.filter((agent) => getAgentInputPolicy(agent.id).onDevice).length, 25);
   assert.ok(byKind('workflow').every((policy) => policy.minFiles === 0 && policy.maxFiles === 1 && policy.needs.length === 0));
 });

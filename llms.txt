@@ -1,6 +1,6 @@
 # OptimAI Creative Agents
 
-> Local-first browser AI, creative workflows and a community builder SDK. MIT-licensed JavaScript SDK, version 0.5.0, workspace contract 1.2, 38 reviewed agent templates. Node.js >=20 and modern browsers; no runtime dependencies.
+> Local-first browser AI, creative workflows and a community builder SDK. MIT-licensed JavaScript SDK, version 0.5.0, workspace contract 1.3, 39 reviewed agent templates. Node.js >=20 and modern browsers; no runtime dependencies.
 
 How to work with this SDK:
 
@@ -14,7 +14,7 @@ How to work with this SDK:
 
 - [`@optimai/creative-agents`](src/index.d.mts): MANIFEST_VERSION, AGENT_WORKSPACE_CONTRACT_VERSION, MAX_PROMPT_LENGTH, TOOL_CATALOG, AGENT_CATALOG, TOOL_MANIFEST_SCHEMA, AGENT_MANIFEST_SCHEMA, getAgentTemplate, getAgentExecutionKind, getAgentWorkspace, validateAgentWorkspace, AGENT_INPUT_NEEDS, getAgentInputPolicy, getToolTemplate, validateRecipeValues, validateToolManifest, createToolManifest, compileToolPrompt, validateAgentManifest, createAgentManifest, compileAgentPrompt, verifyRegistry. Types: ToolCategory, StudioMode, LocalOperation, RecipeValues, AgentCategory, AgentExecutionKind, CanvasLabOperation, AgentWorkspace, ToolField, ToolTemplate, ToolManifest, ManifestValidation, AgentField, AgentTemplate, AgentManifest, AgentManifestValidation, AgentInputNeed, AgentInputPolicy.
 - [`@optimai/creative-agents/browser-runtime`](src/browser-runtime.d.mts): LOCAL_IMAGE_LIMITS, validateLocalImageFile, getToolOutputSize, runLocalTool. Types: LocalToolOperation, LocalToolValues, LocalImageSize, LocalToolOutput.
-- [`@optimai/creative-agents/canvas-lab`](src/canvas-lab.d.mts): CANVAS_LAB_AGENTS, canvasLabRecipeSettings, canvasLabSettings, runCanvasLab. Types: DrawnTransition, TransitionStrip, DrawnGlitch.
+- [`@optimai/creative-agents/canvas-lab`](src/canvas-lab.d.mts): CANVAS_LAB_AGENTS, canvasLabRecipeSettings, canvasLabSettings, runCanvasLab. Types: DrawnTransition, TransitionStrip, DrawnGlitch, DrawnPrint.
 - [`@optimai/creative-agents/agent-runtime`](src/agent-runtime.d.mts): AgentRuntimeError, LOCAL_AGENT_LIMITS, prepareCreativeAgentTask, validateCreativeAgentOutput, getLocalModelStatus, runCreativeAgent. Types: WritingAgentId, AgentErrorCode, AgentProgress, LocalModel, LocalModelStatus, LocalAgentOptions, CreativeAgentResult, PreparedCreativeAgentTask, CreativeAgentArtifact.
 - [`@optimai/creative-agents/browser-writing-runtime`](src/browser-writing-runtime.d.mts): BROWSER_AGENT_MODEL, BROWSER_AGENT_APP_CONFIG, BrowserAgentError, createBrowserWritingRuntime, browserSupport, createBrowserAgentRuntime. Types: BrowserAgentProgress, BrowserAgentStatus, BrowserAgentOptions, BrowserWritingRuntime, BrowserWritingEngineSession.
 - [`@optimai/creative-agents/browser-writing-worker`](src/browser-writing-worker.d.mts): attachBrowserWritingWorker.
@@ -40,6 +40,7 @@ How to work with this SDK:
 - [`@optimai/creative-agents/typeset`](src/typeset.d.mts): TYPESET_LIMITS, WRAP_MODES, opticalSize, breakLines, fitTitle, canvasMeasure. Types: WrapMode, MeasureText, LineBreaks, TitleLayout.
 - [`@optimai/creative-agents/text-placement`](src/text-placement.d.mts): TEXT_POSITIONS, PLACEMENT_LIMITS, regionInterest, placeTextBlock, fitScrim, chooseTitleInk. Types: TextPosition, Size, Rect, TextPlacement, TitlePlacement, TextScrim, FittedScrim.
 - [`@optimai/creative-agents/glitch`](src/glitch.d.mts): GLITCH_EFFECTS, GLITCH_TREATMENTS, GLITCH_LIMITS, mulberry32, randomGlitchSeed, resolveGlitch, planGlitch, glitchPixels. Types: GlitchEffect, GlitchTreatment, GlitchOptions, GlitchSettings, GlitchBand, GlitchBlock, GlitchEcho, GlitchPlan.
+- [`@optimai/creative-agents/print`](src/print.d.mts): PRINT_LOOKS, PRINT_STYLES, RISO_INKS, PRINT_PAPER, PRINT_INK, PRINT_LIMITS, PRINT_DOT_GAIN, resolvePrint, bayerMatrix, blueNoiseMatrix, separateDuotone, printPixels. Types: PrintLook, PrintStyle, RisoInkPair, PrintOptions, PrintSettings.
 - [`@optimai/creative-agents/transition`](src/transition.d.mts): TRANSITION_STYLES, TRANSITION_DIRECTIONS, TRANSITION_EASES, TRANSITION_PACES, TRANSITION_TECHNIQUES, TRANSITION_LIMITS, resolveTransition, transitionProgress, transitionTimes, composeTransition. Types: TransitionStyle, TransitionDirection, TransitionEase, TransitionPace, TransitionTechnique, TransitionOptions, TransitionSettings.
 - [`@optimai/creative-agents/verify`](src/verify.d.mts): VERIFY_LIMITS, relativeLuminance, contrastRatio, srgbToOklab, deltaEOK, checkTextContrast, checkTextSize, checkTextOverlap, checkSafeZone, checkAspect, checkDuration, checkCount, checkPalette, checkCutAlignment, summarizeChecks. Types: RGB, Box, FocusMap, CheckResult.
 
@@ -51,13 +52,13 @@ How to work with this SDK:
 - [Runtimes and model setup](docs/runtimes.md): Choose the runtime for the result you need.
 - [Integrate agents into your application](docs/host-integration.md): A host reads a recipe, validates it, resolves a reviewed implementation and supplies the user's selected inputs.
 - [Reusable camera and avatar agents](docs/CAMERA.md): `camera-stage` and `avatar-stage` share portable browser engines.
-- [Music and motion engines](docs/MUSIC-MOTION.md): Two browser engines extend the catalog in SDK 0.4.0 / workspace contract 1.2.
-- [Connect the local MCP adapter](docs/mcp.md): The optional adapter exposes all 38 reviewed templates to an MCP client over local stdio.
+- [Music and motion engines](docs/MUSIC-MOTION.md): Two browser engines extend the catalog in SDK 0.4.0 / workspace contract 1.2, and run unchanged on workspace contract 1.3.
+- [Connect the local MCP adapter](docs/mcp.md): The optional adapter exposes all 39 reviewed templates to an MCP client over local stdio.
 - [Share, contribute and prepare for review](docs/release-and-feature.md): The SDK source is public at OptimaiNetwork/optimai-creative-agents.
 
 ## Templates
 
-- Canvas (10): `mockup-maker`, `image-finish`, `reference-blend`, `image-grid`, `title-frame`, `pixel-layout`, `poster-lab`, `transition-lab`, `glitch-cut`, `letter-pose`
+- Canvas (11): `mockup-maker`, `image-finish`, `reference-blend`, `image-grid`, `print-shop`, `title-frame`, `pixel-layout`, `poster-lab`, `transition-lab`, `glitch-cut`, `letter-pose`
 - Browser vision (3): `select-and-replace`, `motion-pose`, `face-performance`
 - Writing (5): `cast-notes`, `style-brief`, `storyboard-builder`, `prompt-branches`, `story-seed`
 - Interactive (6): `music-reactive`, `frame-sculpture`, `camera-stage`, `model-turntable`, `scene-lighting`, `avatar-stage`

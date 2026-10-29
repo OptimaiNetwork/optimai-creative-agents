@@ -59,7 +59,7 @@ test('a release plan moves every living version mention together without writing
   assert.match(plan.files['README.md'], /Version `0\.5\.0` contains/);
   const guide = plan.files['docs/release-and-feature.md'];
   assert.ok(guide.indexOf('## SDK 0.5.0') < guide.indexOf('## SDK 0.4.0'), 'Newest release reads first.');
-  assert.match(guide, /Released 2026-10-24 with workspace contract \d+\.\d+\. The catalog has 38 templates: 10 canvas, 3 browser vision, 5 writing, 6 interactive and 14 guided entries\./);
+  assert.match(guide, /Released 2026-10-24 with workspace contract \d+\.\d+\. The catalog has 39 templates: 11 canvas, 3 browser vision, 5 writing, 6 interactive and 14 guided entries\./);
   assert.match(guide, /- Readable titles\n- `@x\/color`\n/);
   assert.match(guide, /\(\.\.\/CHANGELOG\.md#050--2026-10-24\)/);
   assert.equal(plan.files['llms.txt'], undefined, 'llms.txt is only planned when its inputs are given.');

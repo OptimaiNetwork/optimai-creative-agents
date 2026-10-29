@@ -123,6 +123,10 @@
       "types": "./src/glitch.d.mts",
       "import": "./src/glitch.mjs"
     },
+    "./print": {
+      "types": "./src/print.d.mts",
+      "import": "./src/print.mjs"
+    },
     "./transition": {
       "types": "./src/transition.d.mts",
       "import": "./src/transition.mjs"

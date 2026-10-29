@@ -1,6 +1,6 @@
 # Connect the local MCP adapter
 
-The optional adapter exposes all 38 reviewed templates to an MCP client over local stdio. Calls prepare recipes by default. Five writing templates can also run an explicitly selected model already installed in a local Ollama service. Browser canvas, vision, 3D and camera execution use the browser SDK in a host application.
+The optional adapter exposes all 39 reviewed templates to an MCP client over local stdio. Calls prepare recipes by default. Five writing templates can also run an explicitly selected model already installed in a local Ollama service. Browser canvas, vision, 3D and camera execution use the browser SDK in a host application.
 
 The adapter implements the fixed protocol version **2025-11-25**. It does not provide a remote endpoint or install arbitrary community servers in OptimAI Studio.
 

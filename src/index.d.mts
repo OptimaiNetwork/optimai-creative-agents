@@ -4,7 +4,7 @@ export type LocalOperation = 'image-filter' | 'image-resize' | 'image-grid' | 't
 export type RecipeValues = Record<string, string | number>;
 export type AgentCategory = ToolCategory;
 export type AgentExecutionKind = 'browser' | 'browser-interactive' | 'local-model' | 'studio-guided';
-export type CanvasLabOperation = 'mockup' | 'poster' | 'bento' | 'glitch' | 'letter' | 'blend' | 'transition';
+export type CanvasLabOperation = 'mockup' | 'poster' | 'bento' | 'glitch' | 'letter' | 'blend' | 'transition' | 'print';
 export type AgentWorkspace = (
   | { readonly kind: 'canvas'; readonly operation: Exclude<LocalOperation, 'prompt-builder'> | CanvasLabOperation }
   | { readonly kind: 'vision'; readonly operation: 'person-cutout' | 'pose-reference' | 'face-reference' }
@@ -59,7 +59,7 @@ export type AgentTemplate = ToolTemplate;
 export type AgentManifest = ToolManifest;
 export type AgentManifestValidation = ManifestValidation;
 export declare const MANIFEST_VERSION: '1.0';
-export declare const AGENT_WORKSPACE_CONTRACT_VERSION: '1.2';
+export declare const AGENT_WORKSPACE_CONTRACT_VERSION: '1.3';
 export declare const MAX_PROMPT_LENGTH: number;
 export declare const TOOL_CATALOG: readonly ToolTemplate[];
 export declare const AGENT_CATALOG: readonly AgentTemplate[];

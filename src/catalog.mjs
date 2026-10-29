@@ -64,6 +64,11 @@ export const catalog = [
     'Arrange selected images in {{columns}} columns with {{gap}} pixel gutters on {{background}}.',
     [number('columns', 'Columns', 2, 1, 4), number('gap', 'Gutter', 16, 0, 80), text('background', 'Background color', '#101312')],
     { runtime: 'local', localOperation: 'image-grid', tags: ['image', 'layout', 'local'] }),
+  template('print-shop', 'Print Shop', 'Risograph and halftone print', 'image', 'printer', '#e7b7a3',
+    'Print a photo as a riso duotone, halftone dots or a classic dither on warm paper. The seed brings back the exact same grain.',
+    'Prepare a {{look}} print treatment of the selected image. Riso inks: {{inks}}. Keep the subject readable, the dots even and the paper tone warm.',
+    [select('look', 'Print look', ['riso duotone', 'halftone dots', 'error diffusion', 'ordered dither', 'blue-noise grain']), select('inks', 'Riso inks', ['pink + blue', 'orange + teal', 'yellow + purple', 'red + black']), text('color', 'Ink color', '#1f2433'), artboard(), number('scale', 'Dot size', 3, 1, 12), number('amount', 'Print strength', 100, 0, 100), number('seed', 'Seed', 1, 0, 999999)],
+    { workspace: canvas('print', 'Ink, paper and a little grain.'), tags: ['image', 'print', 'riso', 'halftone', 'dither', 'local'] }),
 
   template('motion-finish', 'Motion Finish', 'Shader Effects', 'video', 'sparkles', '#a9bfda',
     'Prepare a restrained effect direction for a clip in the editor.',

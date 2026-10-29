@@ -500,6 +500,81 @@
           ],
           "properties": {
             "templateId": {
+              "const": "print-shop"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "look": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "riso duotone",
+                    "halftone dots",
+                    "error diffusion",
+                    "ordered dither",
+                    "blue-noise grain"
+                  ]
+                },
+                "inks": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "pink + blue",
+                    "orange + teal",
+                    "yellow + purple",
+                    "red + black"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "pattern": "^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$"
+                },
+                "ratio": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "1:1",
+                    "4:5",
+                    "16:9",
+                    "9:16"
+                  ]
+                },
+                "scale": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 12
+                },
+                "amount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "seed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 999999
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
               "const": "motion-finish"
             },
             "brief": {
@@ -2106,6 +2181,32 @@
             "properties": {
               "templateId": {
                 "const": "image-grid"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "image"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "print-shop"
               }
             },
             "required": [

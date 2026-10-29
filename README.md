@@ -21,11 +21,11 @@ Build image workspaces, design utilities, story treatments and creative workflow
 
 ## What works today
 
-Version `0.5.0` contains **38 agent templates**. They expose different kinds of capability; a production brief and an executed image processor have different outputs.
+Version `0.5.0` contains **39 agent templates**. They expose different kinds of capability; a production brief and an executed image processor have different outputs.
 
 | Capability | Agents | What you receive | Setup |
 | --- | ---: | --- | --- |
-| Canvas processing | 10 | PNG filters, grids, mockups, typography and composition, with focus-aware cropping | Browser; no model or dependency install |
+| Canvas processing | 11 | PNG filters, grids, mockups, typography, print looks and composition, with focus-aware cropping | Browser; no model or dependency install |
 | Browser vision | 3 | Person cutout, pose landmarks or face landmarks | MediaPipe worker and selected-agent model setup |
 | Local writing | 5 | Treatments, cast notes, style briefs, storyboards and prompt alternatives | WebGPU + WebLLM, or an installed local Ollama model |
 | Interactive 3D, camera, music and frames | 6 | Real scene previews, live filters, tracked original avatars, music-reactive visuals and 2.5D frame sculptures | Optional Three.js; MediaPipe for face tracking |
@@ -127,7 +127,7 @@ Replace the path with your checkout, then import from `@optimai/creative-agents`
 | ![Image Grid: a local contact sheet](./artwork/image-grid.svg) | ![Motion Pose: body landmarks in a still image](./artwork/motion-pose.svg) | ![Storyboard Builder: a structured scene sequence](./artwork/storyboard-builder.svg) |
 | Canvas · contact-sheet PNG | Browser vision · landmarks and reference PNG | Local model · written storyboard |
 
-See the [full catalog](./docs/catalog.md) for all 38 IDs, their execution paths and output limits. Every agent ships with original, reusable [SVG artwork](./artwork/).
+See the [full catalog](./docs/catalog.md) for all 39 IDs, their execution paths and output limits. Every agent ships with original, reusable [SVG artwork](./artwork/).
 
 Try the agents at [optimai.studio/agents](https://optimai.studio/agents), or read the [Studio builder docs](https://optimai.studio/agents/docs). The local guides below also work without a Studio account.
 
@@ -135,7 +135,7 @@ Try the agents at [optimai.studio/agents](https://optimai.studio/agents), or rea
 
 **Browser applications.** Bundle the canvas, writing, vision, 3D and camera entry points into your own workspace. Let users select inputs, run, review, cancel and export. On opening a supported agent, the host can use `getModelSetupPolicy` to prepare its reviewed model automatically, with manual setup for Data Saver, slow connections and constrained devices. Camera permission remains an explicit action. [Runtime setup →](./docs/runtimes.md)
 
-**MCP clients.** Launch the local stdio adapter with Node. It exposes all 38 recipes for preparation; writing agents can run only when explicitly requested with an installed model. The adapter implements protocol version `2025-11-25`. [MCP guide →](./docs/mcp.md)
+**MCP clients.** Launch the local stdio adapter with Node. It exposes all 39 recipes for preparation; writing agents can run only when explicitly requested with an installed model. The adapter implements protocol version `2025-11-25`. [MCP guide →](./docs/mcp.md)
 
 **AI coding agents.** [`llms.txt`](./llms.txt) maps every public subpath to its exported functions and types, the guides and all template IDs in one short file, generated from the shipped declarations so it cannot drift. Point your coding assistant at it before it writes against the SDK.
 

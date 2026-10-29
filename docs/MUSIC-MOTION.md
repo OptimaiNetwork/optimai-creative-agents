@@ -1,6 +1,6 @@
 # Music and motion engines
 
-Two browser engines extend the catalog in SDK 0.4.0 / workspace contract 1.2. They use selected local media, have no cloud provider, and require no model download. The portable v1 manifest still carries only a declarative recipe. An application must install the matching reviewed adapter before it can run these workspaces.
+Two browser engines extend the catalog in SDK 0.4.0 / workspace contract 1.2, and run unchanged on workspace contract 1.3. They use selected local media, have no cloud provider, and require no model download. The portable v1 manifest still carries only a declarative recipe. An application must install the matching reviewed adapter before it can run these workspaces.
 
 ## Sound Canvas (`music-reactive`)
 

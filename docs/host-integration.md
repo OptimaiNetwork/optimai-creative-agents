@@ -41,7 +41,7 @@ Treat recipe metadata, compiled prompts and model output as untrusted plain text
 
 ## Dispatch a reviewed operation
 
-Use the source catalog's versioned `workspace` descriptor to select an adapter your application already bundles. `getAgentWorkspace(id)` returns its `kind`, reviewed `operation` and optional presentation `headline`; `AGENT_WORKSPACE_CONTRACT_VERSION` is `1.2`; the v1 recipe schema remains unchanged. Template titles, descriptions, fields and artwork remain public presentation data. Legacy `executionKind` and `runtime` exports are retained for older consumers.
+Use the source catalog's versioned `workspace` descriptor to select an adapter your application already bundles. `getAgentWorkspace(id)` returns its `kind`, reviewed `operation` and optional presentation `headline`; `AGENT_WORKSPACE_CONTRACT_VERSION` is `1.3`; the v1 recipe schema remains unchanged. Template titles, descriptions, fields and artwork remain public presentation data. Legacy `executionKind` and `runtime` exports are retained for older consumers.
 
 ### Input policy
 
@@ -90,10 +90,11 @@ A broader host can add these reviewed runtime adapters:
 | Capability | SDK entry and dispatch | Output and host requirements |
 | --- | --- | --- |
 | Original image processing | `browser-runtime` → `runLocalTool` | PNG; selected PNG/JPEG/WebP files and bounded settings |
-| Additional composition | `canvas-lab` → `canvasLabRecipeSettings`, `runCanvasLab` | PNG and the title ink, lines, placement and scrim, transition or glitch seed actually drawn; normalize defaults, canonical settings and saved v1 aliases |
+| Additional composition | `canvas-lab` → `canvasLabRecipeSettings`, `runCanvasLab` | PNG and the title ink, lines, placement and scrim, transition, glitch seed or print look actually drawn; normalize defaults, canonical settings and saved v1 aliases |
 | Color | `color` → `pickLegibleColor`, `analyzeImageColors`, `dominantColors`, `mixColors`; `color-grade` → `gradePixels`, `resolveGrade`, `gradeColor`; `lut` → `parseCubeLut`, `applyLut`, `filmLut`, `lutColor` | OKLab/OKLCH conversions, WCAG contrast, readable ink, deterministic image palettes, a per-pixel OKLab grade and strict `.cube` LUTs; Node and browser |
 | Transitions | `transition` → `composeTransition`, `resolveTransition`, `transitionProgress`, `transitionTimes` | Wipe, iris, light-key, push and dissolve frames between two RGBA buffers with eased time and feathered edges; Node and browser |
 | Glitch | `glitch` → `glitchPixels`, `planGlitch`, `randomGlitchSeed`, `mulberry32` | Seeded block, colour-trail and echo glitches on an RGBA buffer, identical bytes for the same seed; Node and browser |
+| Print looks | `print` → `printPixels`, `resolvePrint`, `separateDuotone`, `bayerMatrix`, `blueNoiseMatrix` | Riso duotone, halftone dots and Floyd–Steinberg, Bayer and blue-noise dithers on an RGBA buffer, identical bytes for the same settings; Node and browser |
 | Typography | `typeset` → `fitTitle`, `breakLines`, `opticalSize`, `canvasMeasure`; `text-placement` → `placeTextBlock`, `chooseTitleInk`, `fitScrim`, `regionInterest` | Balanced or paragraph line breaks and optical tracking and leading for titles, against any measure function; title placement in the calmest region of a focus map and the lightest scrim that keeps an ink readable; Node and browser |
 | Browser vision | `vision-runtime` → `downloadVisionModel`, `runBrowserVision` | PNG and analysis; selected-agent setup policy, reviewed local worker and WASM assets |
 | Browser writing | `browser-writing-runtime` → `createBrowserAgentRuntime` | Validated written artifact; selected-agent setup policy, supported WebGPU device and local worker |
@@ -110,7 +111,7 @@ Recipe fields and direct engine settings can differ. Use `canvasLabRecipeSetting
 
 ## Normalize portable interactive recipes
 
-`3d:scene`, `camera:effects` and `camera:avatar` (workspace contract 1.1), and `music:reactive` and `frame:sculpture` (contract 1.2) are source-reviewed bindings. Keep these operations on the host allowlist; an untrusted recipe cannot add another binding. Studio consumes the same public engine modules through thin adapters. Its dialog layout, account state, asset picker, credits and production services remain private host code.
+`3d:scene`, `camera:effects` and `camera:avatar` (workspace contract 1.1), `music:reactive` and `frame:sculpture` (contract 1.2), and the `canvas:print` composition (contract 1.3) are source-reviewed bindings. Keep these operations on the host allowlist; an untrusted recipe cannot add another binding. Studio consumes the same public engine modules through thin adapters. Its dialog layout, account state, asset picker, credits and production services remain private host code.
 
 ```js
 import { getAgentWorkspace, validateAgentManifest } from './src/index.mjs';
@@ -177,4 +178,4 @@ Keep stable agent IDs and increment a recipe's `version` when releasing a revisi
 
 Unknown template IDs are rejected. JSON import cannot install a new capability; new source requires maintainer review and a host that bundles it. Follow [CONTRIBUTING.md](../CONTRIBUTING.md#new-reviewed-operations) for source changes, including generated schemas, model/dependency licenses and hardware requirements.
 
-The `music/reactive` and `frame/sculpture` adapters are installed with workspace contract 1.2. See [music and motion engines](./MUSIC-MOTION.md) for their host lifecycle and export contracts.
+The `music/reactive` and `frame/sculpture` adapters are installed with workspace contract 1.2. Contract 1.3 adds the `print` canvas operation (Print Shop); a host that bundles `canvas-lab` runs it through `runCanvasLab` like the other compositions. See [music and motion engines](./MUSIC-MOTION.md) for their host lifecycle and export contracts.

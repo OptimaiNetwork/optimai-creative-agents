@@ -61,7 +61,7 @@ const output = await runCanvasLab(CANVAS_LAB_AGENTS['poster-lab'], [], {
 }, controller.signal);
 ```
 
-`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`; `transition` draws a real [still transition](#still-transitions) at that time rather than a crossfade. `glitch` draws a [seeded glitch](#seeded-glitch) on one still image with `amount: 0–100`, an `effect` and a `seed`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. Poster and letter titles use [readable ink](#readable-titles-and-image-palettes) by default; pass `ink: 'exact'` to draw `color` unchanged. Titles are set in [balanced lines](#balanced-titles) with optical tracking and leading. These tools export PNGs, not video or model-generated artwork.
+`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`; `transition` draws a real [still transition](#still-transitions) at that time rather than a crossfade. `glitch` draws a [seeded glitch](#seeded-glitch) on one still image with `amount: 0–100`, an `effect` and a `seed`. `print` turns one still image into a [print look](#print-looks) with a `look`, `scale`, `amount`, `seed`, an ink `color` and riso `inks`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. Poster and letter titles use [readable ink](#readable-titles-and-image-palettes) by default; pass `ink: 'exact'` to draw `color` unchanged. Titles are set in [balanced lines](#balanced-titles) with optical tracking and leading. These tools export PNGs, not video or model-generated artwork.
 
 ### Focus-aware cropping
 
@@ -252,6 +252,32 @@ glitchPixels(image.data, width, height, plan, image.data);              // in pl
 
 `planGlitch` returns the layout (row `bands` with their `shift`, `blocks` with their move, the RGB `split`, `scanlines` and `echoes`) so a host can explain or animate it. `mulberry32(seed)` is the generator underneath, and `resolveGlitch` validates settings on their own. The plan uses only the generator and basic arithmetic, never `Math.sin` or other functions whose last bit can differ between engines.
 
+### Print looks
+
+Print Shop prints one still image on warm paper (`#f4efe6`). `look` picks the process:
+
+| `look` | Recipe name | What it draws |
+| --- | --- | --- |
+| `riso` | *riso duotone* | The image separated into two inks (`inks`: *pink + blue*, *orange + teal*, *yellow + purple* or *red + black*), each laid down as blue-noise grain and multiplied on the paper, with the first ink a few pixels off register |
+| `halftone` | *halftone dots* | Round dots on a 45° screen, sized by each cell's mean tone; past 50% the paper shows through as round holes |
+| `floyd-steinberg` | *error diffusion* | Floyd–Steinberg error diffusion, serpentine so the error never streaks one way |
+| `bayer` | *ordered dither* | An 8 × 8 Bayer threshold: the crisp crosshatch of early screens |
+| `blue-noise` | *blue-noise grain* | A 64 × 64 void-and-cluster threshold tile: even grain without a visible pattern |
+
+The one-color looks print in `color` (default `#1f2433`). `scale` (1–12, default 3) is the dither cell in pixels; halftone cells are four times larger. `amount` (0–100, default 100) mixes the print over the original, and 0 is the untouched image. `seed` (0–999999, default 1) moves and turns the blue-noise tile and sets the riso misregistration: the same image and settings give identical bytes on every engine. Tones are stretched between their 0.5th and 99.5th percentiles first, so flat photos still print with a full range, and midtones are then lightened as prepress does for dot gain (`dotGain`, 0–1, default 0.45: coverage becomes x·(1 − g) + x²·g; 0 prints tones linearly), so a moody photo still shows its faces. A print needs pixel reads: on a canvas that cannot read them, Print Shop fails with a clear message rather than exporting the unprinted image. The result adds `output.print` (`{ look, scale, amount, seed, inks | ink, paper }`).
+
+The looks are a public module that works on any RGBA buffer in Node and the browser:
+
+```js
+import { printPixels, separateDuotone, blueNoiseMatrix } from '@optimai/creative-agents/print';
+
+printPixels(image.data, width, height, { look: 'riso', inks: 'orange + teal', seed: 7 }, image.data); // in place
+printPixels(image.data, width, height, { look: 'halftone', scale: 4, ink: '#102030' }, image.data);
+const [pink, blue] = separateDuotone([180, 90, 140], '#ff48b0', '#0078bf');                       // ink coverages, 0–1
+```
+
+`bayerMatrix(size)` and `blueNoiseMatrix(size)` return the threshold ranks for your own shaders, and `resolvePrint` validates settings on their own. Every look uses integer math, basic arithmetic and `Math.sqrt` only; the blue-noise tile is built once from integer weights, so it does not depend on the last bit of `Math.exp`.
+
 ### Tier-0 verification
 
 Before paying a model to judge a draft, an agent can reject the obviously broken ones locally. `@optimai/creative-agents/verify` provides deterministic checks with no model, network or dependency. They run in Node and the browser in milliseconds:
@@ -291,7 +317,7 @@ const settings = canvasLabRecipeSettings('poster-lab', {
 const output = await runCanvasLab(settings.operation, [], settings, controller.signal);
 ```
 
-The normalizer merges source defaults, maps legacy poster `format` to `ratio`, letter `text` to `title`, `style` to `treatment`, glitch `intensity` to `amount` and glitch treatment names to `effect`. Explicit canonical values win. It validates recipe values and the final engine settings. Do not merge defaults into supplied values before calling it: that would conceal whether a canonical setting was explicitly selected. Raw `runCanvasLab` remains available for applications using direct bounded engine settings.
+The normalizer merges source defaults, maps legacy poster `format` to `ratio`, letter `text` to `title`, `style` to `treatment`, glitch `intensity` to `amount`, glitch treatment names to `effect` and print style names to `look`. Explicit canonical values win. It validates recipe values and the final engine settings. Do not merge defaults into supplied values before calling it: that would conceal whether a canonical setting was explicitly selected. Raw `runCanvasLab` remains available for applications using direct bounded engine settings.
 
 ## Selected-agent model setup
 

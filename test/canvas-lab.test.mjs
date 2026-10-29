@@ -51,7 +51,7 @@ async function canvasHarness(run, options = {}) {
 
 test('canvas settings accept only bounded operations, colors, titles, mixes and dimensions', () => {
   assert.equal(Object.isFrozen(CANVAS_LAB_AGENTS), true);
-  assert.equal(new Set(Object.values(CANVAS_LAB_AGENTS)).size, 7);
+  assert.equal(new Set(Object.values(CANVAS_LAB_AGENTS)).size, 8);
   for (const operation of Object.values(CANVAS_LAB_AGENTS)) assert.equal(canvasLabSettings(operation).operation, operation);
   for (const [operation, values, pattern] of [
     ['remote-script', {}, /supported canvas operation/], ['poster', { title: ' ' }, /title/],
@@ -63,7 +63,7 @@ test('canvas settings accept only bounded operations, colors, titles, mixes and 
   assert.equal(canvasLabSettings('blend', { mix: '25' }).mix, 25);
 });
 test('composition dispatch follows public catalog descriptors, with supported operations owned by the engine', () => {
-  const operations = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition']);
+  const operations = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition', 'print']);
   assert.deepEqual(CANVAS_LAB_AGENTS, Object.fromEntries(AGENT_CATALOG.filter(agent => agent.workspace.kind === 'canvas' && operations.has(agent.workspace.operation)).map(agent => [agent.id, agent.workspace.operation])));
   assert.throws(() => canvasLabRecipeSettings('image-finish'), /composition template/);
   assert.throws(() => canvasLabRecipeSettings('unknown'), /composition template/);
@@ -94,16 +94,18 @@ test('saved recipe composition settings reach rendered dimensions and actual let
   assert.equal(h.calls.network, 0);
 }));
 
-test('all seven compositions export actual canvas work with bounded dimensions and release every bitmap', async () => canvasHarness(async h => {
+test('all eight compositions export actual canvas work with bounded dimensions and release every bitmap', async () => canvasHarness(async h => {
   for (const operation of Object.values(CANVAS_LAB_AGENTS)) {
     const files = operation === 'bento' ? Array.from({ length: 8 }, () => image()) : ['blend', 'transition'].includes(operation) ? [image(), image()] : ['poster', 'letter'].includes(operation) ? [] : [image()];
+    // A print is made of pixels: without pixel reads it refuses rather than passing the plain image off as a print.
+    if (operation === 'print') { await assert.rejects(runCanvasLab(operation, files, { ratio: '9:16' }), /cannot read canvas pixels/); continue; }
     const result = await runCanvasLab(operation, files, { title: 'Local creative work', ratio: '9:16' });
     assert.deepEqual([result.width, result.height], [1200, 2133]);
     assert.equal(result.blob.type, 'image/png');
     assert.equal(result.filename, `optimai-${operation}.png`);
     assert.ok(result.blob.size > 0);
   }
-  assert.equal(h.calls.bitmaps.length, 28);
+  assert.equal(h.calls.bitmaps.length, 30);
   assert.ok(h.calls.bitmaps.every(value => value.closed === 1));
   assert.ok(h.calls.canvases.every(value => value.width <= 1 && value.height <= 1));
   assert.equal(h.calls.network, 0);
@@ -417,3 +419,31 @@ test('without pixel reads Glitch Cut still shifts the seeded bands', async () =>
   const bands = h.calls.draw.filter(call => call.canvas === main && call.args.length === 9);
   assert.deepEqual(bands.map(call => [call.args[2], call.args[4], call.args[5], call.args[6]]), plan.bands.map(band => [band.y, band.height, band.shift, band.y]));
 }));
+
+test('Print Shop prints a saved recipe on paper and reproduces its grain from the seed', async () => canvasHarness(async h => {
+  const settings = canvasLabRecipeSettings('print-shop', { look: 'halftone dots', scale: 5, seed: 31 });
+  assert.deepEqual([settings.operation, settings.look, settings.scale, settings.seed, settings.amount, settings.color, settings.inks], ['print', 'halftone', 5, 31, 100, '#1f2433', 'pink + blue']);
+  const defaults = canvasLabRecipeSettings('print-shop');
+  assert.deepEqual([defaults.look, defaults.scale, defaults.amount, defaults.seed, defaults.ratio], ['riso', 3, 100, 1, '4:5'], 'the template defaults');
+  assert.equal(canvasLabSettings('print').color, '#1f2433', 'a print inks in navy, not the poster lime');
+  assert.equal(canvasLabSettings('poster').color, '#c6f87d');
+  for (const [values, pattern] of [[{ look: 'screenprint' }, /look/], [{ look: 'constructor' }, /look/], [{ inks: 'gold' }, /inks/], [{ scale: 13 }, /scale/], [{ scale: 1.5 }, /scale/]]) assert.throws(() => canvasLabSettings('print', values), pattern);
+  assert.throws(() => canvasLabRecipeSettings('print-shop', { inks: 'green + gold' }), /choose/i);
+
+  // Each run starts from the same decoded shot (the harness keys shot levels on bitmap order).
+  const frame = () => { const data = h.calls.put.find(call => call.image.width === 1200).image.data; h.calls.put = []; assert.ok(h.calls.bitmaps.every(value => value.closed === 1)); h.calls.bitmaps.length = 0; return data; };
+  const output = await runCanvasLab('print', [image()], { ...defaults, inks: 'orange + teal', seed: 9 });
+  assert.deepEqual(output.print, { look: 'riso', scale: 3, amount: 100, seed: 9, inks: ['#ff6c2f', '#00838a'], paper: '#f4efe6' });
+  assert.equal(output.filename, 'optimai-print.png');
+  const sum = data => createHash('sha256').update(data).digest('hex'), riso = sum(frame());
+  await runCanvasLab('print', [image()], { ...defaults, inks: 'orange + teal', seed: 9 });
+  assert.equal(sum(frame()), riso, 'the same recipe, the same bytes');
+  const mono = await runCanvasLab('print', [image()], { ...settings, color: '#102030' });
+  assert.deepEqual(mono.print, { look: 'halftone', scale: 5, amount: 100, seed: 31, ink: '#102030', paper: '#f4efe6' });
+  assert.ok(frame().some((value, index) => index % 4 === 0 && value === 0xf4), 'paper shows between the dots');
+  await runCanvasLab('print', [image()], { ...settings, amount: 0 });
+  const untouched = frame();
+  assert.ok(untouched.every((value, index) => index % 4 === 3 || value === untouched[0]), 'amount 0 leaves the image as it was');
+  assert.ok(h.calls.canvases.every(value => value.width <= 1 && value.height <= 1));
+  assert.equal(h.calls.network, 0);
+}, { context: pixelContext }));

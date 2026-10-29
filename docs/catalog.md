@@ -1,6 +1,6 @@
 # Agent catalog
 
-Choose a template by the result its reviewed implementation produces. The current catalog has **38 templates: 10 canvas, 3 browser vision, 5 writing, 6 interactive and 14 guided entries**. Every template can prepare a prompt; execution uses the runtime listed below.
+Choose a template by the result its reviewed implementation produces. The current catalog has **39 templates: 11 canvas, 3 browser vision, 5 writing, 6 interactive and 14 guided entries**. Every template can prepare a prompt; execution uses the runtime listed below.
 
 These groups follow each template's versioned `workspace` descriptor. The SDK exposes `getAgentWorkspace(id)` for dispatch, `getAgentInputPolicy(id)` for file limits, accepted types and browser needs, and derives `CANVAS_LAB_AGENTS` from the same catalog. The two sketch workspaces include browser drawing before guided production; the other 12 guided templates prepare direction directly. Display categories and legacy `runtime` and `executionKind` metadata remain compatible with older recipes. Hosts maintain their own supported-operation allowlist as described in [host integration](./host-integration.md).
 
@@ -19,6 +19,7 @@ These 10 tools render selected images or text into still-image PNGs in the brows
 | Poster Lab | `poster-lab` | `poster` | Title artboard with an optional background image; PNG |
 | Transition Lab | `transition-lab` | `transition` | A still frame of a wipe, iris, light-key or push between exactly two images at a selected time, plus a strip of the whole move; PNG |
 | Glitch Cut | `glitch-cut` | `glitch` | A seeded glitch (shifted bands and blocks, colour trails or echoes, RGB split and scanlines) on one still image; the same seed redraws it exactly; PNG |
+| Print Shop | `print-shop` | `print` | A riso duotone, halftone dots or a Floyd–Steinberg, Bayer or blue-noise dither of one still image on warm paper; the seed redraws the same grain; PNG |
 | Letter Pose | `letter-pose` | `letter` | Typographic artboard with an optional background image; PNG |
 
 Inputs must be selected PNG, JPEG or WebP files, each at most 20 MiB and 4096 pixels per side. The original image processors enforce a 16-million-pixel budget for retained images and output; compositions validate each input through that processor and enforce a shared budget for normalized inputs. Compositions have a 1200-pixel output width and ratios of 1:1, 4:5, 16:9 or 9:16. Exported PNGs are limited to 20 MiB.
@@ -109,4 +110,4 @@ node --input-type=module -e 'import { getAgentTemplate } from "./src/index.mjs";
 
 Scaffold a recipe with a known template ID, then validate the resulting JSON. [Create your first recipe](./quickstart.md) walks through those steps. Unknown template IDs and settings are rejected; new capabilities require a reviewed source contribution following [CONTRIBUTING.md](../CONTRIBUTING.md#new-reviewed-operations).
 
-The [MCP adapter](./mcp.md) exposes all 38 template names. It prepares recipes by default and supports explicit local Ollama execution for the five writers. Canvas and vision execute through a browser host. Sharing source or importing recipe JSON does not create a public catalog listing; see [release and review](./release-and-feature.md).
+The [MCP adapter](./mcp.md) exposes all 39 template names. It prepares recipes by default and supports explicit local Ollama execution for the five writers. Canvas and vision execute through a browser host. Sharing source or importing recipe JSON does not create a public catalog listing; see [release and review](./release-and-feature.md).

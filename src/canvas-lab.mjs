@@ -5,9 +5,10 @@ import { analyzeImageFocus, focusCoverRect } from './smart-crop.mjs';
 import { chooseTitleInk, placeTextBlock, TEXT_POSITIONS } from './text-placement.mjs';
 import { canvasMeasure, fitTitle } from './typeset.mjs';
 import { GLITCH_EFFECTS, GLITCH_LIMITS, GLITCH_TREATMENTS, glitchPixels, planGlitch } from './glitch.mjs';
+import { PRINT_LOOKS, PRINT_STYLES, printPixels, resolvePrint, RISO_INKS } from './print.mjs';
 import { composeTransition, resolveTransition, TRANSITION_DIRECTIONS, TRANSITION_LIMITS, TRANSITION_PACES, TRANSITION_STYLES, TRANSITION_TECHNIQUES, transitionProgress, transitionTimes } from './transition.mjs';
 
-const LAB_OPERATIONS = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition']);
+const LAB_OPERATIONS = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition', 'print']);
 export const CANVAS_LAB_AGENTS = Object.freeze(Object.fromEntries(AGENT_CATALOG.flatMap(agent =>
   agent.workspace.kind === 'canvas' && LAB_OPERATIONS.has(agent.workspace.operation) ? [[agent.id, agent.workspace.operation]] : [],
 )));
@@ -17,12 +18,12 @@ export function canvasLabSettings(operation, values = {}) {
   const number = (name, fallback, min, max) => { const value = Number(values[name] ?? fallback); if (!Number.isFinite(value) || value < min || value > max) throw new Error(`${name} must be between ${min} and ${max}.`); return value; };
   const text = String(values.title ?? 'MAKE SOMETHING\nREMARKABLE.').trim();
   if (!text || text.length > 180) throw new Error('Use a title between 1 and 180 characters.');
-  const color = values.color ?? '#c6f87d'; if (!/^#[a-f0-9]{6}$/i.test(color)) throw new Error('Choose a six-digit hex color.');
+  const color = values.color ?? (operation === 'print' ? '#1f2433' : '#c6f87d'); if (!/^#[a-f0-9]{6}$/i.test(color)) throw new Error('Choose a six-digit hex color.');
   return { operation, title: text, color,
     layout: option('layout', 'phone', ['phone', 'desktop', 'gallery']),
     ratio: option('ratio', '4:5', ['1:1', '4:5', '16:9', '9:16']),
     treatment: option('treatment', 'editorial', ['editorial', 'cinema', 'minimal']),
-    amount: number('amount', 35, 0, 100), mix: number('mix', 50, 0, 100),
+    amount: number('amount', operation === 'print' ? 100 : 35, 0, 100), mix: number('mix', 50, 0, 100),
     crop: option('crop', 'smart', ['smart', 'center']),
     ink: option('ink', 'readable', ['readable', 'image', 'exact']),
     position: option('position', 'auto', TEXT_POSITIONS),
@@ -34,6 +35,10 @@ export function canvasLabSettings(operation, values = {}) {
     // Recipe treatment names ('colour trails') are accepted as aliases of the effects they draw.
     effect: Object.hasOwn(GLITCH_TREATMENTS, values.effect ?? '') ? GLITCH_TREATMENTS[values.effect] : option('effect', 'blocks', GLITCH_EFFECTS),
     seed: (() => { const value = number('seed', 1, 0, GLITCH_LIMITS.seed); if (!Number.isInteger(value)) throw new Error(`seed must be a whole number from 0 to ${GLITCH_LIMITS.seed}.`); return value; })(),
+    // Recipe style names ('riso duotone') are accepted as aliases of the looks they draw.
+    look: Object.hasOwn(PRINT_STYLES, values.look ?? '') ? PRINT_STYLES[values.look] : option('look', 'riso', PRINT_LOOKS),
+    inks: option('inks', 'pink + blue', Object.keys(RISO_INKS)),
+    scale: (() => { const value = number('scale', 3, 1, 12); if (!Number.isInteger(value)) throw new Error('scale must be a whole number from 1 to 12.'); return value; })(),
     frames: (() => { const value = number('frames', 5, 0, TRANSITION_LIMITS.frames); if (!Number.isInteger(value) || value === 1) throw new Error(`frames must be 0 or a whole number from 2 to ${TRANSITION_LIMITS.frames}.`); return value; })(),
   };
 }
@@ -59,6 +64,7 @@ export function canvasLabRecipeSettings(templateId, values = {}) {
     treatment, amount, mix: settings.mix ?? 50,
     ...(operation === 'transition' ? { transition: settings.transition, pace: settings.pace } : {}),
     ...(operation === 'glitch' ? { effect: settings.effect, seed: settings.seed } : {}),
+    ...(operation === 'print' ? { look: settings.look, inks: settings.inks, scale: settings.scale, seed: settings.seed } : {}),
   });
 }
 const abort = signal => { if (signal?.aborted) throw new DOMException('Cancelled.', 'AbortError'); };
@@ -129,7 +135,7 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
   if (!Array.isArray(files) || files.length > maximum) throw new Error(`Choose up to ${maximum} images.`);
   if (!files.length && !['poster', 'letter'].includes(operation)) throw new Error('Add an image to start.');
   if (['blend', 'transition'].includes(operation) && files.length !== 2) throw new Error('Choose two images for this composition.');
-  const images = []; let canvas, source, thumb, film, ink, lines, placement, scrim, transition, strip, glitch; let pixels = 0;
+  const images = []; let canvas, source, thumb, film, ink, lines, placement, scrim, transition, strip, glitch, print; let pixels = 0;
   try {
     // Reuse the signature, dimensions, decode and memory validation of the public processor.
     for (const file of files) {
@@ -198,6 +204,15 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
         ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .13 * settings.amount / 100; ctx.fillStyle = '#df56dc'; ctx.fillRect(0, 0, width, height); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
       }
       glitch = { effect: plan.effect, seed: plan.seed, amount: plan.amount, engine: frame ? 'pixels' : 'bands' };
+    } else if (operation === 'print') {
+      fit(ctx, images[0], 0, 0, width, height, false, focus[0]);
+      const plan = resolvePrint({ look: settings.look, scale: settings.scale, amount: settings.amount, seed: settings.seed, ink: settings.color, inks: settings.inks });
+      let frame = null;
+      if (readable(ctx)) try { frame = ctx.getImageData(0, 0, width, height); } catch { frame = null; }
+      // A print is made of pixels; drawing an unprinted image here would pass it off as a print.
+      if (!frame) throw new Error('This browser cannot read canvas pixels, so the print look cannot be drawn.');
+      printPixels(frame.data, width, height, plan, frame.data); ctx.putImageData(frame, 0, 0);
+      print = { look: plan.look, scale: plan.scale, amount: plan.amount, seed: plan.seed, ...(plan.look === 'riso' ? { inks: [...plan.inks] } : { ink: plan.ink }), paper: plan.paper };
     } else {
       if (images[0]) fit(ctx, images[0], 0, 0, width, height, false, focus[0]);
       const type = lettering(ctx, settings, width, height); lines = type.lines; ctx.textBaseline = 'top';
@@ -226,6 +241,6 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
     const blob = await abortable(new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not export this canvas.')), 'image/png')), signal);
     abort(signal);
     if (blob.size > 20 * 1024 * 1024) throw new Error('The exported image is too large. Use a smaller composition.');
-    return { blob, width, height, filename: `optimai-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}), ...(transition ? { transition, strip: strip ?? null } : {}), ...(glitch ? { glitch } : {}) };
+    return { blob, width, height, filename: `optimai-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}), ...(transition ? { transition, strip: strip ?? null } : {}), ...(glitch ? { glitch } : {}), ...(print ? { print } : {}) };
   } finally { images.forEach(image => image.close()); for (const value of [source, thumb, film, canvas]) if (value) value.width = value.height = 1; }
 }
