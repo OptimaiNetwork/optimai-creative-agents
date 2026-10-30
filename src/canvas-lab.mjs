@@ -4,6 +4,7 @@ import { analyzeImageColors, pickAccentColor } from './color.mjs';
 import { analyzeImageFocus, focusCoverRect } from './smart-crop.mjs';
 import { chooseTitleInk, placeTextBlock, TEXT_POSITIONS } from './text-placement.mjs';
 import { canvasMeasure, fitTitle } from './typeset.mjs';
+import { runRecipeValues } from './run-record.mjs';
 import { GLITCH_EFFECTS, GLITCH_LIMITS, GLITCH_TREATMENTS, glitchPixels, planGlitch } from './glitch.mjs';
 import { PRINT_LOOKS, PRINT_STYLES, printPixels, resolvePrint, RISO_INKS } from './print.mjs';
 import { composeTransition, resolveTransition, TRANSITION_DIRECTIONS, TRANSITION_LIMITS, TRANSITION_PACES, TRANSITION_STYLES, TRANSITION_TECHNIQUES, transitionProgress, transitionTimes } from './transition.mjs';
@@ -66,6 +67,24 @@ export function canvasLabRecipeSettings(templateId, values = {}) {
     ...(operation === 'glitch' ? { effect: settings.effect, seed: settings.seed } : {}),
     ...(operation === 'print' ? { look: settings.look, inks: settings.inks, scale: settings.scale, seed: settings.seed } : {}),
   });
+}
+// Engine names back to the recipe names a saved v1 recipe uses ('radial' → 'match cut').
+const RECIPE_NAMES = Object.freeze(Object.fromEntries([['transition', TRANSITION_TECHNIQUES], ['effect', GLITCH_TREATMENTS], ['look', PRINT_STYLES]]
+  .map(([key, aliases]) => [key, Object.fromEntries(Object.entries(aliases).map(([recipe, engine]) => [engine, recipe]))])));
+/**
+ * The inverse of `canvasLabRecipeSettings`: engine settings (say, a run record's) as recipe `values` the
+ * template's v1 recipe accepts, plus the `extra` engine-only settings that differ from its defaults.
+ */
+export function canvasLabRecipeValues(templateId, settings = {}) {
+  const operation = CANVAS_LAB_AGENTS[templateId];
+  if (!operation) throw new Error('Choose a reviewed canvas composition template.');
+  const engine = canvasLabSettings(operation, settings), defaults = canvasLabRecipeSettings(templateId);
+  const named = Object.fromEntries(Object.entries(engine).filter(([key]) => key !== 'operation').map(([key, value]) => {
+    const recipe = RECIPE_NAMES[key]?.[value];
+    return [key, recipe !== undefined && runRecipeValues(templateId, { [key]: recipe }).values[key] !== undefined ? recipe : value];
+  }));
+  const { values, extra } = runRecipeValues(templateId, named);
+  return { values, extra: Object.fromEntries(Object.entries(extra).filter(([key, value]) => value !== defaults[key])) };
 }
 const abort = signal => { if (signal?.aborted) throw new DOMException('Cancelled.', 'AbortError'); };
 function abortable(work, signal, discard) {

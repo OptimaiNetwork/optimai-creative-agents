@@ -101,6 +101,7 @@ A broader host can add these reviewed runtime adapters:
 | 3D scene | `scene-3d` → `scene3DRecipeSettings`; `scene-3d-runtime` → `createScene3DStage` | Procedural/local GLB WebGL stage, PNG and scene recipe; optional reviewed Three peer |
 | Camera effects/avatar | `camera-runtime`, `camera-renderer`, `camera-tracking`, `camera-worker`, `landmark-filter` | Canvas effects and original face-driven avatar; explicit permission and local verified tracking worker |
 | Music visuals | `music-reactive`, `beat-tracker` | Measured spectrum looks with an optional flash-limited beat pulse; the host owns the audio graph, playback and recording |
+| Run records | `run-record` → `createRunRecord`, `digestInputs`, `parseRunRecord`, `createRunHistory`, `runRecipeValues`; `canvas-lab` → `canvasLabRecipeValues` | A stable hash per result over template, settings, seed, SDK version and an input digest; tamper-checked JSON; a de-duplicated run list; settings back to recipe values for Remix; Node and browser |
 | Model preparation | `model-setup` → `getModelSetupPolicy`, `createModelSetupController`, `describeModelSetup`, `formatBytes` | Automatic/manual/unsupported decision, one abortable setup state machine with byte progress, and readable sizes; host supplies the reviewed load and check calls |
 | Local Ollama writing | `agent-runtime` → `runCreativeAgent` | Validated written artifact; explicitly selected eligible installed model and loopback service |
 | Guided production | `compileAgentPrompt` and a host handoff | Prepared direction; the destination host runs Image, Video, Story, Character or Editor production |
@@ -157,6 +158,28 @@ Portable JSON recipes customize existing templates. Adding an example recipe to 
 Show model size, device requirements, progress and browser storage behavior as preparation starts. In manual mode, offer Download; in unsupported mode, offer basic filters, procedural demos, canvas tools or guided direction. Camera permission is a separate explicit action. Stop/cancel a download when the workspace closes and keep retry deliberate. Allow users to browse other tools while preparation runs. Run writing jobs sequentially, expose progress and cancellation, and display model failures without substituting canned creative output. Vision work should report a missing subject when detection fails.
 
 Connect cancellation and cleanup to every asynchronous operation. Release workers, decoded images, canvases, GPU sessions and temporary URLs after completion, failure or cancellation. The [runtime guide](./runtimes.md) explains each engine's ownership and disposal API.
+
+## Keep run records and remix exact settings
+
+Give every result a run record, so a creator can return to it, compare it and remix it with the exact settings that drew it:
+
+```js
+import { createRunHistory, createRunRecord, digestInputs } from '@optimai/creative-agents/run-record';
+import { canvasLabRecipeValues } from '@optimai/creative-agents/canvas-lab';
+
+const history = createRunHistory({ limit: 8, settleMs: 1500 });
+const inputsDigest = await digestInputs(files);            // bytes only, in order; names never count
+const record = createRunRecord({ templateId: 'glitch-cut', settings, sdkVersion: '0.5.0', inputsDigest, output: { width, height } });
+const { evicted } = history.add(record, URL.createObjectURL(blob));
+for (const entry of evicted) URL.revokeObjectURL(entry.attachment);
+const { values, extra } = canvasLabRecipeValues(record.templateId, record.settings);   // Remix: v1 recipe values
+```
+
+`record.hash` is 16 hex characters over the template, the settings as canonical JSON, the seed (taken from `settings.seed` when present), the SDK version and the input digest, so the same run gets the same hash in every browser and any change gets a new one; `createdAt` and `output` are carried but not hashed. `digestInputs` uses SHA-256 from Web Crypto and falls back to a 64-bit hash (`h64:`) where Web Crypto is missing. `parseRunRecord` reads shared JSON and throws when its contents no longer match its hash; `verifyRunRecord` returns a boolean.
+
+`createRunHistory` keeps runs newest first and never twice: adding a hash it already has moves that run to the front. With `settleMs`, a run made within that time of the previous one replaces it, so a slider drag leaves one entry; `settle()` keeps the newest run (call it on export). Release each `evicted` attachment.
+
+For Remix, `canvasLabRecipeValues` turns canvas engine settings back into the template's v1 recipe values (engine names such as `push` become recipe names such as *camera move*) and returns the engine-only settings that differ from the defaults as `extra`; `runRecipeValues` does the same split for any template without aliases. A run record is not a manifest: keep sharing recipes as manifests, and treat records as provenance next to the result.
 
 ## Design around the actual result
 
