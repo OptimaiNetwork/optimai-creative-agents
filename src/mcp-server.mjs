@@ -4,6 +4,7 @@
 // No AI billing, media reads, arbitrary networking or Studio account actions.
 import { readFileSync } from 'node:fs';
 import { AGENT_CATALOG, compileAgentPrompt, validateRecipeValues } from './index.mjs';
+import { getAgentFormSchema, plainFormSchema } from './form-schema.mjs';
 const PROTOCOL = '2025-11-25';
 // One version source: the package manifest that ships beside this adapter.
 const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -13,10 +14,9 @@ const activeRuns = new Map();
 function response(id, result) { process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`); }
 function error(id, code, message) { process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } })}\n`); }
 function object(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
+// Settings come from the same form schema hosts render, so bounds, color patterns and alias notes match.
 function properties(tool) {
-  return Object.fromEntries(tool.fields.map((field) => [field.id, field.type === 'number'
-    ? { type: 'integer', minimum: field.min, maximum: field.max, default: field.default, description: field.label }
-    : { type: 'string', maxLength: ['title', 'text'].includes(field.id) ? 300 : 2000, default: field.default, description: field.label, ...(field.options ? { enum: field.options } : {}) }]));
+  return Object.fromEntries(Object.entries(plainFormSchema(getAgentFormSchema(tool)).properties).map(([id, { title, description, ...property }]) => [id, { ...property, description: description ? `${title}. ${description}` : title }]));
 }
 function toolDefinition(tool) {
   const isWriting = tool.executionKind === 'local-model';

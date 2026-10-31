@@ -88,6 +88,8 @@ export declare const AGENT_INPUT_NEEDS: readonly AgentInputNeed[];
 export declare function getAgentInputPolicy(id: string): AgentInputPolicy | undefined;
 export declare function getToolTemplate(id: string): ToolTemplate | undefined;
 export declare function validateRecipeValues(toolId: string, values: unknown): string[];
+/** The JSON Schema a recipe value of this field must satisfy (the same bounds `validateRecipeValues` enforces). */
+export declare function recipeFieldSchema(field: ToolField): Readonly<Record<string, unknown>>;
 export declare function validateToolManifest(value: unknown): ManifestValidation;
 export declare function createToolManifest(templateId: string, details: { id: string; title: string; description?: string; brief?: string }): ToolManifest;
 export declare function compileToolPrompt(toolOrManifest: ToolTemplate | ToolManifest | string, values?: RecipeValues, brief?: string): string;

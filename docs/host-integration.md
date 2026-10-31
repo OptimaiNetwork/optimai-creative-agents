@@ -102,6 +102,7 @@ A broader host can add these reviewed runtime adapters:
 | Camera effects/avatar | `camera-runtime`, `camera-renderer`, `camera-tracking`, `camera-worker`, `landmark-filter` | Canvas effects and original face-driven avatar; explicit permission and local verified tracking worker |
 | Music visuals | `music-reactive`, `beat-tracker` | Measured spectrum looks with an optional flash-limited beat pulse; the host owns the audio graph, playback and recording |
 | Run records | `run-record` → `createRunRecord`, `digestInputs`, `parseRunRecord`, `createRunHistory`, `runRecipeValues`; `canvas-lab` → `canvasLabRecipeValues` | A stable hash per result over template, settings, seed, SDK version and an input digest; tamper-checked JSON; a de-duplicated run list; settings back to recipe values for Remix; Node and browser |
+| Settings forms | `form-schema` → `getAgentFormSchema`, `listFormFields`, `getAgentFieldRoles`, `plainFormSchema` | JSON Schema 2020-12 per template with control, step, group and role hints; one source for builders, docs, MCP and host gates; Node and browser |
 | Model preparation | `model-setup` → `getModelSetupPolicy`, `createModelSetupController`, `describeModelSetup`, `formatBytes` | Automatic/manual/unsupported decision, one abortable setup state machine with byte progress, and readable sizes; host supplies the reviewed load and check calls |
 | Local Ollama writing | `agent-runtime` → `runCreativeAgent` | Validated written artifact; explicitly selected eligible installed model and loopback service |
 | Guided production | `compileAgentPrompt` and a host handoff | Prepared direction; the destination host runs Image, Video, Story, Character or Editor production |
@@ -158,6 +159,31 @@ Portable JSON recipes customize existing templates. Adding an example recipe to 
 Show model size, device requirements, progress and browser storage behavior as preparation starts. In manual mode, offer Download; in unsupported mode, offer basic filters, procedural demos, canvas tools or guided direction. Camera permission is a separate explicit action. Stop/cancel a download when the workspace closes and keep retry deliberate. Allow users to browse other tools while preparation runs. Run writing jobs sequentially, expose progress and cancellation, and display model failures without substituting canned creative output. Vision work should report a missing subject when detection fails.
 
 Connect cancellation and cleanup to every asynchronous operation. Release workers, decoded images, canvases, GPU sessions and temporary URLs after completion, failure or cancellation. The [runtime guide](./runtimes.md) explains each engine's ownership and disposal API.
+
+## Render settings from the form schema
+
+Build settings forms, docs tables and host checks from one schema instead of copying field IDs and choices:
+
+```js
+import { getAgentFormSchema, listFormFields } from '@optimai/creative-agents/form-schema';
+
+const schema = getAgentFormSchema('poster-lab');      // JSON Schema 2020-12 for recipe `values`
+for (const group of schema['x-ui'].groups) {          // content, look, color, layout, motion (non-empty, in order)
+  renderHeading(group.title);
+  for (const field of listFormFields(schema).filter(entry => entry.group === group.id)) renderControl(field);
+}
+```
+
+Each property has the same bounds `validateRecipeValues` enforces (`enum`, `minimum`/`maximum`, `maxLength`, the hex `pattern` for colors), a `title`, a `default` and an `x-ui` object:
+
+| Hint | Values |
+| --- | --- |
+| `control` | `text`, `textarea`, `select`, `color` (hex settings), `slider`, `stepper` (ranges of 12 or less), `number` (wide ranges such as pixel sizes), `seed` (offer a reroll) |
+| `step` | Number controls only; `1` for whole-number settings |
+| `group`, `order` | Where the setting goes; `x-ui.order` lists every setting in display order, aliases after the setting they stand in for |
+| `role` | `engine` (the on-device workspace reads it), `alias` (an older recipe name used only when `aliasOf` is missing, such as Poster Lab's `format` for `ratio`), `brief` (shapes the prepared brief only), `unused` (reaches neither; only possible for unreviewed templates) |
+
+Alias and brief settings in on-device workspaces carry a `description` that says so, which a builder can show as a hint. `getAgentFormSchema` also accepts a template object, so a host can check a candidate before promoting it: refuse `unused` roles and controls it cannot draw, and run every `engine` choice and endpoint through the engine's normalizer. `plainFormSchema` drops the `x-` hints for strict validators; the [MCP adapter](./mcp.md) builds each tool's `values` schema from it. Schemas are fresh plain JSON on every call and describe saved recipe values only; engine-only settings (for example a canvas title's `ink`) stay outside v1 recipes.
 
 ## Keep run records and remix exact settings
 

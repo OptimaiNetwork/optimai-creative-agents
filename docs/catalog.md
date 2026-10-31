@@ -102,7 +102,7 @@ A successful prompt preparation confirms valid recipe data; it is not evidence o
 
 ## Inspect and remix a template
 
-From the repository root, use `npm run verify` to list current capabilities. Read a template's actual fields before choosing settings:
+From the repository root, use `npm run verify` to list current capabilities. Read a template's actual fields before choosing settings (`getAgentFormSchema(id)` from `form-schema` gives the same fields as JSON Schema with control and role hints):
 
 ```sh
 node --input-type=module -e 'import { getAgentTemplate } from "./src/index.mjs"; console.log(JSON.stringify(getAgentTemplate("image-finish").fields, null, 2));'

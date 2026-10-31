@@ -56,3 +56,16 @@ test('MCP writing-agent execution requires a model and leaves browser camera and
   assert.match(results[2].result.content[0].text, /model/);
   assert.equal(results[3].error.code, -32602);
 });
+test('MCP tool settings come from the same form schema hosts render', async () => {
+  const { getAgentFormSchema, plainFormSchema } = await import('../src/form-schema.mjs');
+  const tools = run([initialize, ready, { jsonrpc: '2.0', id: 2, method: 'tools/list' }])[1].result.tools;
+  for (const tool of tools) {
+    const schema = plainFormSchema(getAgentFormSchema(tool.name.slice('optimai.'.length)));
+    const listed = tool.inputSchema.properties.values.properties;
+    assert.deepEqual(Object.keys(listed), Object.keys(schema.properties));
+    for (const [id, { title, description, ...property }] of Object.entries(schema.properties)) assert.deepEqual(listed[id], { ...property, description: description ? `${title}. ${description}` : title });
+  }
+  const poster = tools.find(tool => tool.name === 'optimai.poster-lab').inputSchema.properties.values.properties;
+  assert.equal(poster.color.pattern, '^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$');
+  assert.match(poster.format.description, /^Format\. Older recipe name/);
+});

@@ -127,6 +127,10 @@
       "types": "./src/print.d.mts",
       "import": "./src/print.mjs"
     },
+    "./form-schema": {
+      "types": "./src/form-schema.d.mts",
+      "import": "./src/form-schema.mjs"
+    },
     "./run-record": {
       "types": "./src/run-record.d.mts",
       "import": "./src/run-record.mjs"

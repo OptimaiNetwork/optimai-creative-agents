@@ -21,7 +21,7 @@ Clone the [public repository](https://github.com/OptimaiNetwork/optimai-creative
 
 This is a common `mcpServers` configuration shape; use your client's documented equivalent if its format differs. Launch Node directly because npm's banners can corrupt JSON-RPC stdout. The adapter needs no dependency installation, API key, Studio account or model to list tools and prepare recipes.
 
-The client sends `initialize`, checks the returned protocol version, sends `notifications/initialized`, then uses `tools/list` or `tools/call`. Stable tool names are `optimai.<template-id>`. The adapter also supports `ping` and cancellation of an active local writing run.
+The client sends `initialize`, checks the returned protocol version, sends `notifications/initialized`, then uses `tools/list` or `tools/call`. Stable tool names are `optimai.<template-id>`. Each tool's `values` schema comes from the SDK's [form schema](./host-integration.md#render-settings-from-the-form-schema), so bounds, hex patterns and alias notes match what a host builder renders. The adapter also supports `ping` and cancellation of an active local writing run.
 
 ## Try a preparation call without a client
 

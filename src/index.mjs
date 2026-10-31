@@ -194,7 +194,8 @@ export function compileToolPrompt(toolOrManifest, values = {}, brief = '') {
   return result;
 }
 
-const fieldSchema = (field) => field.type === 'number'
+/** The JSON Schema a recipe value of this field must satisfy (the same bounds `validateRecipeValues` enforces). */
+export const recipeFieldSchema = (field) => field.type === 'number'
   ? { type: 'integer', minimum: field.min, maximum: field.max }
   : { type: 'string', maxLength: ['title', 'text'].includes(field.id) ? 300 : 2000, ...(field.type === 'select' ? { enum: field.options } : {}), ...(['color', 'background'].includes(field.id) ? { pattern: '^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$' } : {}) };
 export const TOOL_MANIFEST_SCHEMA = freeze({
@@ -212,7 +213,7 @@ export const TOOL_MANIFEST_SCHEMA = freeze({
     recipe: {
       oneOf: TOOL_CATALOG.map((tool) => ({ type: 'object', additionalProperties: false, required: ['templateId', 'values', 'brief'], properties: {
         templateId: { const: tool.id }, brief: { type: 'string', maxLength: 4000 },
-        values: { type: 'object', additionalProperties: false, properties: Object.fromEntries(tool.fields.map((field) => [field.id, fieldSchema(field)])) },
+        values: { type: 'object', additionalProperties: false, properties: Object.fromEntries(tool.fields.map((field) => [field.id, recipeFieldSchema(field)])) },
       } })),
     },
   },
