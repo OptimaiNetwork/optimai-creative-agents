@@ -11,6 +11,7 @@ export declare const BROWSER_AGENT_APP_CONFIG: AppConfig;
 export type BrowserAgentProgress = {
   stage: 'download' | 'ready' | 'plan' | 'generate' | 'validate' | 'repair';
   message: string; progress?: number; attempt?: 1 | 2;
+  /** Reviewed download size in bytes, on `download` events. */ total?: number;
 };
 export type BrowserAgentStatus = {
   provider: 'webllm'; available: boolean; ready: boolean; loading: boolean;

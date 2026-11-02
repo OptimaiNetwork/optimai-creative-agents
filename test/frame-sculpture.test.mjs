@@ -53,7 +53,9 @@ test('extraction decodes actual requested timestamps and releases the source URL
   const fixture = decoderFixture(t), progress = [];
   const result = await extractFrameSamples(fixture.file, { count: 4, onProgress: (...value) => progress.push(value) });
   assert.deepEqual(fixture.draws, [.5, 1.5, 2.5, 3.5]); assert.deepEqual(result.frames.map(frame => frame.time), fixture.draws);
-  assert.deepEqual(progress, [[1, 4], [2, 4], [3, 4], [4, 4]]); assert.deepEqual(fixture.revoked, ['blob:local-fixture']);
+  assert.deepEqual(progress.map(value => value.slice(0, 2)), [[1, 4], [2, 4], [3, 4], [4, 4]], 'the positional (complete, total) arguments are unchanged');
+  assert.deepEqual(progress.map(value => value[2]), [1, 2, 3, 4].map(frame => ({ stage: 'frame', message: 'Sampling frames on this device.', frame, frames: 4, progress: frame / 4 })), 'the third argument is the canonical progress event');
+  assert.deepEqual(fixture.revoked, ['blob:local-fixture']);
   assert.equal(result.name, 'original.mp4'); assert.equal(result.kind, 'video'); assert.equal(result.duration, 4);
 });
 test('canceling halfway releases retained frame pixels and never returns partial frames', async t => {

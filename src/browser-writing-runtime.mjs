@@ -151,10 +151,11 @@ export function createBrowserWritingRuntime(dependencies) {
                 return;
             }
             loading = true;
-            emit(options.onProgress, { stage: 'download', message: 'Preparing the reviewed browser model. The first load downloads public model files to this browser.', progress: 0 });
+            emit(options.onProgress, { stage: 'download', message: 'Preparing the reviewed browser model. The first load downloads public model files to this browser.', progress: 0, total: BROWSER_AGENT_MODEL.downloadBytes });
             await bounded(async () => {
+                // Download events carry the reviewed size, so hosts can show "120 MB of 453 MB" from the engine's fraction.
                 const created = await dependencies.createSession(progress => { if (!options.signal?.aborted && loading)
-                    emit(options.onProgress, progress); });
+                    emit(options.onProgress, progress?.stage === 'download' ? { total: BROWSER_AGENT_MODEL.downloadBytes, ...progress } : progress); });
                 if (options.signal?.aborted || epoch !== loadEpoch || !loading) {
                     created.worker.terminate();
                     throw aborted();

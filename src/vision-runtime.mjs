@@ -18,7 +18,8 @@ function modelFor(operation) {
   return VISION_MODELS[operation];
 }
 function aborted(signal) { if (signal?.aborted) throw new DOMException('Vision processing was cancelled.', 'AbortError'); }
-function emit(onProgress, phase, message, progress) { onProgress?.({ phase, message, ...(progress == null ? {} : { progress }) }); }
+// Canonical `stage` (see progress.mjs) next to the legacy `phase`; the worker's `initialize` is the model warming up.
+function emit(onProgress, phase, message, progress, bytes) { onProgress?.({ stage: phase === 'initialize' ? 'warmup' : phase, phase, message, ...(progress == null ? {} : { progress }), ...bytes }); }
 function cacheKey(model) { return new URL(`/__optimai_vision_models__/${model.id}-${model.sha256}`, globalThis.location?.origin || 'http://localhost').href; }
 async function verified(model, buffer) {
   if (!(buffer instanceof ArrayBuffer) || buffer.byteLength !== model.bytes) return false;
@@ -81,7 +82,7 @@ async function downloadVisionModelOnce(operation, { signal, onProgress, fetchImp
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, VISION_LIMITS.downloadTimeoutMs);
   let reader;
   try {
-    emit(onProgress, 'download', `Downloading ${model.name} weights.`, 0);
+    emit(onProgress, 'download', `Downloading ${model.name} weights.`, 0, { loaded: 0, total: model.bytes });
     const response = await fetchImpl(model.url, { signal: controller.signal, redirect: 'error', credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store' });
     if (!response.ok || response.redirected || (response.url && response.url !== model.url)) throw new VisionError('download-failed', 'The official model could not be downloaded. Try again when connected.');
     const declared = Number(response.headers.get('content-length'));
@@ -95,7 +96,7 @@ async function downloadVisionModelOnce(operation, { signal, onProgress, fetchImp
       if (done) break;
       size += value.byteLength;
       if (size > model.bytes || size > VISION_LIMITS.modelBytes) throw new VisionError('invalid-model', 'The model download does not match its reviewed size.');
-      chunks.push(value); emit(onProgress, 'download', `Downloading ${model.name} weights.`, size / model.bytes);
+      chunks.push(value); emit(onProgress, 'download', `Downloading ${model.name} weights.`, size / model.bytes, { loaded: size, total: model.bytes });
     }
     const bytes = new Uint8Array(size); let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }

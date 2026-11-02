@@ -192,3 +192,27 @@ test('provider errors and no-subject outcomes close every allocated resource', a
     try { await assert.rejects(executeVisionTask(f.options)); assert.equal(f.counts.tasks, 1); assert.equal(f.counts.bitmaps, 1); if (fail === 'empty') assert.equal(f.counts.results, 1); } finally { f.restore(); }
   }
 });
+test('vision progress uses the canonical stages with byte counts, keeping the legacy phase', async () => {
+  const restore = globals({ crypto: hashCrypto('person-cutout'), caches: cache(null) });
+  try {
+    const runtime = await fresh(), events = [];
+    await runtime.downloadVisionModel('person-cutout', { fetchImpl: async () => new Response(buffer('person-cutout')), onProgress: event => events.push(event) });
+    const bytes = VISION_MODELS['person-cutout'].bytes, downloads = events.filter(event => event.stage === 'download');
+    assert.deepEqual(downloads[0], { stage: 'download', phase: 'download', message: `Downloading ${VISION_MODELS['person-cutout'].name} weights.`, progress: 0, loaded: 0, total: bytes });
+    assert.deepEqual([downloads.at(-1).loaded, downloads.at(-1).total, downloads.at(-1).progress], [bytes, bytes, 1]);
+    assert.ok(events.every(event => event.stage === event.phase));
+    assert.deepEqual(events.slice(-2).map(event => event.stage), ['verify', 'ready']);
+  } finally { restore(); }
+  const bitmap = { width: 64, height: 48, close() {} };
+  const restoreRun = globals({ crypto: hashCrypto('person-cutout'), caches: cache(buffer('person-cutout')), createImageBitmap: async () => bitmap, location: { origin: 'https://studio.example' }, Worker: class {}, OffscreenCanvas: class {} });
+  try {
+    const runtime = await fresh(), events = [];
+    const workerFactory = () => ({ terminate() {}, postMessage() {
+      for (const phase of ['initialize', 'analyze', 'render']) this.onmessage({ data: { type: 'progress', phase, message: phase } });
+      this.onmessage({ data: { type: 'result', result: { blob: new Blob(['png'], { type: 'image/png' }), width: 64, height: 48, analysis: {} } } });
+    } });
+    const result = await runtime.runBrowserVision('person-cutout', pngFile(), {}, { workerFactory, wasmBaseUrl: '/vendor/vision', onProgress: event => events.push(event) });
+    assert.equal(result.width, 64);
+    assert.deepEqual(events.map(event => [event.stage, event.phase]), [['prepare', 'prepare'], ['warmup', 'initialize'], ['analyze', 'analyze'], ['render', 'render']], 'the worker\'s initialize is the model warming up');
+  } finally { restoreRun(); }
+});

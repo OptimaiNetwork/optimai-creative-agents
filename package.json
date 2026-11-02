@@ -131,6 +131,10 @@
       "types": "./src/form-schema.d.mts",
       "import": "./src/form-schema.mjs"
     },
+    "./progress": {
+      "types": "./src/progress.d.mts",
+      "import": "./src/progress.mjs"
+    },
     "./run-record": {
       "types": "./src/run-record.d.mts",
       "import": "./src/run-record.mjs"

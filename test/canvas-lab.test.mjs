@@ -447,3 +447,18 @@ test('Print Shop prints a saved recipe on paper and reproduces its grain from th
   assert.ok(h.calls.canvases.every(value => value.width <= 1 && value.height <= 1));
   assert.equal(h.calls.network, 0);
 }, { context: pixelContext }));
+test('canvas runs report prepare → render → frame → export → ready and take `{ signal, onProgress }` or a bare signal', async () => canvasHarness(async () => {
+  const events = [];
+  await runCanvasLab('transition', [image('first.png'), image('second.png')], canvasLabRecipeSettings('transition-lab', { ratio: '1:1', mix: 50 }), { onProgress: event => events.push(event) });
+  assert.deepEqual(events.map(event => event.stage), ['prepare', 'prepare', 'render', 'frame', 'frame', 'frame', 'frame', 'frame', 'export', 'ready']);
+  assert.deepEqual(events.filter(event => event.stage === 'prepare').map(event => [event.frame, event.frames]), [[1, 2], [2, 2]]);
+  assert.deepEqual(events.filter(event => event.stage === 'frame').map(event => event.progress), [.2, .4, .6, .8, 1]);
+  assert.ok(events.every(Object.isFrozen));
+  // A listener that cancels stops the run at the next step and nothing more is reported.
+  const controller = new AbortController(), seen = [];
+  await assert.rejects(runCanvasLab('mockup', [image()], {}, { signal: controller.signal, onProgress: event => { seen.push(event.stage); if (event.stage === 'render') controller.abort(); } }), { name: 'AbortError' });
+  assert.deepEqual(seen, ['prepare', 'render']);
+  const bare = new AbortController(); bare.abort();
+  await assert.rejects(runCanvasLab('mockup', [image()], {}, bare.signal), { name: 'AbortError' }, 'a bare AbortSignal still works');
+  assert.equal((await runCanvasLab('poster', [], {}, null)).filename, 'optimai-poster.png');
+}, { context: pixelContext }));

@@ -1,5 +1,6 @@
 export type VisionOperation = 'person-cutout' | 'pose-reference' | 'face-reference';
-export type VisionProgress = { phase: 'download' | 'verify' | 'ready' | 'prepare' | 'initialize' | 'analyze' | 'render'; message: string; progress?: number };
+/** A canonical progress event (`stage`, see `progress.d.mts`) that keeps the legacy `phase`; downloads carry `loaded`/`total` bytes. */
+export type VisionProgress = { stage: 'download' | 'verify' | 'ready' | 'prepare' | 'warmup' | 'analyze' | 'render'; /** @deprecated Use `stage` (`initialize` is now `warmup`). */ phase: 'download' | 'verify' | 'ready' | 'prepare' | 'initialize' | 'analyze' | 'render'; message: string; progress?: number; loaded?: number; total?: number };
 export type VisionModel = { readonly id: string; readonly name: string; readonly bytes: number; readonly sha256: string; readonly url: string; readonly task: string };
 export type VisionModelStatus = { operation: VisionOperation; model: VisionModel; ready: boolean; storage: string | null };
 export type VisionResult = { blob: Blob; filename: string; width: number; height: number; operation: VisionOperation; model: string; provider: 'mediapipe'; originalSize: { width: number; height: number }; analysis: Record<string, unknown> };

@@ -64,9 +64,10 @@ The `frame/sculpture` workspace extracts up to twelve actual frames from selecte
 
 ```js
 import { extractFrameSamples, createFrameSculptureStage } from '@optimai/creative-agents/frame-sculpture';
+import { describeProgress } from '@optimai/creative-agents/progress';
 const abort = new AbortController();
 const result = await extractFrameSamples(selectedFile, {
-  count: 8, signal: abort.signal, onProgress: (done, total) => showProgress(done / total),
+  count: 8, signal: abort.signal, onProgress: (done, total, event) => showProgress(describeProgress(event)), // "Frame 4 of 8"
 });
 const stage = await createFrameSculptureStage(container, {
   layout: 'fan', spacing: 0.26, spread: 0.8,

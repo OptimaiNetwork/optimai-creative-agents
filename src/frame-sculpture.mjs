@@ -72,6 +72,8 @@ function captureFrame(source, sourceWidth, sourceHeight, time) {
     return { canvas, time };
 }
 /** Decode only the selected local file. Blob URLs and decoder resources are always released. */
+// The positional (complete, total) arguments stay; the third is the canonical progress event.
+const frameEvent = (frame, frames) => Object.freeze({ stage: 'frame', message: 'Sampling frames on this device.', frame, frames, progress: frame / frames });
 export async function extractFrameSamples(file, { count = 8, signal, onProgress = () => {} } = {}) {
     cancelled(signal);
     if (!file || typeof file.size !== 'number' || !Number.isFinite(file.size) || file.size <= 0 || file.size > FRAME_SCULPTURE_LIMITS.bytes) throw new Error('Choose a local video or image up to 64 MB.');
@@ -84,7 +86,7 @@ export async function extractFrameSamples(file, { count = 8, signal, onProgress 
     try {
         if (!videoFile) {
             await eventAfter(source, 'load', () => { source.src = url; }, signal);
-            cancelled(signal); frames.push(captureFrame(source, source.naturalWidth, source.naturalHeight, 0)); onProgress(1, 1);
+            cancelled(signal); frames.push(captureFrame(source, source.naturalWidth, source.naturalHeight, 0)); onProgress(1, 1, frameEvent(1, 1));
             return { frames, duration: 0, name: file.name ?? 'Local image', kind: 'image' };
         }
         source.preload = 'auto'; source.muted = true; source.playsInline = true;
@@ -97,7 +99,7 @@ export async function extractFrameSamples(file, { count = 8, signal, onProgress 
             await eventAfter(source, 'seeked', () => { source.currentTime = time; }, signal);
             cancelled(signal);
             if (source.readyState < 2) await eventAfter(source, 'loadeddata', () => {}, signal);
-            cancelled(signal); frames.push(captureFrame(source, source.videoWidth, source.videoHeight, time)); onProgress(frames.length, times.length);
+            cancelled(signal); frames.push(captureFrame(source, source.videoWidth, source.videoHeight, time)); onProgress(frames.length, times.length, frameEvent(frames.length, times.length));
         }
         return { frames, duration, name: file.name ?? 'Local video', kind: 'video' };
     } catch (error) { releaseFrameSamples(frames); throw error; }

@@ -7,6 +7,7 @@ import { canvasMeasure, fitTitle } from './typeset.mjs';
 import { runRecipeValues } from './run-record.mjs';
 import { GLITCH_EFFECTS, GLITCH_LIMITS, GLITCH_TREATMENTS, glitchPixels, planGlitch } from './glitch.mjs';
 import { PRINT_LOOKS, PRINT_STYLES, printPixels, resolvePrint, RISO_INKS } from './print.mjs';
+import { createProgressReporter } from './progress.mjs';
 import { composeTransition, resolveTransition, TRANSITION_DIRECTIONS, TRANSITION_LIMITS, TRANSITION_PACES, TRANSITION_STYLES, TRANSITION_TECHNIQUES, transitionProgress, transitionTimes } from './transition.mjs';
 
 const LAB_OPERATIONS = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition', 'print']);
@@ -148,8 +149,10 @@ function paintTransition(ctx, shots, width, height, progress, plan, x = 0, y = 0
   ctx.putImageData(image, x, y);
 }
 /** Original browser-only canvas utilities. No network, image generation or video codec. */
-export async function runCanvasLab(operation, files = [], values = {}, signal) {
-  const settings = canvasLabSettings(operation, values); abort(signal);
+export async function runCanvasLab(operation, files = [], values = {}, options) {
+  // The fourth argument is an AbortSignal (as before) or `{ signal, onProgress }`.
+  const { signal, onProgress } = options && typeof options.aborted !== 'boolean' ? options : { signal: options };
+  const settings = canvasLabSettings(operation, values), report = createProgressReporter(onProgress, { signal }); abort(signal);
   const maximum = operation === 'bento' ? 8 : ['blend', 'transition'].includes(operation) ? 2 : 1;
   if (!Array.isArray(files) || files.length > maximum) throw new Error(`Choose up to ${maximum} images.`);
   if (!files.length && !['poster', 'letter'].includes(operation)) throw new Error('Add an image to start.');
@@ -158,6 +161,7 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
   try {
     // Reuse the signature, dimensions, decode and memory validation of the public processor.
     for (const file of files) {
+      report('prepare', { frame: images.length + 1, frames: files.length, message: 'Opening your images on this device.' });
       const resized = await runLocalTool('image-resize', [file], { width: 1024, ratio: 'original' }, signal); abort(signal);
       if (typeof createImageBitmap !== 'function') throw new Error('This browser cannot decode canvas compositions. Use a browser with ImageBitmap support.');
       const image = await abortable(createImageBitmap(resized.blob), signal, late => late.close());
@@ -171,7 +175,7 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
     }
     // Keep each subject in frame; environments without pixel reads stay centred.
     const focus = images.map(image => settings.crop === 'smart' ? analyzeImageFocus(image, image.width, image.height) : null);
-    abort(signal);
+    abort(signal); report('render', { message: 'Drawing the composition.' });
     const [rw, rh] = settings.ratio.split(':').map(Number); const width = 1200, height = Math.round(width * rh / rw);
     canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
     const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('This browser cannot create a canvas.');
@@ -203,7 +207,7 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
         const filmContext = film.getContext('2d');
         if (small && filmContext && readable(filmContext)) {
           filmContext.fillStyle = '#0b100e'; filmContext.fillRect(0, 0, film.width, film.height);
-          times.forEach((time, index) => { abort(signal); paintTransition(filmContext, small, tw, th, transitionProgress(time, plan.ease), plan, gap + index * (tw + gap), gap); });
+          times.forEach((time, index) => { abort(signal); report('frame', { frame: index + 1, frames: times.length, message: 'Drawing the preview strip.' }); paintTransition(filmContext, small, tw, th, transitionProgress(time, plan.ease), plan, gap + index * (tw + gap), gap); });
           const blob = await abortable(new Promise((resolve, reject) => film.toBlob(value => value ? resolve(value) : reject(new Error('Could not export the transition strip.')), 'image/png')), signal);
           strip = { blob, width: film.width, height: film.height, frames: times.map(time => Math.round(time * 100)) };
         }
@@ -256,10 +260,11 @@ export async function runCanvasLab(operation, files = [], values = {}, signal) {
       if ('letterSpacing' in ctx) ctx.letterSpacing = '0px'; ctx.font = '500 20px system-ui'; ctx.fillStyle = '#e1e9da'; ctx.textAlign = 'left'; ctx.fillText('AN OPTIMAI ORIGINAL', width * .08, height * .045);
       ctx.strokeStyle = '#fff7'; ctx.lineWidth = 2; ctx.strokeRect(width * .04, height * .025, width * .92, height * .95);
     }
-    abort(signal);
+    abort(signal); report('export', { message: 'Saving the PNG.' });
     const blob = await abortable(new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not export this canvas.')), 'image/png')), signal);
     abort(signal);
     if (blob.size > 20 * 1024 * 1024) throw new Error('The exported image is too large. Use a smaller composition.');
+    report('ready');
     return { blob, width, height, filename: `optimai-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}), ...(transition ? { transition, strip: strip ?? null } : {}), ...(glitch ? { glitch } : {}), ...(print ? { print } : {}) };
   } finally { images.forEach(image => image.close()); for (const value of [source, thumb, film, canvas]) if (value) value.width = value.height = 1; }
 }

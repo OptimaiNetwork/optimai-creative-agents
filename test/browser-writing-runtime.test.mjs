@@ -85,6 +85,10 @@ test('an explicit download reports progress and is reused for finished writing o
   await fake.runtime.load();
   assert.equal(fake.creations, 1);
   assert.deepEqual(progress, ['download', 'download', 'ready']);
+  const events = [], again = fakeRuntime();
+  await again.runtime.load({ onProgress: event => events.push(event) });
+  assert.deepEqual(events.filter(event => event.stage === 'download').map(event => [event.total, event.progress]), [[BROWSER_AGENT_MODEL.downloadBytes, 0], [BROWSER_AGENT_MODEL.downloadBytes, .5]], 'download events carry the reviewed size');
+  assert.equal(events.at(-1).total, undefined);
   const result = await fake.runtime.run(input());
   assert.equal(result.provider, 'webllm');
   assert.equal(result.model, BROWSER_AGENT_MODEL.id);

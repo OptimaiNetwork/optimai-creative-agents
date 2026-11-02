@@ -326,6 +326,7 @@ The normalizer merges source defaults, maps legacy poster `format` to `ratio`, l
 ```js
 import { getModelSetupPolicy } from './src/model-setup.mjs';
 import { VISION_MODELS, loadVisionModelBuffer } from './src/vision-runtime.mjs';
+import { describeProgress } from './src/progress.mjs';
 
 const policy = getModelSetupPolicy(VISION_MODELS['face-reference'], {
   browser: true, webGPU: Boolean(navigator.gpu),
@@ -336,7 +337,7 @@ const policy = getModelSetupPolicy(VISION_MODELS['face-reference'], {
 // Always show policy.reason, model size, progress and a Stop control in the host.
 if (policy.mode === 'automatic') {
   const bytes = await loadVisionModelBuffer('face-reference', {
-    signal: controller.signal, onProgress: progress => showProgress(progress.message)
+    signal: controller.signal, onProgress: progress => showProgress(describeProgress(progress)) // "Downloading 1.2 MB of 3.8 MB · 32%"
   });
   // Pass these owned verified bytes to the reviewed local tracking worker.
 }
@@ -438,6 +439,8 @@ console.log(result.blob, result.analysis);
 ```
 
 Person Cutout uses Selfie Segmenter (249,537 bytes) for people in portrait photos. Motion Pose uses Pose Landmarker Lite (5,777,746 bytes) for one person's 33 body landmarks. Face Performance uses Face Landmarker (3,758,596 bytes) for one visible face's 478 landmarks and raw blendshape coefficients. It does not identify people, infer personality or emotions, or swap faces. Model URLs are fixed official Google storage version-1 assets and checked against exact byte lengths and SHA-256 hashes. `getVisionModelStatus()` reads local cache only; `runBrowserVision()` never implicitly downloads a model. `loadVisionModelBuffer()` returns owned verified bytes and can prepare a missing model when `downloadIfMissing: true`; use `false` for cache-only access.
+
+Vision progress events use the shared [progress shape](./host-integration.md#show-staged-progress-with-one-event-shape): `stage` is download, verify, ready, prepare, warmup, analyze or render, downloads carry `loaded`/`total` bytes, and the older `phase` field is kept (`initialize` there is `warmup`).
 
 Vision requires HTTPS or localhost, Web Crypto, Web Workers, ImageBitmap, OffscreenCanvas and WASM SIMD support. It uses a CPU worker and does not require WebGPU. Check the target browser before enabling the workspace.
 

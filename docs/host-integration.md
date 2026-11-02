@@ -103,6 +103,7 @@ A broader host can add these reviewed runtime adapters:
 | Music visuals | `music-reactive`, `beat-tracker` | Measured spectrum looks with an optional flash-limited beat pulse; the host owns the audio graph, playback and recording |
 | Run records | `run-record` → `createRunRecord`, `digestInputs`, `parseRunRecord`, `createRunHistory`, `runRecipeValues`; `canvas-lab` → `canvasLabRecipeValues` | A stable hash per result over template, settings, seed, SDK version and an input digest; tamper-checked JSON; a de-duplicated run list; settings back to recipe values for Remix; Node and browser |
 | Settings forms | `form-schema` → `getAgentFormSchema`, `listFormFields`, `getAgentFieldRoles`, `plainFormSchema` | JSON Schema 2020-12 per template with control, step, group and role hints; one source for builders, docs, MCP and host gates; Node and browser |
+| Progress | `progress` → `normalizeProgress`, `describeProgress`, `progressSteps`, `createProgressReporter`, `ENGINE_PROGRESS_STAGES` | One `{ stage, message, loaded, total, frame, frames, progress }` event from vision, writing, frame sampling and canvas runs, staged words for it and a stepper; Node and browser |
 | Model preparation | `model-setup` → `getModelSetupPolicy`, `createModelSetupController`, `describeModelSetup`, `formatBytes` | Automatic/manual/unsupported decision, one abortable setup state machine with byte progress, and readable sizes; host supplies the reviewed load and check calls |
 | Local Ollama writing | `agent-runtime` → `runCreativeAgent` | Validated written artifact; explicitly selected eligible installed model and loopback service |
 | Guided production | `compileAgentPrompt` and a host handoff | Prepared direction; the destination host runs Image, Video, Story, Character or Editor production |
@@ -159,6 +160,28 @@ Portable JSON recipes customize existing templates. Adding an example recipe to 
 Show model size, device requirements, progress and browser storage behavior as preparation starts. In manual mode, offer Download; in unsupported mode, offer basic filters, procedural demos, canvas tools or guided direction. Camera permission is a separate explicit action. Stop/cancel a download when the workspace closes and keep retry deliberate. Allow users to browse other tools while preparation runs. Run writing jobs sequentially, expose progress and cancellation, and display model failures without substituting canned creative output. Vision work should report a missing subject when detection fails.
 
 Connect cancellation and cleanup to every asynchronous operation. Release workers, decoded images, canvases, GPU sessions and temporary URLs after completion, failure or cancellation. The [runtime guide](./runtimes.md) explains each engine's ownership and disposal API.
+
+## Show staged progress with one event shape
+
+Vision, writing, frame sampling and canvas runs all report the same event: `{ stage, message, loaded?, total?, frame?, frames?, attempt?, progress? }`. Bytes are `loaded`/`total`, counted work is `frame`/`frames`, and `progress` (0–1) is derived when an engine does not give one. Render it once for every workspace:
+
+```js
+import { describeProgress, progressSteps } from '@optimai/creative-agents/progress';
+import { runCanvasLab } from '@optimai/creative-agents/canvas-lab';
+
+const controller = new AbortController();
+const show = event => {
+  status.textContent = describeProgress(event);        // "Downloading 3.1 MB of 5.8 MB · 53%", "Warming up", "Frame 4 of 8"
+  stepper.render(progressSteps('canvas', event));      // [{ stage, label, state: 'done' | 'current' | 'pending' }]
+  bar.value = event.progress ?? 0;
+};
+stop.onclick = () => controller.abort();
+const result = await runCanvasLab('transition', files, values, { signal: controller.signal, onProgress: show });
+```
+
+Stages come from one list (`PROGRESS_STAGES`: check, download, verify, warmup, prepare, plan, generate, validate, repair, analyze, render, frame, export, ready), and `ENGINE_PROGRESS_STAGES` gives each engine's order for a stepper. `runCanvasLab` takes `{ signal, onProgress }` as its fourth argument (a bare `AbortSignal` still works) and reports prepare → render → frame (the transition strip) → export → ready. Vision events keep their old `phase` next to `stage` (the worker's `initialize` is now `warmup`) and downloads carry bytes; writing download events carry the reviewed model size as `total`; `extractFrameSamples` keeps its `(complete, total)` arguments and adds the event as a third. `normalizeProgress` reads older shapes, so a host can pass any of them through the same renderer.
+
+Build your own engine's progress with `createProgressReporter(onProgress, { signal })`: it sends canonical, frozen events, stops reporting once the signal aborts (a cancelled run never repaints a stale status), and ignores a listener that throws. Cancellation itself stays with the engine's `signal`; check it between steps.
 
 ## Render settings from the form schema
 
