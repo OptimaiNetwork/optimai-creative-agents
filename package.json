@@ -135,6 +135,10 @@
       "types": "./src/progress.d.mts",
       "import": "./src/progress.mjs"
     },
+    "./capabilities": {
+      "types": "./src/capabilities.d.mts",
+      "import": "./src/capabilities.mjs"
+    },
     "./run-record": {
       "types": "./src/run-record.d.mts",
       "import": "./src/run-record.mjs"

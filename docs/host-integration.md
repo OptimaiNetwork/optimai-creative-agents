@@ -55,7 +55,7 @@ const { minFiles, maxFiles, accept, maxBytes, needs, optional, onDevice } = getA
 //   needs: ['canvas'], optional: [], onDevice: true }
 ```
 
-Use `accept` for the file input, `maxFiles > 1` for `multiple`, and `minFiles` for empty-state copy. `needs` lists browser features from `AGENT_INPUT_NEEDS` that the agent cannot run without (`webgl` for 3D and Frame Sculpture, `web-audio` for Sound Canvas, `worker` and `wasm` for vision). `optional` lists features that only enhance it: a camera, face tracking or `media-recorder` export for camera agents, and `webgpu` for writing, which can also use a local Ollama runtime. `onDevice` is `false` only for guided and sketch templates, whose result comes from a host production step. The engines stay the authority: they re-check counts, types and bytes on every run, so a policy is for interface decisions, not validation.
+Use `accept` for the file input, `maxFiles > 1` for `multiple`, and `minFiles` for empty-state copy. `needs` lists browser features from `AGENT_INPUT_NEEDS` that the agent cannot run without (`webgl` for 3D and Frame Sculpture, `web-audio` for Sound Canvas, `worker`, `wasm` and `offscreen-canvas` for vision). `optional` lists features that only enhance it: a camera, face tracking or `media-recorder` export for camera agents, and `webgpu` for writing, which can also use a local Ollama runtime. `onDevice` is `false` only for guided and sketch templates, whose result comes from a host production step. The engines stay the authority: they re-check counts, types and bytes on every run, so a policy is for interface decisions, not validation.
 
 Keep a host-owned allowlist of supported workspace versions and operations. The catalog can describe an operation, but it cannot install an adapter in a running application. A new template that reuses a supported operation can appear and open its workspace after a reviewed SDK upgrade; a new operation or custom interface needs integration and testing first.
 
@@ -103,6 +103,7 @@ A broader host can add these reviewed runtime adapters:
 | Music visuals | `music-reactive`, `beat-tracker` | Measured spectrum looks with an optional flash-limited beat pulse; the host owns the audio graph, playback and recording |
 | Run records | `run-record` → `createRunRecord`, `digestInputs`, `parseRunRecord`, `createRunHistory`, `runRecipeValues`; `canvas-lab` → `canvasLabRecipeValues` | A stable hash per result over template, settings, seed, SDK version and an input digest; tamper-checked JSON; a de-duplicated run list; settings back to recipe values for Remix; Node and browser |
 | Settings forms | `form-schema` → `getAgentFormSchema`, `listFormFields`, `getAgentFieldRoles`, `plainFormSchema` | JSON Schema 2020-12 per template with control, step, group and role hints; one source for builders, docs, MCP and host gates; Node and browser |
+| Capability probe | `capabilities` → `probeCreativeCapabilities`, `detectCreativeCapabilities`, `assessAgentCapabilities`, `modelSetupEnvironment` | What this browser and device can run (WebGPU adapter, WebGL, WebCodecs, OffscreenCanvas, `ctx.filter`, camera, memory, Save-Data) and the card words for each template, without asking for any permission; browser, testable in Node |
 | Progress | `progress` → `normalizeProgress`, `describeProgress`, `progressSteps`, `createProgressReporter`, `ENGINE_PROGRESS_STAGES` | One `{ stage, message, loaded, total, frame, frames, progress }` event from vision, writing, frame sampling and canvas runs, staged words for it and a stepper; Node and browser |
 | Model preparation | `model-setup` → `getModelSetupPolicy`, `createModelSetupController`, `describeModelSetup`, `formatBytes` | Automatic/manual/unsupported decision, one abortable setup state machine with byte progress, and readable sizes; host supplies the reviewed load and check calls |
 | Local Ollama writing | `agent-runtime` → `runCreativeAgent` | Validated written artifact; explicitly selected eligible installed model and loopback service |
@@ -182,6 +183,23 @@ const result = await runCanvasLab('transition', files, values, { signal: control
 Stages come from one list (`PROGRESS_STAGES`: check, download, verify, warmup, prepare, plan, generate, validate, repair, analyze, render, frame, export, ready), and `ENGINE_PROGRESS_STAGES` gives each engine's order for a stepper. `runCanvasLab` takes `{ signal, onProgress }` as its fourth argument (a bare `AbortSignal` still works) and reports prepare → render → frame (the transition strip) → export → ready. Vision events keep their old `phase` next to `stage` (the worker's `initialize` is now `warmup`) and downloads carry bytes; writing download events carry the reviewed model size as `total`; `extractFrameSamples` keeps its `(complete, total)` arguments and adds the event as a third. `normalizeProgress` reads older shapes, so a host can pass any of them through the same renderer.
 
 Build your own engine's progress with `createProgressReporter(onProgress, { signal })`: it sends canonical, frozen events, stops reporting once the signal aborts (a cancelled run never repaints a stale status), and ignores a listener that throws. Cancellation itself stays with the engine's `signal`; check it between steps.
+
+## Warn before a click with the capability probe
+
+Probe once per page, then let each gallery card say what will happen before anyone opens it:
+
+```js
+import { assessAgentCapabilities, probeCreativeCapabilities } from '@optimai/creative-agents/capabilities';
+
+const report = await probeCreativeCapabilities({ timeoutMs: 1500 });
+const { status, message } = assessAgentCapabilities('model-turntable', report);
+// status: 'ready' | 'limited' | 'slow' | 'unsupported'
+// message: '' | 'No camera found here. Try it with a photo.' | 'Runs slower on this device.' | 'Needs WebGL, which this browser doesn’t offer.'
+```
+
+`detectCreativeCapabilities()` is the synchronous half: feature presence for every `AGENT_INPUT_NEEDS` entry plus `canvas-filter` and `webcodecs`, and device hints (`memoryGB`, `cores`, `saveData`, `effectiveType`, `reducedMotion`, `coarsePointer`). `probeCreativeCapabilities` adds the two answers that need a promise: whether a WebGPU adapter exists (a software adapter sets `gpu.fallback`) and whether any camera is attached. It never calls `getUserMedia` or asks for a permission, releases its WebGL test context at once, and keeps the synchronous answer for a step that times out or is aborted.
+
+`assessAgentCapabilities(id, report)` reads the template's input policy: a missing hard need is `unsupported`; a small device (under 4 GB or two cores), a software GPU or Data Saver before a model download is `slow` for vision, 3D, camera, frame and browser writing; a missing optional feature (camera, recording, face tracking, WebGPU for writing) is `limited` with a line that says what still works. With no report every template reads `ready`, so server rendering shows no warnings. Pass the same report to `getModelSetupPolicy(model, modelSetupEnvironment(report))` to keep one source of device facts. The engines still check on every run; a report is for interface decisions.
 
 ## Render settings from the form schema
 

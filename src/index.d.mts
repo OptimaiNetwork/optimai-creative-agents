@@ -69,7 +69,7 @@ export declare const getAgentTemplate: typeof getToolTemplate;
 export declare const getAgentExecutionKind: (id: string) => AgentExecutionKind | undefined;
 export declare function getAgentWorkspace(id: string): AgentWorkspace | undefined;
 export declare function validateAgentWorkspace(workspace: unknown): string[];
-export type AgentInputNeed = 'canvas' | 'webgl' | 'webgpu' | 'web-audio' | 'worker' | 'wasm' | 'camera' | 'pointer' | 'media-recorder';
+export type AgentInputNeed = 'canvas' | 'webgl' | 'webgpu' | 'web-audio' | 'worker' | 'wasm' | 'camera' | 'pointer' | 'media-recorder' | 'offscreen-canvas';
 export interface AgentInputPolicy {
   readonly minFiles: number;
   readonly maxFiles: number;

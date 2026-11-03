@@ -36,14 +36,14 @@ const WORKSPACE_OPERATIONS = Object.freeze({
 });
 const MiB = 1048576, IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp';
 /** Browser features named by input policies. `needs` blocks the agent; `optional` only enhances it. */
-export const AGENT_INPUT_NEEDS = Object.freeze(['canvas', 'webgl', 'webgpu', 'web-audio', 'worker', 'wasm', 'camera', 'pointer', 'media-recorder']);
+export const AGENT_INPUT_NEEDS = Object.freeze(['canvas', 'webgl', 'webgpu', 'web-audio', 'worker', 'wasm', 'camera', 'pointer', 'media-recorder', 'offscreen-canvas']);
 const policy = (minFiles, maxFiles, accept, maxBytes, needs, optional = [], onDevice = true) => freeze({ minFiles, maxFiles, accept, maxBytes, needs, optional, onDevice });
 const camera = policy(0, 1, IMAGE_ACCEPT, 20 * MiB, ['canvas'], ['camera', 'worker', 'wasm', 'media-recorder']);
 // Mirrors the bounds each engine enforces; the engines stay the authority and re-check every input.
 const INPUT_POLICIES = Object.freeze({
   canvas: (operation) => policy(['poster', 'letter'].includes(operation) ? 0 : ['blend', 'transition'].includes(operation) ? 2 : 1,
     ['image-grid', 'bento'].includes(operation) ? 8 : ['blend', 'transition'].includes(operation) ? 2 : 1, IMAGE_ACCEPT, 20 * MiB, ['canvas']),
-  vision: () => policy(1, 1, IMAGE_ACCEPT, 20 * MiB, ['canvas', 'worker', 'wasm']),
+  vision: () => policy(1, 1, IMAGE_ACCEPT, 20 * MiB, ['canvas', 'worker', 'wasm', 'offscreen-canvas']),
   writing: () => policy(0, 0, '', 0, [], ['webgpu', 'worker']),
   sketch: () => policy(0, 0, '', 0, ['canvas', 'pointer'], [], false),
   workflow: () => policy(0, 1, IMAGE_ACCEPT, 20 * MiB, [], [], false),
