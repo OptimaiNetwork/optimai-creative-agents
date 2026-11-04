@@ -1,3 +1,4 @@
+import type { MotionPreferenceLike } from './accessibility.mjs';
 import type { Object3D } from 'three';
 import type { Agent3DCamera, Agent3DDemo, Agent3DSettings } from './scene-3d.mjs';
 export type Scene3DRuntime = {
@@ -19,7 +20,7 @@ export type Agent3DController = {
 };
 export type Scene3DController = Agent3DController;
 export function loadScene3DRuntime(): Promise<Scene3DRuntime>;
-export function createScene3DStage(container: HTMLElement, initial: Agent3DSettings, options?: { runtime?: Scene3DRuntime; onError?: (message: string) => void; signal?: AbortSignal }): Promise<Scene3DController>;
+export function createScene3DStage(container: HTMLElement, initial: Agent3DSettings, options?: { runtime?: Scene3DRuntime; onError?: (message: string) => void; signal?: AbortSignal; /** Reduced-motion source; defaults to the device query. */ motion?: MotionPreferenceLike }): Promise<Scene3DController>;
 /** Synchronous host adapter for already bundled/reviewed Three modules. */
-export function createScene3DStageWithRuntime(container: HTMLElement, initial: Agent3DSettings, onError: ((message: string) => void) | undefined, runtime: Scene3DRuntime): Scene3DController;
+export function createScene3DStageWithRuntime(container: HTMLElement, initial: Agent3DSettings, onError: ((message: string) => void) | undefined, runtime: Scene3DRuntime, options?: { motion?: MotionPreferenceLike }): Scene3DController;
 export function disposeAgent3DObjects(objects: Object3D[]): void;

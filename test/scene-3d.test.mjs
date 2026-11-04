@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as input from '../src/scene-3d.mjs';
 import * as publicRuntime from '../src/scene-3d-runtime.mjs';
+import { createMotionPreference } from '../src/accessibility.mjs';
 let THREE; test.before(async () => { try { THREE = await import('three'); } catch { /* Optional peer is not needed by core validation tests. */ } });
 function glb(document, binary = new Uint8Array(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]).buffer)) {
   const json = new TextEncoder().encode(JSON.stringify(document)), jsonSize = Math.ceil(json.length / 4) * 4, binSize = Math.ceil(binary.length / 4) * 4;
@@ -112,6 +113,17 @@ test('3D runtime responds to camera/material controls and gates turntable work b
     h.observers[1].fn([{ isIntersecting: false }]); assert.equal(h.frames.size, 0); h.observers[1].fn([{ isIntersecting: true }]); assert.equal(h.frames.size, 1);
     const png = await controller.png(); assert.equal(png.type, 'image/png'); controller.dispose(); assert.equal(h.frames.size, 0); assert.equal(h.documentListeners.size, 0); assert.equal(h.motionListeners.size, 0); assert.ok(h.observers.every(value => value.disconnected)); assert.ok(renderer.disposed && renderer.removed && renderer.lost); controller.dispose();
     await assert.rejects(controller.png(), /unavailable/);
+  } finally { h.restore(); }
+});
+test('an in-app motion preference overrides the device for the turntable and releases its listener', async context => {
+  if (!THREE) { context.skip('Install optional three@0.186.1 to run renderer regressions.'); return; }
+  const h = runtimeHarness();
+  try {
+    h.query.matches = true; const motion = createMotionPreference({ scope: global.window, preference: 'full' });
+    const controller = publicRuntime.createScene3DStageWithRuntime(h.container, { ...input.defaultAgent3DSettings('model-turntable'), rotating: true }, () => {}, h.engine, { motion });
+    assert.equal(h.frames.size, 1, 'full motion turns even though the device asks to reduce');
+    motion.set('reduce'); assert.equal(h.frames.size, 0); motion.set('system'); assert.equal(h.frames.size, 0); motion.set('full'); assert.equal(h.frames.size, 1);
+    controller.dispose(); assert.equal(h.frames.size, 0); motion.set('reduce'); motion.dispose();
   } finally { h.restore(); }
 });
 test('GLB import validates before parsing, blocks loader requests, and disposes late results after demo change/close', async context => {

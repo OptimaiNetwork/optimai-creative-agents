@@ -1,3 +1,4 @@
+import type { MotionPreferenceLike } from './accessibility.mjs';
 import type { ProgressEvent } from './progress.mjs';
 export type FrameSculptureSettings = { layout: 'stack' | 'fan' | 'ribbon'; spacing: number; spread: number; tilt: number; opacity: number; rotating: boolean; background: string };
 export type FrameSample = { canvas: HTMLCanvasElement; time: number };
@@ -14,5 +15,5 @@ export function releaseFrameSamples(frames: FrameSample[]): void;
 export function validateFrameSamples(next: FrameSample[], owned?: FrameSample[]): void;
 export function extractFrameSamples(file: File, options?: { count?: number; signal?: AbortSignal; onProgress?: (complete: number, total: number, event: ProgressEvent) => void }): Promise<FrameSamplesResult>;
 export function createFrameSculptureDemo(): FrameSample[];
-export function createFrameSculptureStage(container: HTMLElement, settings?: Partial<FrameSculptureSettings>, options?: { runtime?: FrameSculptureRuntime; onError?: (message: string) => void; signal?: AbortSignal }): Promise<FrameSculptureController>;
-export function createFrameSculptureStageWithRuntime(container: HTMLElement, settings: Partial<FrameSculptureSettings>, onError: ((message: string) => void) | undefined, runtime: FrameSculptureRuntime): FrameSculptureController;
+export function createFrameSculptureStage(container: HTMLElement, settings?: Partial<FrameSculptureSettings>, options?: { runtime?: FrameSculptureRuntime; onError?: (message: string) => void; signal?: AbortSignal; /** Reduced-motion source; defaults to the device query. */ motion?: MotionPreferenceLike }): Promise<FrameSculptureController>;
+export function createFrameSculptureStageWithRuntime(container: HTMLElement, settings: Partial<FrameSculptureSettings>, onError: ((message: string) => void) | undefined, runtime: FrameSculptureRuntime, options?: { motion?: MotionPreferenceLike }): FrameSculptureController;

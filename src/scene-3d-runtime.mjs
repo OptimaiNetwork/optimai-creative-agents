@@ -11,12 +11,12 @@ export async function loadScene3DRuntime() {
     } catch (cause) { throw new Error('Install the optional three@0.186.1 peer, or provide a reviewed Three.js runtime.', { cause }); }
 }
 /** Create a browser stage with the optional peer or host-supplied runtime. No provider calls. */
-export async function createScene3DStage(container, initial, { runtime, onError = () => {}, signal } = {}) {
+export async function createScene3DStage(container, initial, { runtime, onError = () => {}, signal, motion } = {}) {
     initial = validateScene3DSettings(initial);
     if (signal?.aborted) throw new DOMException('3D stage creation was cancelled.', 'AbortError');
     const resolved = runtime ?? await loadScene3DRuntime();
     if (signal?.aborted) throw new DOMException('3D stage creation was cancelled.', 'AbortError');
-    const controller = createScene3DStageWithRuntime(container, initial, onError, resolved);
+    const controller = createScene3DStageWithRuntime(container, initial, onError, resolved, { motion });
     if (signal) {
         const dispose = controller.dispose;
         const abort = () => controller.dispose();
@@ -91,7 +91,7 @@ function proceduralDemo(kind, THREE) {
     }
     return group;
 }
-export function createScene3DStageWithRuntime(container, initial, onError = () => {}, runtime) {
+export function createScene3DStageWithRuntime(container, initial, onError = () => {}, runtime, { motion: motionPreference } = {}) {
     initial = validateScene3DSettings(initial);
     if (!container || typeof container.appendChild !== 'function' || !Number.isFinite(container.clientWidth) || !Number.isFinite(container.clientHeight)) throw new Error('Provide a mounted HTML container for the 3D scene.');
     const { THREE, OrbitControls, GLTFLoader, RoomEnvironment } = runtime ?? {};
@@ -151,7 +151,8 @@ export function createScene3DStageWithRuntime(container, initial, onError = () =
         let settings = { ...initial }, disposed = false, importEpoch = 0, frame = 0, lastTime = 0, visible = !document.hidden, intersecting = true, lost = false, animating = false;
         let cameraPreset = 'isometric';
         const originalMaterials = new Map(), overrideMaterials = new Set();
-        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+        // A shared preference (accessibility `createMotionPreference`) lets an in-app toggle override the device.
+        const reduced = motionPreference ?? window.matchMedia('(prefers-reduced-motion: reduce)');
         const render = () => { if (!disposed && !lost && visible && intersecting)
             renderer.render(scene, camera); };
         function cancelFrame() { if (frame)

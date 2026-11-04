@@ -104,6 +104,8 @@ A broader host can add these reviewed runtime adapters:
 | Run records | `run-record` → `createRunRecord`, `digestInputs`, `parseRunRecord`, `createRunHistory`, `runRecipeValues`; `canvas-lab` → `canvasLabRecipeValues` | A stable hash per result over template, settings, seed, SDK version and an input digest; tamper-checked JSON; a de-duplicated run list; settings back to recipe values for Remix; Node and browser |
 | Settings forms | `form-schema` → `getAgentFormSchema`, `listFormFields`, `getAgentFieldRoles`, `plainFormSchema` | JSON Schema 2020-12 per template with control, step, group and role hints; one source for builders, docs, MCP and host gates; Node and browser |
 | Capability probe | `capabilities` → `probeCreativeCapabilities`, `detectCreativeCapabilities`, `assessAgentCapabilities`, `modelSetupEnvironment` | What this browser and device can run (WebGPU adapter, WebGL, WebCodecs, OffscreenCanvas, `ctx.filter`, camera, memory, Save-Data) and the card words for each template, without asking for any permission; browser, testable in Node |
+| Accessible motion and alt text | `accessibility` → `createMotionPreference`, `reducedMotionSettings`, `getAgentMotion`, `measureFlashes`, `frameLuminance`, `createFlashLimiter`, `describeAgentOutput`, `colorName` | One reduced-motion source with an in-app override for the 3D and frame sculpture stages, each agent's reduced variant, the WCAG 2.3.1 flash limiter and a flash meter for rendered frames, and alt text for any export written from its settings; Node and browser |
+| Card previews | `card-preview` → `renderAgentPreview`, `createPreviewPlayer`, `getAgentPreview` | A small deterministic looping animation per agent for gallery cards (shapes only, no text or images, nothing flashes); hover-to-play with a poster frame for reduced motion; Node, workers and the browser |
 | Progress | `progress` → `normalizeProgress`, `describeProgress`, `progressSteps`, `createProgressReporter`, `ENGINE_PROGRESS_STAGES` | One `{ stage, message, loaded, total, frame, frames, progress }` event from vision, writing, frame sampling and canvas runs, staged words for it and a stepper; Node and browser |
 | Model preparation | `model-setup` → `getModelSetupPolicy`, `createModelSetupController`, `describeModelSetup`, `formatBytes` | Automatic/manual/unsupported decision, one abortable setup state machine with byte progress, and readable sizes; host supplies the reviewed load and check calls |
 | Local Ollama writing | `agent-runtime` → `runCreativeAgent` | Validated written artifact; explicitly selected eligible installed model and loopback service |
@@ -200,6 +202,49 @@ const { status, message } = assessAgentCapabilities('model-turntable', report);
 `detectCreativeCapabilities()` is the synchronous half: feature presence for every `AGENT_INPUT_NEEDS` entry plus `canvas-filter` and `webcodecs`, and device hints (`memoryGB`, `cores`, `saveData`, `effectiveType`, `reducedMotion`, `coarsePointer`). `probeCreativeCapabilities` adds the two answers that need a promise: whether a WebGPU adapter exists (a software adapter sets `gpu.fallback`) and whether any camera is attached. It never calls `getUserMedia` or asks for a permission, releases its WebGL test context at once, and keeps the synchronous answer for a step that times out or is aborted.
 
 `assessAgentCapabilities(id, report)` reads the template's input policy: a missing hard need is `unsupported`; a small device (under 4 GB or two cores), a software GPU or Data Saver before a model download is `slow` for vision, 3D, camera, frame and browser writing; a missing optional feature (camera, recording, face tracking, WebGPU for writing) is `limited` with a line that says what still works. With no report every template reads `ready`, so server rendering shows no warnings. Pass the same report to `getModelSetupPolicy(model, modelSetupEnvironment(report))` to keep one source of device facts. The engines still check on every run; a report is for interface decisions.
+
+## Respect reduced motion and describe every export
+
+Every agent that moves on its own has a calm variant, and every export can carry alt text written from the settings that made it:
+
+```js
+import { createMotionPreference, describeAgentOutput, getAgentMotion, measureFlashes, frameLuminance, reducedMotionSettings } from '@optimai/creative-agents/accessibility';
+
+const motion = createMotionPreference();            // follows the device…
+motion.set('reduce');                                // …or an in-app toggle: 'system' | 'reduce' | 'full'
+const stage = await createScene3DStage(container, settings, { motion }); // also createFrameSculptureStage
+getAgentMotion('model-turntable').note;              // 'Turntable rotation pauses for reduced motion; you can still orbit by hand.'
+if (motion.matches) settings = reducedMotionSettings('model-turntable', settings); // rotating: false
+
+img.alt = describeAgentOutput('print-shop', values, { width: 1080, height: 1350 });
+// 'Print Shop image, 1080 × 1350: print look halftone dots, riso inks pink + blue, ink color dark blue, …'
+```
+
+`createMotionPreference` is a `MediaQueryList` look-alike (`matches`, `change` events) over `(prefers-reduced-motion: reduce)`, so a stage that already listened to the device query accepts it unchanged; without a `motion` option the stages keep reading the device. `reducedMotionSettings(id, settings)` returns the reduced variant without adding keys a strict validator rejects: turntables and frame sculptures stop rotating, Sound Canvas gets `reducedMotion: true` (its calm cover, no beat pulse), and camera stages hold their animated effects. Still agents come back unchanged.
+
+`createFlashLimiter` is the same WCAG 2.3.1 limiter the beat tracker uses (at most three evenly spaced flashes a second; the cap cannot be raised). To check rendered output, take `frameLuminance(imageData.data)` per frame and pass the series to `measureFlashes(series, { fps })`: it counts pairs of opposing changes of at least 0.1 relative luminance where the darker state is below 0.8, and reports the worst one-second window and `safe`. It measures frame averages, so it misses small-area and saturated-red flashes; treat it as a floor, not a certificate.
+
+`describeAgentOutput(id, values, details)` writes at most 300 characters from the settings the engine actually read (`form-schema` roles), names colours in plain words (`colorName('#102031')` → `dark blue`), quotes titles, leaves seeds out and keeps the template title first. Pass what only the host knows in `details`: `width`, `height`, the drawn title `lines`, `media: 'video'`, `frames`, the 3D `subject` and `camera`, and `reducedMotion`.
+
+## Play a live preview on gallery cards
+
+Every agent has a small animated preview built from the catalog, so a gallery card can show what the agent does before anyone opens it:
+
+```js
+import { createPreviewPlayer, renderAgentPreview } from '@optimai/creative-agents/card-preview';
+
+const player = createPreviewPlayer(canvas, 'transition-lab', { motion }); // draws the poster frame now
+card.addEventListener('pointerenter', () => player.play());              // false, and still the poster, under reduced motion
+card.addEventListener('pointerleave', () => player.pause());             // back to the poster
+card.addEventListener('focusin', () => player.play());
+card.addEventListener('focusout', () => player.pause());
+
+renderAgentPreview('poster-lab', offscreenCtx, 1200, { width: 240, height: 135 }); // one frame, anywhere
+```
+
+`renderAgentPreview(agent, ctx, t, { width, height, reducedMotion })` draws in a 480×270 space scaled to your size. A frame depends only on the agent and `t`: the loop repeats every `PREVIEW_LOOP_MS` (4.8 s), `t = 0` is a composed poster frame, and `reducedMotion` always draws it. Previews use shapes and gradients only, with no text, fonts or images, so they look the same in every browser, worker and test. Every shape keeps its colour for the whole loop and only geometry moves (a few layers fade in slowly), so nothing flashes.
+
+`getAgentPreview(agent)` names the motif (`grade` wipes a finished look across a picture, `iris` opens a transition, `bars` is Sound Canvas, `strip` is a guided workflow's filmstrip…) and an OKLab palette from the catalog accent; music, frame, 3D and camera agents get a dark stage. Pass a template-like object (`{ id, accent, workspace: { kind, operation } }`) to preview a community agent from its manifest; unknown IDs get the filmstrip. `createPreviewPlayer` sizes the canvas to its CSS box at up to 2× density, caps playback at 30 frames a second, and stops at once when a `motion` preference (a boolean, `createMotionPreference()` or a `MediaQueryList`) turns on reduced motion.
 
 ## Render settings from the form schema
 

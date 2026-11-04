@@ -139,6 +139,14 @@
       "types": "./src/capabilities.d.mts",
       "import": "./src/capabilities.mjs"
     },
+    "./accessibility": {
+      "types": "./src/accessibility.d.mts",
+      "import": "./src/accessibility.mjs"
+    },
+    "./card-preview": {
+      "types": "./src/card-preview.d.mts",
+      "import": "./src/card-preview.mjs"
+    },
     "./run-record": {
       "types": "./src/run-record.d.mts",
       "import": "./src/run-record.mjs"

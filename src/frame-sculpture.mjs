@@ -129,11 +129,11 @@ export function createFrameSculptureDemo() {
         return frames;
     } catch (error) { releaseFrameSamples(frames); throw error; }
 }
-export async function createFrameSculptureStage(container, initial = defaultFrameSculptureSettings, { runtime, onError = () => {}, signal } = {}) {
+export async function createFrameSculptureStage(container, initial = defaultFrameSculptureSettings, { runtime, onError = () => {}, signal, motion } = {}) {
     cancelled(signal);
     const resolved = runtime ?? await Promise.all([import('three'), import('three/addons/controls/OrbitControls.js')]).then(([THREE, controls]) => ({ THREE, OrbitControls: controls.OrbitControls }));
     cancelled(signal);
-    const controller = createFrameSculptureStageWithRuntime(container, initial, onError, resolved);
+    const controller = createFrameSculptureStageWithRuntime(container, initial, onError, resolved, { motion });
     if (signal) {
         const dispose = controller.dispose, abort = () => controller.dispose(); signal.addEventListener('abort', abort, { once: true });
         controller.dispose = () => { signal.removeEventListener('abort', abort); dispose(); };
@@ -142,7 +142,7 @@ export async function createFrameSculptureStage(container, initial = defaultFram
     return controller;
 }
 /** Host adapter: the host supplies its bundled/reviewed optional Three dependency. */
-export function createFrameSculptureStageWithRuntime(container, initial, onError = () => {}, { THREE, OrbitControls } = {}) {
+export function createFrameSculptureStageWithRuntime(container, initial, onError = () => {}, { THREE, OrbitControls } = {}, { motion: motionPreference } = {}) {
     let settings = validateFrameSculptureSettings(initial);
     if (!container?.appendChild || !THREE?.WebGLRenderer || !OrbitControls) throw new Error('Provide a mounted container and a reviewed Three.js runtime.');
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'default' });
@@ -164,7 +164,7 @@ export function createFrameSculptureStageWithRuntime(container, initial, onError
         scene.background = new THREE.Color(settings.background); root = new THREE.Group(); scene.add(root);
         grid = new THREE.GridHelper(20, 40, '#677485', '#293f53'); grid.position.y = -2.3; scene.add(grid); resources.add(grid.geometry); (Array.isArray(grid.material) ? grid.material : [grid.material]).forEach(material => resources.add(material));
         controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = false; controls.minDistance = 2; controls.maxDistance = 40; controls.autoRotateSpeed = .8;
-        reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+        reduced = motionPreference ?? window.matchMedia('(prefers-reduced-motion: reduce)');
         const render = () => { if (!disposed && !contextLost && visible && intersecting) renderer.render(scene, camera); };
         function tick(time) {
             animation = 0; if (disposed || contextLost || !visible || !intersecting || !settings.rotating || reduced.matches) return;
