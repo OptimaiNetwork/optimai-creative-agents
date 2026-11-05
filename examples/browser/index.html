@@ -68,7 +68,11 @@ NEW.</textarea>
         <div class="preview-heading"><div class="section-heading"><span class="step">02</span><h2 id="preview-heading">Review your result</h2></div><span class="local-label">Local processing</span></div>
         <div id="preview-stage" class="preview-stage" aria-busy="false">
           <div id="empty-preview" class="empty-preview"><img src="../../artwork/poster-lab.svg" alt="Poster Lab illustration" width="480" height="270"><p>Start with a poster.<br><span>Then explore a new treatment.</span></p></div>
-          <img id="preview" alt="" hidden>
+          <div id="compare-frame" class="compare-frame" hidden><img id="preview" alt=""><img id="before" class="before" alt=""><span id="divider" class="divider" aria-hidden="true"></span></div>
+        </div>
+        <div id="compare" class="compare" hidden>
+          <label for="split">Before <span aria-hidden="true">·</span> after <output id="compare-detail" for="split"></output></label>
+          <input id="split" type="range" min="0" max="100" value="50" aria-describedby="compare-detail">
         </div>
         <div class="result-bar"><p id="output-detail">Your exported PNG will appear here.</p><div class="export-actions"><button id="use-result" class="secondary" type="button" hidden>Use as input</button><a id="download" class="primary" hidden>Export PNG <span aria-hidden="true">↓</span></a></div></div>
       </section>

@@ -106,6 +106,7 @@ A broader host can add these reviewed runtime adapters:
 | Capability probe | `capabilities` → `probeCreativeCapabilities`, `detectCreativeCapabilities`, `assessAgentCapabilities`, `modelSetupEnvironment` | What this browser and device can run (WebGPU adapter, WebGL, WebCodecs, OffscreenCanvas, `ctx.filter`, camera, memory, Save-Data) and the card words for each template, without asking for any permission; browser, testable in Node |
 | Accessible motion and alt text | `accessibility` → `createMotionPreference`, `reducedMotionSettings`, `getAgentMotion`, `measureFlashes`, `frameLuminance`, `createFlashLimiter`, `describeAgentOutput`, `colorName` | One reduced-motion source with an in-app override for the 3D and frame sculpture stages, each agent's reduced variant, the WCAG 2.3.1 flash limiter and a flash meter for rendered frames, and alt text for any export written from its settings; Node and browser |
 | Card previews | `card-preview` → `renderAgentPreview`, `createPreviewPlayer`, `getAgentPreview` | A small deterministic looping animation per agent for gallery cards (shapes only, no text or images, nothing flashes); hover-to-play with a poster frame for reduced motion; Node, workers and the browser |
+| A/B compare | `compare` → `compareOutputs`, `compareImages`, `describeComparison`, `splitView`, `stepSplit` | How two results differ (share changed, PSNR, SSIM-lite structure, OKLab colour shift, changed region, optional diff heatmap) in numbers and plain words, plus the clip and keyboard steps for a before/after slider; Node and browser |
 | Progress | `progress` → `normalizeProgress`, `describeProgress`, `progressSteps`, `createProgressReporter`, `ENGINE_PROGRESS_STAGES` | One `{ stage, message, loaded, total, frame, frames, progress }` event from vision, writing, frame sampling and canvas runs, staged words for it and a stepper; Node and browser |
 | Model preparation | `model-setup` → `getModelSetupPolicy`, `createModelSetupController`, `describeModelSetup`, `formatBytes` | Automatic/manual/unsupported decision, one abortable setup state machine with byte progress, and readable sizes; host supplies the reviewed load and check calls |
 | Local Ollama writing | `agent-runtime` → `runCreativeAgent` | Validated written artifact; explicitly selected eligible installed model and loopback service |
@@ -245,6 +246,25 @@ renderAgentPreview('poster-lab', offscreenCtx, 1200, { width: 240, height: 135 }
 `renderAgentPreview(agent, ctx, t, { width, height, reducedMotion })` draws in a 480×270 space scaled to your size. A frame depends only on the agent and `t`: the loop repeats every `PREVIEW_LOOP_MS` (4.8 s), `t = 0` is a composed poster frame, and `reducedMotion` always draws it. Previews use shapes and gradients only, with no text, fonts or images, so they look the same in every browser, worker and test. Every shape keeps its colour for the whole loop and only geometry moves (a few layers fade in slowly), so nothing flashes.
 
 `getAgentPreview(agent)` names the motif (`grade` wipes a finished look across a picture, `iris` opens a transition, `bars` is Sound Canvas, `strip` is a guided workflow's filmstrip…) and an OKLab palette from the catalog accent; music, frame, 3D and camera agents get a dark stage. Pass a template-like object (`{ id, accent, workspace: { kind, operation } }`) to preview a community agent from its manifest; unknown IDs get the filmstrip. `createPreviewPlayer` sizes the canvas to its CSS box at up to 2× density, caps playback at 30 frames a second, and stops at once when a `motion` preference (a boolean, `createMotionPreference()` or a `MediaQueryList`) turns on reduced motion.
+
+## Compare two results with a before/after slider
+
+Show what a finish, a new seed or a different run actually changed, side by side on one artboard:
+
+```js
+import { compareImages, describeComparison, splitView, stepSplit } from '@optimai/creative-agents/compare';
+
+const result = await compareImages(earlierBlob, latestBlob, { signal });   // Blobs, blob: URLs, bitmaps or ImageData
+note.textContent = describeComparison(result);   // "Small changes to 4% of the image · structure 93% kept"
+const view = splitView(slider.value / 100);       // the earlier layer sits over the latest one
+earlierImage.style.clipPath = view.clipPath;      // "inset(0 50% 0 0)"
+divider.style.left = `${view.position * 100}%`;
+handle.addEventListener('keydown', event => { const next = stepSplit(position, event.key); if (next !== undefined) setPosition(next); });
+```
+
+`compareOutputs(a, b, options)` measures two RGBA buffers (`ImageData` or `{ data, width, height }`) on one grid: `a`'s aspect, no larger than either image, and at most `maxSide` (512 by default) on the long side, so a 4K export costs the same as a thumbnail. Pixels are box-averaged onto the grid and transparent ones are read over mid grey. It returns `changed` (the share of pixels whose largest channel moved more than `threshold`, 8 by default), `meanDelta` and `maxDelta` (0–1), `psnr` in dB (`Infinity` when identical), `ssim` (SSIM-lite: the mean SSIM of half-overlapping 8 × 8 windows on luma; 1 is the same structure), `deltaE` (the mean OKLab distance), `overall` (the same colour shift and structure on a grid of at most 24 pixels, where grain, dither and halftone dots average out), `bounds` (the changed region in `a`'s pixels) and, with `{ diff: true }`, an RGBA heatmap of the change. The same two buffers always give the same numbers, and the metrics are symmetric when the sizes match. Different sizes still compare (`sameSize: false`); `b` is stretched to `a`'s aspect.
+
+`compareImages` is the browser path: it decodes each source once straight onto the comparison grid, reports `width`, `height` and `bounds` in `a`'s full pixels, closes the bitmaps it opened and stops when `signal` aborts. `describeComparison` says *Identical*, *No visible change* (only sub-threshold noise), *Small changes to …*, *Same picture with new grain or texture across …* (pixels differ but the overall look moved less than about one just-noticeable OKLab step, as when only a Print Shop or Glitch Cut seed changed), *Changed …* or *A new look across …*, with the share of the image and how much structure was kept. `splitView(position, width, height, { orientation })` gives the visible before and after rectangles, the divider line and the CSS `clipPath`; `stepSplit` moves a custom handle by 5% per arrow key, 20% per Page key, and to the ends on Home and End. A native range input needs neither.
 
 ## Render settings from the form schema
 

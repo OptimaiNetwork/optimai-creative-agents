@@ -17,6 +17,8 @@ Open **http://127.0.0.1:8080/examples/browser/** in a current browser with Canva
 3. Choose the resize workspace, set width to **800** and ratio to **1:1**, then run it.
 4. Review the result and click **Export PNG** to save the 800 × 800 image.
 
+When a result keeps its source's shape (Image Finish, or a resize at the source's ratio), drag the **Before · after** slider to see the source over the result, with a line saying how much changed.
+
 You can also select your own PNG, JPEG or WebP. Source files are limited to 20 MiB, 4096 pixels per side and 16 million pixels. If processing fails or you stop a job, the previous successful export remains available.
 
 ## What it demonstrates
@@ -27,6 +29,7 @@ You can also select your own PNG, JPEG or WebP. Source files are limited to 20 M
 | Mockup Maker / device composition | `runCanvasLab('mockup', …)` | Phone, desktop or gallery composition |
 | Mockup Maker / resize | `runLocalTool('image-resize', …)` | PNG at the requested size and ratio |
 | Image Finish | `runLocalTool('image-filter', …)` | PNG with the selected color treatment |
+| Before/after slider | `compareImages`, `describeComparison`, `splitView` | The source over the result, clipped at the slider, with *Small changes to 4% of the image · structure 93% kept* |
 
 These are deterministic canvas processors, not model-generated imagery. Other writing and vision agents have separate explicit setup requirements in the [runtime guide](../../docs/runtimes.md).
 

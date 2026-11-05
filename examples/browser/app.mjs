@@ -1,5 +1,6 @@
 import { runLocalTool, validateLocalImageFile } from '../../src/browser-runtime.mjs';
 import { runCanvasLab } from '../../src/canvas-lab.mjs';
+import { compareImages, describeComparison, splitView } from '../../src/compare.mjs';
 
 const element = id => document.getElementById(id);
 const form = element('workspace-form');
@@ -9,6 +10,8 @@ const preview = element('preview');
 const download = element('download');
 const useResult = element('use-result');
 const status = element('status');
+const before = element('before');
+const split = element('split');
 const buttons = {
   poster: ['Create poster', 'Start with typography, or add your own background image.'],
   mockup: ['Create mockup', 'Choose an image to compose inside a device or gallery frame.'],
@@ -19,6 +22,34 @@ let inputFile;
 let output;
 let outputUrl;
 let controller;
+let sourceUrl;
+
+// Before/after: the source sits over the result, clipped at the slider. Only offered when both share an aspect ratio.
+function showSplit() {
+  const view = splitView(Number(split.value) / 100);
+  before.style.clipPath = view.clipPath;
+  element('divider').style.left = `${view.position * 100}%`;
+}
+async function offerComparison(file, result, signal) {
+  element('compare').hidden = true;
+  before.hidden = true;
+  if (sourceUrl) URL.revokeObjectURL(sourceUrl);
+  sourceUrl = undefined;
+  if (!file) return;
+  const bitmap = await createImageBitmap(file);
+  const { width, height } = bitmap;
+  bitmap.close();
+  if (Math.abs(width / height - result.width / result.height) > .01 || signal.aborted) return;
+  const comparison = await compareImages(file, result.blob, { signal });
+  sourceUrl = URL.createObjectURL(file);
+  before.src = sourceUrl;
+  before.alt = `Source image, ${width} by ${height} pixels`;
+  before.hidden = false;
+  element('compare-detail').textContent = describeComparison(comparison);
+  element('compare').hidden = false;
+  showSplit();
+}
+split.addEventListener('input', showSplit);
 
 function announce(message, error = false) {
   status.textContent = message;
@@ -124,7 +155,7 @@ form.addEventListener('submit', async event => {
     outputUrl = nextUrl;
     preview.src = nextUrl;
     preview.alt = `${buttons[mode][0]} result, ${result.width} by ${result.height} pixels`;
-    preview.hidden = false;
+    element('compare-frame').hidden = false;
     element('empty-preview').hidden = true;
     download.href = nextUrl;
     download.download = result.filename;
@@ -133,6 +164,8 @@ form.addEventListener('submit', async event => {
     element('output-detail').textContent = `${result.width} × ${result.height} · PNG · ${(result.blob.size / 1024).toFixed(0)} KiB`;
     if (previousUrl) URL.revokeObjectURL(previousUrl);
     announce(`Ready to export. Completed locally in ${((performance.now() - started) / 1000).toFixed(2)} seconds.`);
+    // The comparison is a bonus: if it can't run here, the result still stands.
+    await offerComparison(mode === 'poster' ? undefined : inputFile, result, signal).catch(() => { element('compare').hidden = true; before.hidden = true; });
   } catch (error) {
     announce(error?.name === 'AbortError' ? 'Stopped. Your previous result is still available.' : error?.message || 'Could not process this image. Try another source.', error?.name !== 'AbortError');
   } finally {
@@ -147,8 +180,12 @@ window.addEventListener('pagehide', () => {
   // Clear URLs from the document so a restored page cannot export a revoked blob.
   outputUrl = undefined;
   output = undefined;
+  if (sourceUrl) URL.revokeObjectURL(sourceUrl);
+  sourceUrl = undefined;
   preview.removeAttribute('src');
-  preview.hidden = true;
+  before.removeAttribute('src');
+  element('compare-frame').hidden = true;
+  element('compare').hidden = true;
   element('empty-preview').hidden = false;
   download.removeAttribute('href');
   download.hidden = true;
