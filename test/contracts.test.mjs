@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { AGENT_CATALOG, AGENT_MANIFEST_SCHEMA, AGENT_WORKSPACE_CONTRACT_VERSION, getAgentWorkspace, validateAgentWorkspace, getAgentTemplate, getAgentExecutionKind, createAgentManifest, validateAgentManifest, compileAgentPrompt, TOOL_CATALOG, TOOL_MANIFEST_SCHEMA, MAX_PROMPT_LENGTH, getToolTemplate, createToolManifest, validateToolManifest, validateRecipeValues, compileToolPrompt, verifyRegistry } from '../src/index.mjs';
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 function manifest(id = 'my-tool', templateId = 'story-seed') { return createToolManifest(templateId, { id, title: 'My Tool' }); }
@@ -176,4 +177,20 @@ test('core stays dependency-free and browser peers are optional, pinned and isol
     const content = await readFile(join(packageRoot, 'src', file), 'utf8');
     assert.ok(!/frontend\/|backend\/|\.\.\/\.\.\/|eval\(|new Function/.test(content), `${file} cannot import proprietary host code or evaluate recipes.`);
   }
+});
+test('every public subpath resolves by package name for import and require, with a declaration beside it', async () => {
+  const pkg = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
+  const require = createRequire(import.meta.url);
+  for (const [subpath, target] of Object.entries(pkg.exports)) {
+    const name = `${pkg.name}${subpath.slice(1)}`, file = join(packageRoot, typeof target === 'string' ? target : target.import);
+    assert.equal(fileURLToPath(import.meta.resolve(name)), file, `${name} imports its module.`);
+    assert.equal(require.resolve(name), file, `${name} also resolves for CommonJS hosts and test harnesses.`);
+    if (typeof target === 'string') continue;
+    assert.deepEqual(Object.keys(target), ['types', 'import', 'default'], `${name} lists types first and keeps one module for every condition.`);
+    assert.equal(target.default, target.import);
+    assert.equal(target.types, target.import.replace(/\.mjs$/, '.d.mts'));
+  }
+  // One module instance whichever way a host loads it (require(esm) where Node supports it).
+  if (process.features.require_module) for (const name of [pkg.name, `${pkg.name}/compare`, `${pkg.name}/progress`]) assert.equal(require(name), await import(name));
+  await assert.rejects(import(`${pkg.name}/src/compare.mjs`), { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' }, 'Files without a subpath stay internal.');
 });

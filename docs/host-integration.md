@@ -6,7 +6,28 @@ A recipe is configuration for code you have already chosen to ship. It cannot in
 
 ## Use the SDK from source
 
-Clone the [public repository](https://github.com/OptimaiNetwork/optimai-creative-agents) to use its modules directly. The snippets below assume a JavaScript module at the repository root; adjust relative imports for your application's layout. A host that installs the checkout from a local path can use package exports such as `@optimai/creative-agents` and `@optimai/creative-agents/browser-runtime`. The package is not currently published to npm.
+Clone the [public repository](https://github.com/OptimaiNetwork/optimai-creative-agents) to use its modules directly. The snippets below assume a JavaScript module at the repository root; adjust relative imports for your application's layout. The package is not currently published to npm.
+
+### Install the checkout as a dependency
+
+An application can depend on a local checkout (for example a Git submodule) and import it by name, exactly as it would a published package:
+
+```json
+{ "dependencies": { "@optimai/creative-agents": "file:../optimai-creative-agents" } }
+```
+
+```js
+import { AGENT_CATALOG } from '@optimai/creative-agents';
+import { runCanvasLab } from '@optimai/creative-agents/canvas-lab';
+```
+
+`npm install` links the checkout, so edits show up without reinstalling. Every public subpath is listed in `package.json` `exports` (and in [`llms.txt`](../llms.txt)); files without a subpath are internal and refuse to resolve. Each subpath:
+
+- names its `.d.mts` declaration first, so TypeScript with `moduleResolution` `bundler`, `node16` or `nodenext` types it with no `paths` mapping;
+- resolves for `import` and, through a `default` condition, for CommonJS `require()` on Node versions that load ES modules synchronously (20.19+, 22.12+), so CommonJS test harnesses share the one module instance;
+- keeps the optional peers optional: install `three`, `@mediapipe/tasks-vision` or `@mlc-ai/web-llm` in your application at the pinned version only if you ship the engine that needs it.
+
+A container build that runs `npm ci` before copying sources needs the checkout's `package.json` at the linked path first. Routes that serve the SDK's own files (artwork, a starter download) should check that the folder they read names itself `@optimai/creative-agents` before serving anything from it.
 
 ## Import and export validated JSON
 

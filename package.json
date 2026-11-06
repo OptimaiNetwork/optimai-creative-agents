@@ -19,149 +19,185 @@
   "exports": {
     ".": {
       "types": "./src/index.d.mts",
-      "import": "./src/index.mjs"
+      "import": "./src/index.mjs",
+      "default": "./src/index.mjs"
     },
     "./browser-runtime": {
       "types": "./src/browser-runtime.d.mts",
-      "import": "./src/browser-runtime.mjs"
+      "import": "./src/browser-runtime.mjs",
+      "default": "./src/browser-runtime.mjs"
     },
     "./canvas-lab": {
       "types": "./src/canvas-lab.d.mts",
-      "import": "./src/canvas-lab.mjs"
+      "import": "./src/canvas-lab.mjs",
+      "default": "./src/canvas-lab.mjs"
     },
     "./agent-runtime": {
       "types": "./src/agent-runtime.d.mts",
-      "import": "./src/agent-runtime.mjs"
+      "import": "./src/agent-runtime.mjs",
+      "default": "./src/agent-runtime.mjs"
     },
     "./browser-writing-runtime": {
       "types": "./src/browser-writing-runtime.d.mts",
-      "import": "./src/browser-writing-runtime.mjs"
+      "import": "./src/browser-writing-runtime.mjs",
+      "default": "./src/browser-writing-runtime.mjs"
     },
     "./browser-writing-worker": {
       "types": "./src/browser-writing-worker.d.mts",
-      "import": "./src/browser-writing-worker.mjs"
+      "import": "./src/browser-writing-worker.mjs",
+      "default": "./src/browser-writing-worker.mjs"
     },
     "./vision-runtime": {
       "types": "./src/vision-runtime.d.mts",
-      "import": "./src/vision-runtime.mjs"
+      "import": "./src/vision-runtime.mjs",
+      "default": "./src/vision-runtime.mjs"
     },
     "./vision-processor": {
       "types": "./src/vision-processor.d.mts",
-      "import": "./src/vision-processor.mjs"
+      "import": "./src/vision-processor.mjs",
+      "default": "./src/vision-processor.mjs"
     },
     "./schema": "./schema/agent-manifest.schema.json",
     "./legacy-tool-schema": "./schema/tool-manifest.schema.json",
     "./scene-3d": {
       "types": "./src/scene-3d.d.mts",
-      "import": "./src/scene-3d.mjs"
+      "import": "./src/scene-3d.mjs",
+      "default": "./src/scene-3d.mjs"
     },
     "./scene-3d-runtime": {
       "types": "./src/scene-3d-runtime.d.mts",
-      "import": "./src/scene-3d-runtime.mjs"
+      "import": "./src/scene-3d-runtime.mjs",
+      "default": "./src/scene-3d-runtime.mjs"
     },
     "./camera-runtime": {
       "types": "./src/camera-runtime.d.mts",
-      "import": "./src/camera-runtime.mjs"
+      "import": "./src/camera-runtime.mjs",
+      "default": "./src/camera-runtime.mjs"
     },
     "./camera-tracking": {
       "types": "./src/camera-tracking.d.mts",
-      "import": "./src/camera-tracking.mjs"
+      "import": "./src/camera-tracking.mjs",
+      "default": "./src/camera-tracking.mjs"
     },
     "./camera-renderer": {
       "types": "./src/camera-renderer.d.mts",
-      "import": "./src/camera-renderer.mjs"
+      "import": "./src/camera-renderer.mjs",
+      "default": "./src/camera-renderer.mjs"
     },
     "./camera-worker": {
       "types": "./src/camera-worker.d.mts",
-      "import": "./src/camera-worker.mjs"
+      "import": "./src/camera-worker.mjs",
+      "default": "./src/camera-worker.mjs"
     },
     "./model-setup": {
       "types": "./src/model-setup.d.mts",
-      "import": "./src/model-setup.mjs"
+      "import": "./src/model-setup.mjs",
+      "default": "./src/model-setup.mjs"
     },
     "./music-reactive": {
       "types": "./src/music-reactive.d.mts",
-      "import": "./src/music-reactive.mjs"
+      "import": "./src/music-reactive.mjs",
+      "default": "./src/music-reactive.mjs"
     },
     "./beat-tracker": {
       "types": "./src/beat-tracker.d.mts",
-      "import": "./src/beat-tracker.mjs"
+      "import": "./src/beat-tracker.mjs",
+      "default": "./src/beat-tracker.mjs"
     },
     "./frame-sculpture": {
       "types": "./src/frame-sculpture.d.mts",
-      "import": "./src/frame-sculpture.mjs"
+      "import": "./src/frame-sculpture.mjs",
+      "default": "./src/frame-sculpture.mjs"
     },
     "./landmark-filter": {
       "types": "./src/landmark-filter.d.mts",
-      "import": "./src/landmark-filter.mjs"
+      "import": "./src/landmark-filter.mjs",
+      "default": "./src/landmark-filter.mjs"
     },
     "./smart-crop": {
       "types": "./src/smart-crop.d.mts",
-      "import": "./src/smart-crop.mjs"
+      "import": "./src/smart-crop.mjs",
+      "default": "./src/smart-crop.mjs"
     },
     "./color": {
       "types": "./src/color.d.mts",
-      "import": "./src/color.mjs"
+      "import": "./src/color.mjs",
+      "default": "./src/color.mjs"
     },
     "./color-grade": {
       "types": "./src/color-grade.d.mts",
-      "import": "./src/color-grade.mjs"
+      "import": "./src/color-grade.mjs",
+      "default": "./src/color-grade.mjs"
     },
     "./lut": {
       "types": "./src/lut.d.mts",
-      "import": "./src/lut.mjs"
+      "import": "./src/lut.mjs",
+      "default": "./src/lut.mjs"
     },
     "./typeset": {
       "types": "./src/typeset.d.mts",
-      "import": "./src/typeset.mjs"
+      "import": "./src/typeset.mjs",
+      "default": "./src/typeset.mjs"
     },
     "./text-placement": {
       "types": "./src/text-placement.d.mts",
-      "import": "./src/text-placement.mjs"
+      "import": "./src/text-placement.mjs",
+      "default": "./src/text-placement.mjs"
     },
     "./glitch": {
       "types": "./src/glitch.d.mts",
-      "import": "./src/glitch.mjs"
+      "import": "./src/glitch.mjs",
+      "default": "./src/glitch.mjs"
     },
     "./print": {
       "types": "./src/print.d.mts",
-      "import": "./src/print.mjs"
+      "import": "./src/print.mjs",
+      "default": "./src/print.mjs"
     },
     "./form-schema": {
       "types": "./src/form-schema.d.mts",
-      "import": "./src/form-schema.mjs"
+      "import": "./src/form-schema.mjs",
+      "default": "./src/form-schema.mjs"
     },
     "./progress": {
       "types": "./src/progress.d.mts",
-      "import": "./src/progress.mjs"
+      "import": "./src/progress.mjs",
+      "default": "./src/progress.mjs"
     },
     "./capabilities": {
       "types": "./src/capabilities.d.mts",
-      "import": "./src/capabilities.mjs"
+      "import": "./src/capabilities.mjs",
+      "default": "./src/capabilities.mjs"
     },
     "./accessibility": {
       "types": "./src/accessibility.d.mts",
-      "import": "./src/accessibility.mjs"
+      "import": "./src/accessibility.mjs",
+      "default": "./src/accessibility.mjs"
     },
     "./card-preview": {
       "types": "./src/card-preview.d.mts",
-      "import": "./src/card-preview.mjs"
+      "import": "./src/card-preview.mjs",
+      "default": "./src/card-preview.mjs"
     },
     "./compare": {
       "types": "./src/compare.d.mts",
-      "import": "./src/compare.mjs"
+      "import": "./src/compare.mjs",
+      "default": "./src/compare.mjs"
     },
     "./run-record": {
       "types": "./src/run-record.d.mts",
-      "import": "./src/run-record.mjs"
+      "import": "./src/run-record.mjs",
+      "default": "./src/run-record.mjs"
     },
     "./transition": {
       "types": "./src/transition.d.mts",
-      "import": "./src/transition.mjs"
+      "import": "./src/transition.mjs",
+      "default": "./src/transition.mjs"
     },
     "./verify": {
       "types": "./src/verify.d.mts",
-      "import": "./src/verify.mjs"
+      "import": "./src/verify.mjs",
+      "default": "./src/verify.mjs"
     }
   },
   "files": [
