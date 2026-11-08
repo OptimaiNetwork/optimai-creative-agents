@@ -184,6 +184,11 @@
       "import": "./src/compare.mjs",
       "default": "./src/compare.mjs"
     },
+    "./playground": {
+      "types": "./src/playground.d.mts",
+      "import": "./src/playground.mjs",
+      "default": "./src/playground.mjs"
+    },
     "./run-record": {
       "types": "./src/run-record.d.mts",
       "import": "./src/run-record.mjs",

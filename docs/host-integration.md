@@ -312,6 +312,27 @@ Each property has the same bounds `validateRecipeValues` enforces (`enum`, `mini
 
 Alias and brief settings in on-device workspaces carry a `description` that says so, which a builder can show as a hint. `getAgentFormSchema` also accepts a template object, so a host can check a candidate before promoting it: refuse `unused` roles and controls it cannot draw, and run every `engine` choice and endpoint through the engine's normalizer. `plainFormSchema` drops the `x-` hints for strict validators; the [MCP adapter](./mcp.md) builds each tool's `values` schema from it. Schemas are fresh plain JSON on every call and describe saved recipe values only; engine-only settings (for example a canvas title's `ink`) stay outside v1 recipes.
 
+## Read form controls and share playground links
+
+`@optimai/creative-agents/playground` holds the small rules every settings form needs, so a host draws controls and the SDK decides what a value means. The [Agent Playground](../examples/playground/README.md) is built from these alone:
+
+```js
+import { formDefaults, readFormValue, colorInputValue, rerollSeed, playgroundRunPlan, encodePlaygroundState, decodePlaygroundState, listPlaygroundAgents } from '@optimai/creative-agents/playground';
+
+const schema = getAgentFormSchema('glitch-cut'), fields = listFormFields(schema);
+let values = formDefaults(schema);                                  // { effect: 'block displacement', amount: 35, seed: 1, … }
+values.amount = readFormValue(fields.find(f => f.id === 'amount'), input.value); // '' → default, '500' → 100, '41.6' → 42
+values.seed = rerollSeed(fields.find(f => f.id === 'seed'), values.seed);        // always a new look within bounds
+const plan = playgroundRunPlan('glitch-cut', values);               // { runner: 'canvas-lab', operation: 'glitch', settings }
+location.hash = encodePlaygroundState({ agent: 'glitch-cut', values }); // agent=glitch-cut&seed=48213
+```
+
+`readFormValue(field, raw)` turns what a control holds into a value the recipe validator accepts: numbers are parsed, rounded and clamped, and an empty or unreadable number falls back to the default instead of becoming `0`; a choice outside the list and a malformed hex fall back; text is cut to its limit. Pass `{ partial: true }` on each keystroke of a hex text box so `#3a` survives while someone types, and read it again without it when the field loses focus. Number boxes read best the same way: keep typing free and snap on `change`. `colorInputValue` gives an `<input type="color">` the `#rrggbb` it insists on (`#abc` expands).
+
+`listPlaygroundAgents()` lists every agent a form alone can run (canvas and vision), with its `runner` (`canvas-lab`, `local-tool` or `vision`), its file `inputs` from the input policy and, for vision, the pinned model to set up first. `playgroundRunPlan(id, values)` validates the values and returns the call to make: engine settings for `runCanvasLab` (v1 aliases mapped), the defaults plus values for `runLocalTool`, or `normalizeVisionValues` options and the model for `runBrowserVision`.
+
+`encodePlaygroundState` writes a short query string with the agent and only the settings that differ from its defaults; it refuses values a recipe would refuse and links over 4096 characters. `decodePlaygroundState` reads a hash or query as untrusted text: unknown agents give `null`, and each setting is kept only when it reads back exactly, so a clamped number, an unknown key or a choice from another agent is listed in `dropped` and left at its default instead of being changed silently. Images never go in a link.
+
 ## Keep run records and remix exact settings
 
 Give every result a run record, so a creator can return to it, compare it and remix it with the exact settings that drew it:

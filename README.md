@@ -10,7 +10,7 @@
 
 Build image workspaces, design utilities, story treatments and creative workflows with a small JavaScript SDK. Start with a working template, customize its recipe, or contribute a new reviewed engine. Use it in your own application or integrate it with [OptimAI Studio](https://optimai.studio/agents).
 
-**[Quickstart](./docs/quickstart.md) · [Canvas demo](./examples/browser/README.md) · [Interactive host example](./examples/interactive/README.md) · [Runtime guides](./docs/runtimes.md) · [Contribute](./CONTRIBUTING.md)**
+**[Quickstart](./docs/quickstart.md) · [Agent Playground](./examples/playground/README.md) · [Canvas demo](./examples/browser/README.md) · [Interactive host example](./examples/interactive/README.md) · [Runtime guides](./docs/runtimes.md) · [Contribute](./CONTRIBUTING.md)**
 
 ## Why build with it?
 

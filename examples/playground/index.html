@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Agent Playground · OptimAI Creative Agents</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip" href="#workspace">Skip to the workspace</a>
+  <header class="top">
+    <strong>Agent Playground</strong>
+    <span>Every canvas and vision agent, with a form built from the catalog. Runs in this browser.</span>
+  </header>
+  <div class="layout">
+    <nav aria-label="Agents">
+      <label class="search"><span class="sr-only">Find an agent</span><input id="search" type="search" placeholder="Find an agent" autocomplete="off"></label>
+      <ul id="agents" class="agents"></ul>
+    </nav>
+    <main id="workspace" tabindex="-1">
+      <section class="intro">
+        <canvas id="hero" class="hero" width="480" height="270" aria-hidden="true"></canvas>
+        <div>
+          <p id="agent-kind" class="eyebrow"></p>
+          <h1 id="agent-title">Choose an agent</h1>
+          <p id="agent-description"></p>
+          <p id="agent-capability" class="note" hidden></p>
+        </div>
+      </section>
+      <div class="work">
+      <form id="form" novalidate>
+        <fieldset class="inputs">
+          <legend>Images <small id="input-rule"></small></legend>
+          <input id="files" type="file" multiple>
+          <div class="row">
+            <button type="button" id="sample">Use sample images</button>
+            <button type="button" id="clear" hidden>Clear</button>
+          </div>
+          <p id="input-names" class="hint">Selected images stay on this device.</p>
+        </fieldset>
+        <section id="setup" class="setup" hidden aria-labelledby="setup-title">
+          <h2 id="setup-title">Model setup</h2>
+          <p id="setup-detail"></p>
+          <button type="button" id="download">Download model</button>
+        </section>
+        <div id="fields"></div>
+        <div class="row actions">
+          <button type="submit" id="run" class="primary">Run agent</button>
+          <button type="button" id="stop" hidden>Stop</button>
+          <button type="button" id="share">Copy share link</button>
+          <button type="button" id="reset">Reset settings</button>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+        <progress id="progress" max="1" hidden></progress>
+      </form>
+      <section class="result" aria-labelledby="result-title">
+        <h2 id="result-title">Result</h2>
+        <figure id="figure" hidden>
+          <div class="frame"><img id="output" alt=""><img id="before" alt="" hidden><span id="divider" class="divider" hidden></span></div>
+          <figcaption id="output-detail"></figcaption>
+        </figure>
+        <p id="empty" class="hint">Your result appears here. Nothing is uploaded.</p>
+        <div id="compare" class="row" hidden>
+          <label>Compare with the previous run <input id="split" type="range" min="0" max="100" value="50"></label>
+          <span id="compare-detail" class="hint"></span>
+        </div>
+        <a id="save" class="button" hidden>Save PNG</a>
+      </section>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>
