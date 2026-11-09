@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>{{TITLE}}</title>
+  <link rel="stylesheet" href="./styles.css">
+  <!-- Maps the SDK's package names to its folder, so this page runs with no install or bundler. -->
+  <script type="importmap">
+{{IMPORT_MAP}}
+  </script>
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <main class="app">
+    <header class="bar">
+      <h1>{{TITLE}}</h1>
+      <label>Song <input id="song" type="file" accept="audio/*"></label>
+      <label>Look <select id="look"></select></label>
+      <button id="save" type="button">Save cover</button>
+    </header>
+    <canvas id="stage" width="1280" height="720" role="img" aria-label="Visuals that follow the music"></canvas>
+    <audio id="player" controls></audio>
+    <p id="status" role="status" aria-live="polite">Choose a song from this device. It stays here.</p>
+  </main>
+</body>
+</html>

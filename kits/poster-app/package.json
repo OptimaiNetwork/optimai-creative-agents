@@ -1,0 +1,11 @@
+{
+  "name": "{{NAME}}",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A poster maker built on OptimAI Creative Agents. Runs in the browser; nothing is uploaded.",
+  "license": "MIT",
+  "dependencies": {
+    "@optimai/creative-agents": "file:{{SDK_PATH}}"
+  }
+}

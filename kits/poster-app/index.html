@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>{{TITLE}}</title>
+  <link rel="stylesheet" href="./styles.css">
+  <!-- Maps the SDK's package names to its folder, so this page runs with no install or bundler. -->
+  <script type="importmap">
+{{IMPORT_MAP}}
+  </script>
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <main class="app">
+    <form id="form" class="panel" novalidate>
+      <h1>{{TITLE}}</h1>
+      <p class="muted">Make a poster on this device. Add a photo if you like; nothing is uploaded.</p>
+      <label class="field"><span>Background photo <small>(optional)</small></span><input id="photo" type="file" accept="image/png,image/jpeg,image/webp"></label>
+      <div id="fields"></div>
+      <div class="actions"><button type="submit">Make poster</button><button id="stop" type="button" hidden>Stop</button></div>
+      <p id="status" role="status" aria-live="polite" class="muted"></p>
+    </form>
+    <figure class="stage">
+      <img id="output" alt="" hidden>
+      <figcaption><a id="save" hidden>Download PNG</a></figcaption>
+    </figure>
+  </main>
+</body>
+</html>

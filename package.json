@@ -189,6 +189,11 @@
       "import": "./src/playground.mjs",
       "default": "./src/playground.mjs"
     },
+    "./starter-kits": {
+      "types": "./src/starter-kits.d.mts",
+      "import": "./src/starter-kits.mjs",
+      "default": "./src/starter-kits.mjs"
+    },
     "./run-record": {
       "types": "./src/run-record.d.mts",
       "import": "./src/run-record.mjs",
@@ -209,6 +214,7 @@
     "src",
     "schema",
     "examples",
+    "kits",
     "scripts",
     "test",
     "docs",

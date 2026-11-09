@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>{{TITLE}}</title>
+  <link rel="stylesheet" href="./styles.css">
+  <!-- Maps the SDK's package names to its folder, so this page runs with no install or bundler. -->
+  <script type="importmap">
+{{IMPORT_MAP}}
+  </script>
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <main class="app">
+    <header class="bar">
+      <h1>{{TITLE}}</h1>
+      <button id="start" type="button">Start camera</button>
+      <label class="file">Or open a photo <input id="photo" type="file" accept="image/png,image/jpeg,image/webp"></label>
+    </header>
+    <div id="controls" class="controls"></div>
+    <canvas id="output" width="960" height="540" role="img" aria-label="Camera preview with the chosen effect"></canvas>
+    <video id="video" playsinline muted hidden></video>
+    <div class="bar"><button id="snapshot" type="button">Save snapshot</button><p id="status" role="status" aria-live="polite">The camera starts only when you click. Frames never leave this device.</p></div>
+  </main>
+</body>
+</html>

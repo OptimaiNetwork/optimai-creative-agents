@@ -67,6 +67,22 @@ node scripts/verify.mjs agents/cloud-companion/agent.json
 
 This creates an editable `agents/cloud-companion/agent.json` and README. Change the brief, metadata and supported settings, then validate again. The scaffold never overwrites an existing agent.
 
+### Start an app from a kit
+
+```sh
+npm run create -- --kits
+npm run create -- my-poster --kit poster-app
+```
+
+A starter kit is a small runnable folder in `apps/` that imports the SDK by package name, so it works the same after you move it into a bundled app. Browser kits run from the static server above; nothing is installed, downloaded or uploaded.
+
+| Kit | Runs in | What you get |
+| --- | --- | --- |
+| `poster-app` | Browser | A poster maker: a form drawn from the Poster Lab schema, an on-device render, alt text and a PNG download |
+| `music-visualizer` | Browser | A song from your device drives four music-reactive looks, a flash-limited beat pulse and a cover export |
+| `camera-filter` | Browser | Live camera effects from the Camera Stage recipe, a photo fallback and snapshots |
+| `mcp-creative-server` | Node.js | Your own stdio MCP server offering the agents you choose as read-only recipe tools |
+
 A **recipe** customizes a reviewed template. A **new engine** adds a capability through source code, tests and host integration. Start with the [quickstart](./docs/quickstart.md), then follow the [contribution guide](./CONTRIBUTING.md) for either path.
 
 ### Use the SDK
@@ -160,7 +176,7 @@ Use [issues](https://github.com/OptimaiNetwork/optimai-creative-agents/issues) f
 
 | Guide | Purpose |
 | --- | --- |
-| [Quickstart](./docs/quickstart.md) | Scaffold and validate your first recipe |
+| [Quickstart](./docs/quickstart.md) | Scaffold and validate your first recipe, or start an app from a kit |
 | [Agent catalog](./docs/catalog.md) | Choose a template and understand its real output |
 | [Runtimes and models](./docs/runtimes.md) | Canvas, browser AI, local Ollama and hardware requirements |
 | [Manifest and host integration](./docs/host-integration.md) | Validate recipes and dispatch reviewed capabilities |

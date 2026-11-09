@@ -116,6 +116,27 @@ node scripts/run.mjs --manifest agents/cloud-companion/agent.json --model instal
 
 The default endpoint is `http://127.0.0.1:11434`. The SDK checks installed model metadata, requests a structured document and validates its output, with one bounded repair attempt. It prints the written artifact as JSON; Ctrl+C cancels the request. It never installs a model or falls back to a cloud provider. See the [runtime guide](./runtimes.md) for eligibility, limits and host configuration.
 
+## Start an app from a starter kit
+
+A recipe is data; a starter kit is a small app you own. Each kit is a folder of plain files that imports the SDK by package name (`@optimai/creative-agents/canvas-lab` and so on):
+
+```sh
+npm run create -- --kits                         # list the kits
+npm run create -- my-poster --kit poster-app     # creates apps/my-poster/
+python3 -m http.server 8080 --bind 127.0.0.1
+```
+
+Open [http://127.0.0.1:8080/apps/my-poster/](http://127.0.0.1:8080/apps/my-poster/) and click **Make poster**. Leave out the name (`npm run create -- --kit poster-app`) to use the kit's own name. The command never overwrites an existing folder.
+
+| Kit | Runs in | What you get |
+| --- | --- | --- |
+| `poster-app` | Browser | A poster maker: a form drawn from the Poster Lab schema, an on-device render, alt text and a PNG download |
+| `music-visualizer` | Browser | A song from your device drives four music-reactive looks, a flash-limited beat pulse and a cover export |
+| `camera-filter` | Browser | Live camera effects from the Camera Stage recipe, a photo fallback and snapshots |
+| `mcp-creative-server` | Node.js | Your own stdio MCP server offering the agents you choose as read-only recipe tools |
+
+Browser kits carry an import map that points at this checkout, so they run with no install or bundler. To move one into Vite, Next.js or another bundler, run `npm install` in the kit (its only dependency is a `file:` link to this folder, so nothing is downloaded), delete the import map and keep the imports. The MCP kit needs `npm install` once, then `npm start`; see its README for client configuration. Every kit's README explains what to change first.
+
 ## 5. Share or contribute
 
 You can share `agent.json` with anyone using a compatible host. Add reproducible input and expected-behavior notes to the generated README so another builder can assess the result. For an upstream change, fork the [public repository](https://github.com/OptimaiNetwork/optimai-creative-agents), work on a branch, run the checks and open a pull request against `main` following [CONTRIBUTING.md](../CONTRIBUTING.md).

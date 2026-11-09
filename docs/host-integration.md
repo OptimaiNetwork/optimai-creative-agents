@@ -333,6 +333,21 @@ location.hash = encodePlaygroundState({ agent: 'glitch-cut', values }); // agent
 
 `encodePlaygroundState` writes a short query string with the agent and only the settings that differ from its defaults; it refuses values a recipe would refuse and links over 4096 characters. `decodePlaygroundState` reads a hash or query as untrusted text: unknown agents give `null`, and each setting is kept only when it reads back exactly, so a clamped number, an unknown key or a choice from another agent is listed in `dropped` and left at its default instead of being changed silently. Images never go in a link.
 
+## List the starter kits
+
+`@optimai/creative-agents/starter-kits` is the catalog behind `npm run create -- --kit`. It reads no files, so a host can show the kits, or build a kit folder itself, without Node.js:
+
+```js
+import { listStarterKits, starterKitCommand, planStarterKit, starterKitVariables, fillStarterFile } from '@optimai/creative-agents/starter-kits';
+
+for (const kit of listStarterKits()) console.log(kit.title, kit.runtime, starterKitCommand(kit)); // npm run create -- --kit poster-app
+const plan = planStarterKit('poster-app', { name: 'my-poster' });             // { folder: 'my-poster', files: [{ path, template: 'kits/poster-app/…' }] }
+const variables = starterKitVariables('poster-app', { name: 'my-poster', sdkPath: '../..' });
+const html = fillStarterFile(templateText, variables);                       // fills {{NAME}}, {{TITLE}}, {{SDK_PATH}}, {{IMPORT_MAP}}…
+```
+
+Each kit names the catalog `agents` it is built on and the public `subpaths` it imports; `starterKitImportMap(kit, sdkPath)` maps exactly those subpaths for a page with no bundler. `sdkPath` must be a relative folder (forward slashes, no scheme or root), names must be lowercase and hyphenated, and an unknown or unfilled `{{PLACEHOLDER}}` throws, so a kit is never written half-filled.
+
 ## Keep run records and remix exact settings
 
 Give every result a run record, so a creator can return to it, compare it and remix it with the exact settings that drew it:

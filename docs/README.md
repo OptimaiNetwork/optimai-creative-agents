@@ -12,6 +12,7 @@ Start with a **recipe** when an existing template already does the job. A recipe
 | Create your first recipe | [Quickstart](./quickstart.md) | A validated manga-planning recipe and its prepared prompt, with no model required |
 | Run a browser tool or add optional local AI | [Runtime guide](./runtimes.md) | The correct API, requirements and output for each runtime |
 | Try every canvas and vision agent in a browser | [Agent Playground](../examples/playground/README.md) | Forms built from the catalog, real runs, share links |
+| Start a small app of your own | [Starter kits](./quickstart.md#start-an-app-from-a-starter-kit) | A runnable poster app, music visualizer, camera filter or MCP server in `apps/` |
 | Embed recipes in your own application | [Host integration](./host-integration.md) | Validation, reviewed dispatch, selected inputs and portable export |
 | Connect an MCP client | [MCP adapter](./mcp.md) | A local stdio server that prepares recipes and can explicitly run local writing |
 | Share your work or contribute it upstream | [Release and review](./release-and-feature.md) | Reproducible examples and a reviewable pull request |
