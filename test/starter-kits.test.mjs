@@ -164,9 +164,12 @@ test('the MCP kit runs as a real stdio server against the linked SDK', async () 
     assert.match(byId[1].error.message, /initialize/, 'Tools wait for the handshake.');
     assert.deepEqual(byId[2].result.serverInfo, { name: 'studio-tools', version: '0.1.0' });
     const tools = byId[3].result.tools;
-    assert.deepEqual(tools.map(tool => tool.name), ['poster_lab', 'story_seed', 'image_grid']);
+    assert.deepEqual(tools.map(tool => tool.name), ['image_grid', 'poster_lab', 'story_seed'], 'Sorted by name, like the SDK adapter.');
+    assert.ok(tools.every(tool => tool.outputSchema.type === 'object' && tool.icons[0].src.startsWith('data:image/svg+xml;base64,')));
+    assert.equal(tools[2].inputSchema.properties.execution, undefined, 'This server never runs a model.');
+    assert.ok(!tools[2].outputSchema.anyOf && tools[2].outputSchema.required.includes('prompt'), 'Recipe-only output.');
     assert.ok(tools.every(tool => tool.annotations.readOnlyHint && tool.inputSchema.properties.values.additionalProperties === false));
-    assert.equal(tools[0].inputSchema.properties.values.properties.color.pattern != null, true, 'Settings carry the form schema bounds.');
+    assert.equal(tools[1].inputSchema.properties.values.properties.color.pattern != null, true, 'Settings carry the form schema bounds.');
     const recipe = byId[4].result.structuredContent;
     assert.equal(byId[4].result.isError, false);
     assert.equal(recipe.templateId, 'poster-lab');

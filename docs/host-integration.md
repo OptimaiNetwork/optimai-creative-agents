@@ -385,6 +385,7 @@ Canvas and model runtimes do not need a Studio account. If your application hand
 | Remix a reviewed recipe | Keep a known template ID, approved values and v1 capability fields; validate and share JSON |
 | Add a new operation or model | Contribute implementation, declarations, contract changes, tests and documentation; release and integrate reviewed source |
 | Add MCP client support | Configure the local [stdio adapter](./mcp.md); authorize prepared direction and explicit writing runs in the client |
+| Offer agents from your own MCP server or list them in your docs | `mcp-tools` → `mcpToolDefinitions`, `prepareMcpRecipe`, `mcpRecipeExports`: the adapter's own definitions with output schemas, icons and a stable order ([guide](./mcp.md#build-your-own-mcp-tools)) |
 
 Keep stable agent IDs and increment a recipe's `version` when releasing a revision. A breaking manifest format needs a new `schemaVersion` and a deliberate migration. Legacy Tool-named exports and manifests remain aliases of the v1 Agent contract, so saved recipes can reopen.
 

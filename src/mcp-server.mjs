@@ -1,36 +1,19 @@
 #!/usr/bin/env node
-// Minimal stdio MCP adapter for the fixed 2025-11-25 protocol. Calls prepare
-// recipes unless a writing-agent call explicitly selects run + a local model.
+// Minimal stdio MCP adapter for the fixed 2025-11-25 protocol. Tool definitions,
+// output schemas, icons and order come from mcp-tools.mjs. Calls prepare recipes unless a writing-agent call explicitly selects run + a local model.
 // No AI billing, media reads, arbitrary networking or Studio account actions.
 import { readFileSync } from 'node:fs';
-import { AGENT_CATALOG, compileAgentPrompt, validateRecipeValues } from './index.mjs';
-import { getAgentFormSchema, plainFormSchema } from './form-schema.mjs';
-const PROTOCOL = '2025-11-25';
+import { AGENT_CATALOG, validateRecipeValues } from './index.mjs';
+import { MCP_PROTOCOL_VERSION as PROTOCOL, mcpArtworkId, mcpArtworkResources, mcpRecipeExports, mcpToolDefinitions, mcpToolName, prepareMcpRecipe } from './mcp-tools.mjs';
 // One version source: the package manifest that ships beside this adapter.
 const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const MAX_MESSAGE_BYTES = 65536;
 let lifecycle = 'new';
 const activeRuns = new Map();
+const TOOLS = mcpToolDefinitions();
 function response(id, result) { process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`); }
 function error(id, code, message) { process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } })}\n`); }
 function object(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
-// Settings come from the same form schema hosts render, so bounds, color patterns and alias notes match.
-function properties(tool) {
-  return Object.fromEntries(Object.entries(plainFormSchema(getAgentFormSchema(tool)).properties).map(([id, { title, description, ...property }]) => [id, { ...property, description: description ? `${title}. ${description}` : title }]));
-}
-function toolDefinition(tool) {
-  const isWriting = tool.executionKind === 'local-model';
-  return {
-    name: `optimai.${tool.id}`, title: tool.title,
-    description: `${tool.description} ${isWriting ? 'Set execution to run and select an installed Ollama model for a written result; otherwise prepares a recipe.' : 'Prepares a recipe; does not generate or modify media.'}`,
-    inputSchema: { type: 'object', additionalProperties: false, properties: {
-      values: { type: 'object', additionalProperties: false, properties: properties(tool) },
-      brief: { type: 'string', maxLength: 4000 },
-      ...(isWriting ? { execution: { type: 'string', enum: ['prepare', 'run'], default: 'prepare' }, model: { type: 'string', minLength: 1, maxLength: 160, description: 'An already installed Ollama model. Required when execution is run.' } } : {}),
-    } },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: !isWriting, openWorldHint: false },
-  };
-}
 async function handle(message) {
   const validId = typeof message?.id === 'string' || (typeof message?.id === 'number' && Number.isFinite(message.id));
   const notification = object(message) && !Object.hasOwn(message, 'id');
@@ -47,17 +30,28 @@ async function handle(message) {
     if (lifecycle !== 'new') { error(id, -32600, 'Server has already initialized.'); return; }
     if (typeof params.protocolVersion !== 'string' || !object(params.capabilities) || !object(params.clientInfo) || typeof params.clientInfo.name !== 'string' || typeof params.clientInfo.version !== 'string') { error(id, -32602, 'Provide protocolVersion, capabilities and clientInfo.'); return; }
     lifecycle = 'initializing';
-    response(id, { protocolVersion: PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'optimai-creative-agents', version: VERSION }, instructions: 'Creative agents prepare bounded recipes. Five writing agents can execute an explicitly selected installed Ollama model. Media generation and spending remain in the authorized host workflow.' });
+    response(id, { protocolVersion: PROTOCOL, capabilities: { tools: { listChanged: false }, resources: { listChanged: false } }, serverInfo: { name: 'optimai-creative-agents', version: VERSION }, instructions: 'Creative agents prepare bounded recipes. Five writing agents can execute an explicitly selected installed Ollama model. Media generation and spending remain in the authorized host workflow.' });
     return;
   }
   if (lifecycle !== 'ready') { error(id, -32600, 'Initialize and send notifications/initialized before using tools.'); return; }
   if (method === 'tools/list') {
     if (Object.keys(params).length) { error(id, -32602, 'This fixed catalog has no pagination cursor.'); return; }
-    response(id, { tools: AGENT_CATALOG.map(toolDefinition) }); return;
+    response(id, { tools: TOOLS }); return;
+  }
+  if (method === 'resources/list') {
+    if (Object.keys(params).length) { error(id, -32602, 'This fixed list has no pagination cursor.'); return; }
+    response(id, { resources: mcpArtworkResources() }); return;
+  }
+  if (method === 'resources/templates/list') { response(id, { resourceTemplates: [] }); return; }
+  if (method === 'resources/read') {
+    const agent = mcpArtworkId(params.uri);
+    if (!agent || Object.keys(params).some((key) => !['uri', '_meta'].includes(key))) { error(id, -32002, 'Resource not found. Use resources/list to discover artwork.'); return; }
+    // Only the package's own reviewed artwork; the request never supplies a path.
+    response(id, { contents: [{ uri: params.uri, mimeType: 'image/svg+xml', text: readFileSync(new URL(`../artwork/${agent}.svg`, import.meta.url), 'utf8') }] }); return;
   }
   if (method === 'tools/call') {
     if (typeof params.name !== 'string' || Object.keys(params).some((key) => !['name', 'arguments', '_meta'].includes(key))) { error(id, -32602, 'Provide a known tool name and arguments.'); return; }
-    const tool = AGENT_CATALOG.find((entry) => `optimai.${entry.id}` === params.name);
+    const tool = AGENT_CATALOG.find((entry) => mcpToolName(entry) === params.name);
     if (!tool) { error(id, -32602, 'Unknown tool. Use tools/list to discover names.'); return; }
     const args = Object.hasOwn(params, 'arguments') ? params.arguments : {};
     const allowed = tool.executionKind === 'local-model' ? ['values', 'brief', 'execution', 'model'] : ['values', 'brief'];
@@ -67,7 +61,7 @@ async function handle(message) {
       const errors = validateRecipeValues(tool.id, values);
       if (errors.length) throw new Error(errors.join('\n'));
       const brief = Object.hasOwn(args, 'brief') ? args.brief : '';
-      const prompt = compileAgentPrompt(tool, values, brief);
+      const structuredContent = prepareMcpRecipe(tool, values, brief);
       if (Object.hasOwn(args, 'execution') && !['prepare', 'run'].includes(args.execution)) throw new Error('execution: choose prepare or run.');
       if (Object.hasOwn(args, 'model') && (typeof args.model !== 'string' || !args.model.trim() || args.model.length > 160)) throw new Error('model: use an installed local model name of 1 to 160 characters.');
       if (args.execution === 'run') {
@@ -82,8 +76,7 @@ async function handle(message) {
         } finally { activeRuns.delete(id); }
         return;
       }
-      const structuredContent = { templateId: tool.id, runtime: tool.runtime, workspace: tool.workspace, studioMode: tool.studioMode, ...(tool.localOperation ? { localOperation: tool.localOperation } : {}), values: Object.fromEntries(tool.fields.map((field) => [field.id, Object.hasOwn(values, field.id) ? values[field.id] : field.default])), prompt };
-      response(id, { content: [{ type: 'text', text: JSON.stringify(structuredContent) }], structuredContent, isError: false });
+      response(id, { content: [{ type: 'text', text: JSON.stringify(structuredContent) }, ...mcpRecipeExports(tool, values, brief)], structuredContent, isError: false });
     } catch (problem) { response(id, { content: [{ type: 'text', text: problem.message }], isError: true }); }
     return;
   }

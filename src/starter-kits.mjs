@@ -24,7 +24,7 @@ export const STARTER_KITS = deepFreeze([
     subpaths: ['form-schema', 'camera-runtime', 'camera-renderer'], files: BROWSER_FILES },
   { id: 'mcp-creative-server', title: 'MCP creative server', runtime: 'node', agents: ['poster-lab', 'story-seed', 'image-grid'],
     summary: 'Your own stdio MCP server that offers a short list of agents you choose as tools for AI assistants. It prepares recipes and needs no model.',
-    subpaths: ['.', 'form-schema'], files: ['README.md', 'package.json', 'server.mjs'] },
+    subpaths: ['.', 'mcp-tools'], files: ['README.md', 'package.json', 'server.mjs'] },
 ]);
 
 /** Every kit, in catalog order. */

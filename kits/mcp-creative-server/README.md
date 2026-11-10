@@ -30,6 +30,7 @@ Ask the assistant to "make a poster recipe for a jazz night"; it calls `poster_l
 ## Make it yours
 
 - Edit `AGENTS` in [server.mjs](./server.mjs) to offer other catalog agents. Tool names are the agent IDs with `_` for `-`.
+- Tool definitions come from `@optimai/creative-agents/mcp-tools`, so each one has an `outputSchema` for its recipe, a small icon and a stable order (sorted by name), just like the SDK's own adapter.
 - Every tool is read-only and prepares a recipe. To run a writing agent on a local model, start from the SDK's own `npm run mcp` adapter instead.
 
 The SDK and this kit are MIT licensed.

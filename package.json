@@ -194,6 +194,11 @@
       "import": "./src/starter-kits.mjs",
       "default": "./src/starter-kits.mjs"
     },
+    "./mcp-tools": {
+      "types": "./src/mcp-tools.d.mts",
+      "import": "./src/mcp-tools.mjs",
+      "default": "./src/mcp-tools.mjs"
+    },
     "./run-record": {
       "types": "./src/run-record.d.mts",
       "import": "./src/run-record.mjs",

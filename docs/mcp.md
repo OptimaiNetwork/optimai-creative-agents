@@ -49,7 +49,31 @@ In a connected client, the equivalent tool-call parameters are:
 }
 ```
 
-Preparation returns validated settings, a prompt, a Studio destination and the source template's `workspace` descriptor. It does not read media, generate a storybook, modify an image or publish a project. The returned `runtime` and `localOperation` remain legacy catalog metadata; use a supported workspace adapter as described in [host integration](./host-integration.md).
+Preparation returns validated settings, a prompt, a Studio destination and the source template's `workspace` descriptor in `structuredContent`, plus the same JSON as text for older clients. Two more content blocks follow: a `resource_link` to the agent's artwork and an embedded `resource` holding a recipe file (`<id>.agent.json`, manifest v1.0) with the call's settings and brief, which a creator can save and import into any host that reads recipes, including Studio's **Saved** library. It does not read media, generate a storybook, modify an image or publish a project. The returned `runtime` and `localOperation` remain legacy catalog metadata; use a supported workspace adapter as described in [host integration](./host-integration.md).
+
+## What a client sees
+
+Every tool in `tools/list` carries:
+
+- **`outputSchema`**: the JSON Schema of `structuredContent` for a successful call, with an `object` root as the specification requires. It pins `templateId`, `workspace` and the other descriptors to constants and lists every setting with the same bounds as the input. Writing tools accept either a prepared recipe or, after `execution: "run"`, a written result (`anyOf`). Error results (`isError: true`) carry text only.
+- **`icons`**: one small SVG drawn by the SDK (the agent's accent colour behind a glyph for its workspace kind), sent as a base64 `data:` URI with `sizes: ["any"]`. It has no scripts, links or external references, so a client never fetches anything to show it.
+- **A stable order.** Tools are sorted by name in code point order, so a listing diffs cleanly between releases and a client's cache keys stay put.
+
+The adapter also announces the `resources` capability. `resources/list` returns each agent's artwork as `optimai-agents://artwork/<id>.svg`, and `resources/read` returns that SVG. It reads only the package's own artwork folder, matches URIs exactly, and answers anything else with `-32002` (resource not found). `resources/templates/list` returns an empty list.
+
+## Build your own MCP tools
+
+`@optimai/creative-agents/mcp-tools` is the pure contract behind the adapter, so your own server lists exactly what this one does:
+
+```js
+import { mcpToolDefinitions, prepareMcpRecipe, mcpRecipeExports } from '@optimai/creative-agents/mcp-tools';
+
+const tools = mcpToolDefinitions({ ids: ['poster-lab', 'story-seed'], prefix: '', separator: '_', run: false });
+// → [{ name: 'poster_lab', title, description, icons, inputSchema, outputSchema, annotations }, …] sorted by name
+const recipe = prepareMcpRecipe('poster-lab', { title: 'Jazz night' }, 'A late-night jazz poster.');
+```
+
+Validate settings with `validateRecipeValues` before `prepareMcpRecipe`. `run: false` offers writing agents as recipe-only tools (no `execution` or `model` input and a recipe-only `outputSchema`); `icons: false` leaves icons out. `mcpRecipeExports` returns the artwork link and recipe file blocks, `mcpRecipeManifest` the recipe file alone, and `mcpArtworkResources`/`mcpArtworkId` the resource list and an exact URI check. The module uses no Node APIs, so a browser host can render the same definitions. The [`mcp-creative-server` starter kit](./quickstart.md#start-an-app-from-a-starter-kit) is built on it.
 
 ## Run local writing explicitly
 
@@ -100,9 +124,14 @@ Only literal-loopback HTTP endpoints (`127.0.0.1` or `[::1]`) are accepted. DNS 
 | Unknown tool or invalid settings | Inspect `tools/list`; use its exact name and declared input fields |
 | Local writing fails | Confirm the local service, exact installed model name and literal-loopback endpoint; inspect the returned error text |
 | Canvas or vision call returns a prompt | This adapter prepares those recipes; execute them with a browser host |
+| Client rejects a result | Compare `structuredContent` with the tool's `outputSchema`; report a mismatch as a bug |
 
-The adapter has a fixed catalog with no pagination cursor and accepts JSON-RPC messages up to 64 KiB. It implements recipe tools, rather than every optional MCP capability or transport. Tool annotations describe intent; the client still controls authorization for any downstream action, spending or publishing.
+The adapter has a fixed catalog with no pagination cursor and accepts JSON-RPC messages up to 64 KiB. It implements recipe tools and read-only artwork resources, rather than every optional MCP capability or transport. Tool annotations describe intent; the client still controls authorization for any downstream action, spending or publishing.
 
 Its [lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle), [stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports) and [tool messages](https://modelcontextprotocol.io/specification/2025-11-25/server/tools) follow the named specification version. Clients must accept that returned version or stop the connection. `npm test` exercises the actual subprocess protocol, malformed messages, initialization and prepared recipes; local writing integration uses a controlled loopback provider.
+
+## Newer protocol revisions
+
+The specification site now presents a later revision, **2026-07-28**, which makes MCP stateless: there is no `initialize` handshake, each request carries its protocol version and client capabilities in `_meta`, and servers must answer `server/discover`. [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) is a separate extension that lets a tool point at an interactive `ui://` resource. This adapter stays on `2025-11-25` for now: the definitions above are revision-neutral (the same `Tool` objects, schemas, icons and resource links), so supporting the newer revision later is a transport and lifecycle change in `mcp-server.mjs`, not a change to the tool contract. A `ui://` preview would need a reviewed, self-contained HTML page per workspace and is not planned until the extension's client support settles.
 
 Configuring this adapter, importing a recipe into Studio's **Saved** library and contributing source are separate workflows. A public catalog submission service and featured-placement applications have not launched.
