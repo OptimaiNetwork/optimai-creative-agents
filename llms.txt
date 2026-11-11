@@ -44,7 +44,7 @@ How to work with this SDK:
 - [`@optimai/creative-agents/form-schema`](src/form-schema.d.mts): AGENT_FORM_SCHEMA_VERSION, FORM_CONTROLS, FORM_ROLES, FORM_GROUPS, getAgentFieldRoles, getAgentFormSchema, listFormFields, plainFormSchema. Types: FormControl, FormRole, FormGroupId, FormFieldHints, FormPropertySchema, AgentFormSchema, FormField.
 - [`@optimai/creative-agents/progress`](src/progress.d.mts): PROGRESS_STAGES, ENGINE_PROGRESS_STAGES, progressStage, normalizeProgress, describeProgress, progressSteps, createProgressReporter. Types: ProgressStage, ProgressEvent, ProgressInput, ProgressEngine, ProgressStep.
 - [`@optimai/creative-agents/capabilities`](src/capabilities.d.mts): CAPABILITY_REPORT_VERSION, CREATIVE_CAPABILITIES, capabilityLabel, detectCreativeCapabilities, probeCreativeCapabilities, assessAgentCapabilities, modelSetupEnvironment. Types: CreativeCapability, CapabilityReport, CapabilityStatus, CapabilityAssessment, CapabilityEnvironment.
-- [`@optimai/creative-agents/accessibility`](src/accessibility.d.mts): REDUCED_MOTION_QUERY, MOTION_PREFERENCES, FLASH_LIMITS, ALT_TEXT_LIMIT, createMotionPreference, getAgentMotion, reducedMotionSettings, frameLuminance, measureFlashes, colorName, describeAgentOutput. Types: MotionPreferenceMode, MotionPreferenceLike, MotionPreference, AgentMotion, FlashSample, FlashReport, OutputDetails.
+- [`@optimai/creative-agents/accessibility`](src/accessibility.d.mts): REDUCED_MOTION_QUERY, MOTION_PREFERENCES, FLASH_LIMITS, ALT_TEXT_LIMIT, createMotionPreference, getAgentMotion, reducedMotionSettings, frameLuminance, measureFlashes, colorName, describeAgentOutput, createFlashLimiter, prefersReducedMotion. Types: MotionPreferenceMode, MotionPreferenceLike, MotionPreference, AgentMotion, FlashSample, FlashReport, OutputDetails, FlashLimiter.
 - [`@optimai/creative-agents/card-preview`](src/card-preview.d.mts): PREVIEW_SIZE, PREVIEW_LOOP_MS, PREVIEW_MOTIFS, getAgentPreview, renderAgentPreview, createPreviewPlayer. Types: PreviewMotif, PreviewPalette, AgentPreview, PreviewAgent, PreviewContext, PreviewFrame, PreviewPlayer.
 - [`@optimai/creative-agents/compare`](src/compare.d.mts): COMPARE_LIMITS, compareGrid, compareOutputs, describeComparison, splitView, stepSplit, compareImages. Types: CompareImage, CompareRect, CompareOptions, Comparison, SplitView, ComparableSource.
 - [`@optimai/creative-agents/playground`](src/playground.d.mts): PLAYGROUND_RUNNERS, PLAYGROUND_LIMITS, listPlaygroundAgents, formDefaults, readFormValue, colorInputValue, rerollSeed, playgroundRunPlan, encodePlaygroundState, decodePlaygroundState. Types: PlaygroundRunner, PlaygroundAgent, FormValue, PlaygroundRunPlan.
@@ -76,6 +76,8 @@ How to work with this SDK:
 
 ## Optional
 
+- [Full reference](llms-full.txt): every public declaration and guide inlined in one file, for agents that cannot follow links.
+- [Recipe skill](skills/build-a-recipe/SKILL.md): step-by-step instructions an AI coding agent can load to build and verify a recipe.
 - [Changelog](CHANGELOG.md): what each release lets builders and creators do.
 - [Contributing](CONTRIBUTING.md): how new reviewed operations, tests and docs are proposed.
 - [Manifest schema](schema/agent-manifest.schema.json): the strict v1 recipe format.

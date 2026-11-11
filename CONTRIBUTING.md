@@ -15,6 +15,7 @@ git switch -c improve-story-recipe
 node --version
 npm test
 npm run verify
+npm run typecheck   # after changing a .d.mts; see docs/release-and-feature.md#check-the-types
 ```
 
 Use Node.js 20 or newer. CI runs the package checks on Node.js 20, 22 and 24. Core checks need no dependency installation. Renderer regressions additionally need the pinned optional `three@0.186.1` peer; without it those cases report an explicit skip. CI installs that peer in a separate renderer step. Browser hosts install the reviewed optional peers only when integrating their respective engines.

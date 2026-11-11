@@ -16,6 +16,7 @@ Start with a **recipe** when an existing template already does the job. A recipe
 | Embed recipes in your own application | [Host integration](./host-integration.md) | Validation, reviewed dispatch, selected inputs and portable export |
 | Connect an MCP client | [MCP adapter](./mcp.md) | A local stdio server that prepares recipes and can explicitly run local writing |
 | Share your work or contribute it upstream | [Release and review](./release-and-feature.md) | Reproducible examples and a reviewable pull request |
+| Let an AI coding assistant build a recipe | [Recipe skill](../skills/build-a-recipe/SKILL.md) | An Agent Skill it can load, plus [`llms-full.txt`](../llms-full.txt) with every declaration inlined |
 | Implement a new capability | [Contributing](../CONTRIBUTING.md#new-reviewed-operations) | Source, declarations, contract updates and meaningful tests |
 
 ## What runs today

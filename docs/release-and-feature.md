@@ -72,7 +72,16 @@ The command moves everything under `## Unreleased` in [CHANGELOG.md](../CHANGELO
 
 Then review the diff, run `npm test` and `npm run verify`, commit, and tag the commit `vx.y.z` yourself. `test/docs.test.mjs` fails if a living document names another version.
 
-Run `npm run llms` after changing exports, declarations, guides or the catalog between releases; `node scripts/release-notes.mjs --check` (and the test suite) report a stale `llms.txt`.
+Run `npm run llms` after changing exports, declarations, guides, the recipe skill or the catalog between releases; it writes `llms.txt` (the short map) and `llms-full.txt` (every declaration, the [recipe skill](../skills/build-a-recipe/SKILL.md) and every guide inlined, with headings nested and links rebased to the package root). `node scripts/release-notes.mjs --check` (and the test suite) report either file when it is stale, and a release regenerates both.
+
+## Check the types
+
+```sh
+npm install --prefix .cache/typecheck --ignore-scripts --no-save --package-lock=false typescript@5.9.3
+npm run typecheck
+```
+
+The gate compiles every declaration listed in `package.json` `exports` under `strict`, together with [`test/types/usage.mts`](../test/types/usage.mts), a consumer sample that imports each module by package name. Its `@ts-expect-error` lines are mistakes the declarations must keep rejecting (a recipe granting itself network access, an unguarded unknown template), so a declaration that loosens fails the gate. Optional peers are stubbed in [`test/types/optional-peers.d.ts`](../test/types/optional-peers.d.ts), so nothing else is installed. The compiler is a tool, not a dependency: the script uses `TYPESCRIPT_DIR`, the `.cache/typecheck` folder (gitignored) or an install in a parent folder, and prints the command above when it finds none. CI pins 5.9.3. `test/types.test.mjs` also fails when a module exports a name its declaration does not, and runs the gate whenever a compiler is available.
 
 ## SDK 0.5.0
 

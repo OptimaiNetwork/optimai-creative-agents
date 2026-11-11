@@ -226,6 +226,8 @@
     "README.md",
     "CHANGELOG.md",
     "llms.txt",
+    "llms-full.txt",
+    "skills",
     "CONTRIBUTING.md",
     "SECURITY.md",
     "CODE_OF_CONDUCT.md",
@@ -256,6 +258,7 @@
     "smoke": "node scripts/smoke.mjs",
     "release:notes": "node scripts/release-notes.mjs",
     "llms": "node scripts/release-notes.mjs --llms",
+    "typecheck": "node scripts/typecheck.mjs",
     "mcp": "node src/mcp-server.mjs"
   }
 }

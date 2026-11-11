@@ -153,7 +153,7 @@ Try the agents at [optimai.studio/agents](https://optimai.studio/agents), or rea
 
 **MCP clients.** Launch the local stdio adapter with Node. It exposes all 39 recipes for preparation; writing agents can run only when explicitly requested with an installed model. The adapter implements protocol version `2025-11-25`. [MCP guide →](./docs/mcp.md)
 
-**AI coding agents.** [`llms.txt`](./llms.txt) maps every public subpath to its exported functions and types, the guides and all template IDs in one short file, generated from the shipped declarations so it cannot drift. Point your coding assistant at it before it writes against the SDK.
+**AI coding agents.** [`llms.txt`](./llms.txt) maps every public subpath to its exported functions and types, the guides and all template IDs in one short file, generated from the shipped declarations so it cannot drift. Point your coding assistant at it before it writes against the SDK. [`llms-full.txt`](./llms-full.txt) inlines every declaration and guide for assistants that cannot follow links, and the [recipe skill](./skills/build-a-recipe/SKILL.md) teaches one to build and validate an `agent.json`. `npm run typecheck` compiles the declarations under `strict`.
 
 **OptimAI Studio.** Import a valid JSON recipe through the local AI Agents builder, or use a reviewed host handoff. Studio's account, generation, billing, persistence and publishing services are separate from this MIT SDK. Importing a recipe does not publish a community listing. [Host integration →](./docs/host-integration.md)
 
@@ -184,6 +184,8 @@ Use [issues](https://github.com/OptimaiNetwork/optimai-creative-agents/issues) f
 | [Contributing](./CONTRIBUTING.md) | Develop a recipe or reviewed engine |
 | [Release and featuring](./docs/release-and-feature.md) | Prepare a reviewable source contribution and release |
 | [`llms.txt`](./llms.txt) | A compact API map for AI coding agents |
+| [`llms-full.txt`](./llms-full.txt) | Every declaration and guide in one file |
+| [Recipe skill](./skills/build-a-recipe/SKILL.md) | An Agent Skill for building and validating a recipe |
 | [Changelog](./CHANGELOG.md) | What each release lets builders and creators do |
 
 ## License and acknowledgments

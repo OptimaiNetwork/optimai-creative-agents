@@ -35,6 +35,12 @@ jobs:
         run: npm test
       - name: Verify reviewed catalog
         run: npm run verify
+      - name: Type-check the shipped declarations
+        run: |
+          npm install --prefix .cache/typecheck --ignore-scripts --no-save --package-lock=false typescript@5.9.3
+          npm run typecheck
+      - name: Check llms.txt and llms-full.txt are current
+        run: node scripts/release-notes.mjs --check
       - name: Install only the pinned optional renderer peer
         run: |
           npm install --prefix .cache/renderer-peer --ignore-scripts --no-save --package-lock=false three@0.186.1
