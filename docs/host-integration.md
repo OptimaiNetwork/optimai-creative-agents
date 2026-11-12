@@ -122,6 +122,7 @@ A broader host can add these reviewed runtime adapters:
 | 3D scene | `scene-3d` → `scene3DRecipeSettings`; `scene-3d-runtime` → `createScene3DStage` | Procedural/local GLB WebGL stage, PNG and scene recipe; optional reviewed Three peer |
 | Camera effects/avatar | `camera-runtime`, `camera-renderer`, `camera-tracking`, `camera-worker`, `landmark-filter` | Canvas effects and original face-driven avatar; explicit permission and local verified tracking worker |
 | Music visuals | `music-reactive`, `beat-tracker` | Measured spectrum looks with an optional flash-limited beat pulse; the host owns the audio graph, playback and recording |
+| Video export | `video-export` → `probeVideoExport`, `encodeCanvasVideo`, `chooseRecorderType`, `readMediaForExport`, `waitMediaReady`, `rewindMedia`, `waitForExportSetup`, `videoExportFilename`, `saveBlob` | MP4 or WebM from a canvas: frame by frame through WebCodecs with the optional `mediabunny` peer, or a real-time MediaRecorder fallback with bounded input, a real rewind and cancellable setup; errors carry a stable `code` |
 | Run records | `run-record` → `createRunRecord`, `digestInputs`, `parseRunRecord`, `createRunHistory`, `runRecipeValues`; `canvas-lab` → `canvasLabRecipeValues` | A stable hash per result over template, settings, seed, SDK version and an input digest; tamper-checked JSON; a de-duplicated run list; settings back to recipe values for Remix; Node and browser |
 | Settings forms | `form-schema` → `getAgentFormSchema`, `listFormFields`, `getAgentFieldRoles`, `plainFormSchema` | JSON Schema 2020-12 per template with control, step, group and role hints; one source for builders, docs, MCP and host gates; Node and browser |
 | Capability probe | `capabilities` → `probeCreativeCapabilities`, `detectCreativeCapabilities`, `assessAgentCapabilities`, `modelSetupEnvironment` | What this browser and device can run (WebGPU adapter, WebGL, WebCodecs, OffscreenCanvas, `ctx.filter`, camera, memory, Save-Data) and the card words for each template, without asking for any permission; browser, testable in Node |
@@ -286,6 +287,33 @@ handle.addEventListener('keydown', event => { const next = stepSplit(position, e
 `compareOutputs(a, b, options)` measures two RGBA buffers (`ImageData` or `{ data, width, height }`) on one grid: `a`'s aspect, no larger than either image, and at most `maxSide` (512 by default) on the long side, so a 4K export costs the same as a thumbnail. Pixels are box-averaged onto the grid and transparent ones are read over mid grey. It returns `changed` (the share of pixels whose largest channel moved more than `threshold`, 8 by default), `meanDelta` and `maxDelta` (0–1), `psnr` in dB (`Infinity` when identical), `ssim` (SSIM-lite: the mean SSIM of half-overlapping 8 × 8 windows on luma; 1 is the same structure), `deltaE` (the mean OKLab distance), `overall` (the same colour shift and structure on a grid of at most 24 pixels, where grain, dither and halftone dots average out), `bounds` (the changed region in `a`'s pixels) and, with `{ diff: true }`, an RGBA heatmap of the change. The same two buffers always give the same numbers, and the metrics are symmetric when the sizes match. Different sizes still compare (`sameSize: false`); `b` is stretched to `a`'s aspect.
 
 `compareImages` is the browser path: it decodes each source once straight onto the comparison grid, reports `width`, `height` and `bounds` in `a`'s full pixels, closes the bitmaps it opened and stops when `signal` aborts. `describeComparison` says *Identical*, *No visible change* (only sub-threshold noise), *Small changes to …*, *Same picture with new grain or texture across …* (pixels differ but the overall look moved less than about one just-noticeable OKLab step, as when only a Print Shop or Glitch Cut seed changed), *Changed …* or *A new look across …*, with the share of the image and how much structure was kept. `splitView(position, width, height, { orientation })` gives the visible before and after rectangles, the divider line and the CSS `clipPath`; `stepSplit` moves a custom handle by 5% per arrow key, 20% per Page key, and to the ends on Home and End. A native range input needs neither.
+
+## Export video with WebCodecs or the recorder
+
+Ask once which path this browser can take, then encode frame by frame or record in real time:
+
+```js
+import { probeVideoExport, encodeCanvasVideo, exportFrameCount, videoExportFilename, saveBlob } from '@optimai/creative-agents/video-export';
+
+const mediabunny = await import('mediabunny').catch(() => null);        // optional peer, pinned 1.62.1
+const plan = await probeVideoExport({ width: 1280, height: 720, fps: 30, audio: true, mediabunny });
+if (plan.engine === 'webcodecs') {
+  const video = await encodeCanvasVideo({
+    mediabunny, canvas, fps: 30, frames: exportFrameCount(song.duration, 30), audio: decodedSong,   // an AudioBuffer
+    format: plan.container, videoCodec: plan.videoCodec, audioCodec: plan.audioCodec,
+    render: (frame, seconds) => drawFrameAt(seconds), signal, onProgress: event => showProgress(event),
+  });
+  saveBlob(video.blob, videoExportFilename(title, video.mime, { suffix: '· visualizer' }));
+} else if (plan.engine === 'recorder') {
+  startRealTimeRecording(plan.recorderType);   // MediaRecorder with canvas.captureStream() and a cloned audio track
+}
+```
+
+`probeVideoExport` resolves to `{ engine, container, mime, extension, videoCodec, audioCodec, recorderType, reason }`. With WebCodecs and the peer it tries MP4 (H.264, then VP9, AV1, HEVC; AAC, then Opus) before WebM (VP9, VP8, AV1; Opus), using the peer's `canEncodeVideo`/`canEncodeAudio` or the browser's `isConfigSupported`. `recorderType` is always the best MediaRecorder type, so a host can fall back without probing again; `reason` says why WebCodecs was skipped (`webcodecs-missing`, `muxer-missing` or `codec-missing`). Sides must be even and at most 4096 pixels.
+
+`encodeCanvasVideo` calls `render(frame, seconds)` for each frame, adds it with an exact timestamp and reports the shared progress shape (`prepare`, `frame` N of M, `export`, `ready`). Because it does not depend on playback, it runs faster than real time where the encoder allows, keeps working in a background tab and never drops a frame. Cancelling, a render error or an encoder error cancels the output, so a partial file is never returned; a file over `maxBytes` (128 MiB by default) is refused.
+
+For the real-time path, `chooseRecorderType` picks a MediaRecorder type, `readMediaForExport` buffers a whole source with a byte cap (64 MiB by default), `waitMediaReady` and `rewindMedia` wait for real `canplay` and `seeked` events, and `waitForExportSetup` wraps a `resume()` or `play()` promise that may never settle with a cancel and a timeout. `checkExportDuration` returns `null`, `'unreadable'` or `'too-long'` (over five minutes by default). Every failure is a `VideoExportError` with a stable `code` (`source-too-large`, `seek-timeout`, `setup-timeout`, `encoder-failed`…) and a plain English default `message`, so a host can show its own words. Each wait helper takes injectable `timers` for tests.
 
 ## Render settings from the form schema
 

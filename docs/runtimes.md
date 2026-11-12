@@ -568,6 +568,12 @@ Storyboard Builder generates a purpose, action, visual treatment, framing, dialo
 
 The recipe's `network: "none"` and `execution: "declarative"` describe the **recipe's privileges**: it cannot supply code, choose remote endpoints or grant itself access. The trusted host may explicitly download the fixed browser model assets or perform validated loopback inference. A host that supplies a `baseUrl` must still use a validated local endpoint. `fetchImpl` exists for controlled tests and dependency injection, not to enable an untrusted recipe to choose its own transport.
 
+## Video export with WebCodecs
+
+Install the optional reviewed peer in the host: `npm install --save-exact mediabunny@1.62.1`. The SDK never imports it; the host passes the module to `probeVideoExport({ mediabunny })` and `encodeCanvasVideo({ mediabunny })`, so a bundle without it still offers the MediaRecorder path. mediabunny is licensed under the Mozilla Public License 2.0 (file-level copyleft), not MIT: using it unmodified as a dependency keeps your own code under your license, but changes to its files must be shared under MPL-2.0. The SDK does not vendor or redistribute it.
+
+WebCodecs needs a secure context and `VideoEncoder`, `VideoFrame` and, for sound, `AudioEncoder`. Encoder support differs by browser and platform (some builds lack H.264 or AAC), which is why the probe tries several codecs and containers and always reports the recorder fallback. See [export video](./host-integration.md#export-video-with-webcodecs-or-the-recorder) for the host flow.
+
 ## Run a standalone agent from the command line
 
 Choose an eligible model already installed in your Ollama service. These commands perform real local inference and print the validated artifact as JSON. `--agent` and `--manifest` are mutually exclusive; `--model` is always explicit. A manifest supplies its own approved settings and creative brief, with optional additional direction from `--brief`.

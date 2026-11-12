@@ -209,6 +209,11 @@
       "import": "./src/transition.mjs",
       "default": "./src/transition.mjs"
     },
+    "./video-export": {
+      "types": "./src/video-export.d.mts",
+      "import": "./src/video-export.mjs",
+      "default": "./src/video-export.mjs"
+    },
     "./verify": {
       "types": "./src/verify.d.mts",
       "import": "./src/verify.mjs",
@@ -237,7 +242,8 @@
   "peerDependencies": {
     "@mlc-ai/web-llm": "0.2.85",
     "@mediapipe/tasks-vision": "1.1.0",
-    "three": "0.186.1"
+    "three": "0.186.1",
+    "mediabunny": "1.62.1"
   },
   "peerDependenciesMeta": {
     "@mlc-ai/web-llm": {
@@ -247,6 +253,9 @@
       "optional": true
     },
     "three": {
+      "optional": true
+    },
+    "mediabunny": {
       "optional": true
     }
   },

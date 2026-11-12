@@ -7,7 +7,7 @@ How to work with this SDK:
 - A recipe is a portable v1 JSON manifest: a reviewed template ID, approved setting values and a creative brief. It never carries code, model URLs or credentials.
 - Scaffold with `npm run create`, validate with `node scripts/verify.mjs path/to/agent.json`, and run `npm test` before proposing a change.
 - Import the public subpaths below; each module ships a `.d.mts` declaration beside it. Files without a subpath are internal. `npm run mcp` starts the local stdio MCP adapter.
-- Optional peers stay optional and pinned: `@mlc-ai/web-llm@0.2.85`, `@mediapipe/tasks-vision@1.1.0`, `three@0.186.1`. Canvas, catalog, color, crop, verify and beat modules need none.
+- Optional peers stay optional and pinned: `@mlc-ai/web-llm@0.2.85`, `@mediapipe/tasks-vision@1.1.0`, `three@0.186.1`, `mediabunny@1.62.1`. Canvas, catalog, color, crop, verify and beat modules need none.
 - Selected media stays on the device. Media generation, accounts and billing belong to the host application, not this SDK.
 
 ## Templates
@@ -1647,6 +1647,88 @@ export function transitionTimes(count: number): number[];
 export function composeTransition<T extends Uint8ClampedArray | Uint8Array = Uint8ClampedArray>(from: Uint8ClampedArray | Uint8Array, to: Uint8ClampedArray | Uint8Array, width: number, height: number, progress: number, options?: TransitionOptions, out?: T): T;
 ```
 
+### `@optimai/creative-agents/video-export`
+
+Declared in `src/video-export.d.mts`, implemented in `src/video-export.mjs`.
+
+```ts
+import type { ProgressEvent } from './progress.mjs';
+/**
+ * Video export for canvas agents: probe the best local path, encode frame by frame with WebCodecs through the
+ * optional `mediabunny` peer, or record in real time with MediaRecorder using the honest-recording helpers.
+ */
+export declare const VIDEO_EXPORT_LIMITS: Readonly<{ maximumSeconds: 300; maximumInputBytes: number; maximumOutputBytes: number; maximumSide: 4096; maximumFps: 120; setupTimeoutMs: 15000; seekTimeoutMs: 5000 }>;
+export declare const RECORDER_VIDEO_TYPES: readonly string[];
+export type VideoContainer = 'mp4' | 'webm';
+/** mediabunny codec names the WebCodecs path uses. */
+export type ExportVideoCodec = 'avc' | 'vp9' | 'vp8' | 'av1' | 'hevc';
+export type ExportAudioCodec = 'aac' | 'opus';
+export type VideoExportFormat = Readonly<{ container: VideoContainer; mime: string; extension: VideoContainer; video: readonly ExportVideoCodec[]; audio: readonly ExportAudioCodec[] }>;
+export declare const VIDEO_EXPORT_FORMATS: Readonly<Record<VideoContainer, VideoExportFormat>>;
+export type VideoExportErrorCode = 'setup-timeout' | 'source-unavailable' | 'source-too-large' | 'source-empty' | 'media-error' | 'media-timeout' | 'seek-error' | 'seek-timeout' | 'muxer-missing' | 'encoder-failed' | 'output-too-large';
+/** An export failure with a stable `code`; `message` is a plain English default a host may replace. */
+export declare class VideoExportError extends Error {
+  constructor(code: VideoExportErrorCode, message: string);
+  readonly code: VideoExportErrorCode;
+}
+/** Injectable timers (for tests or hosts with their own clock). */
+export type ExportTimers = { setTimeout: (callback: () => void, ms: number) => unknown; clearTimeout: (id: any) => void };
+
+export declare function chooseRecorderType(supports: (mime: string) => boolean, options?: { audio?: boolean; container?: VideoContainer }): string | null;
+export declare function checkExportDuration(seconds: number, options?: { maximumSeconds?: number }): null | 'unreadable' | 'too-long';
+export declare function exportFrameCount(seconds: number, fps?: number): number;
+export declare function videoExtension(mime: string): VideoContainer;
+export declare function videoExportFilename(title: string, mime: string, options?: { fallback?: string; suffix?: string }): string;
+export declare function waitForExportSetup<T>(start: () => T | PromiseLike<T>, options?: { signal?: AbortSignal; timeoutMs?: number; message?: string; timers?: ExportTimers }): Promise<T>;
+export declare function readMediaForExport(source: string | Response, options?: { signal?: AbortSignal; maxBytes?: number; fetch?: typeof fetch; type?: string }): Promise<Blob>;
+/** The parts of an `HTMLMediaElement` the wait helpers touch. */
+export type ExportMedia = Pick<EventTarget, 'addEventListener' | 'removeEventListener'> & { readyState?: number; currentTime: number; seeking?: boolean; preload?: string; load?: () => void };
+export declare function waitMediaReady(media: ExportMedia, options?: { signal?: AbortSignal; timeoutMs?: number; timers?: ExportTimers }): Promise<void>;
+export declare function rewindMedia(media: ExportMedia, options?: { signal?: AbortSignal; timeoutMs?: number; timers?: ExportTimers }): Promise<void>;
+export declare function saveBlob(blob: Blob, filename: string, options?: { document?: Document; URL?: { createObjectURL(blob: Blob): string; revokeObjectURL(url: string): void }; revokeAfterMs?: number; timers?: ExportTimers }): void;
+
+/** The subset of the `mediabunny` module the SDK uses; pass the module itself (`await import('mediabunny')`). */
+export type MediabunnyLike = {
+  Output: new (options: { format: unknown; target: unknown }) => { state: string; target: { buffer: ArrayBuffer | null }; addVideoTrack(source: unknown, metadata?: { frameRate?: number }): unknown; addAudioTrack(source: unknown): unknown; start(): Promise<void>; finalize(): Promise<void>; cancel(): Promise<void> };
+  BufferTarget: new () => unknown;
+  Mp4OutputFormat: new () => unknown;
+  WebMOutputFormat: new () => unknown;
+  CanvasSource: new (canvas: HTMLCanvasElement | OffscreenCanvas, config: { codec: string; bitrate?: unknown; keyFrameInterval?: number }) => { add(timestamp: number, duration?: number): Promise<void> };
+  AudioBufferSource?: new (config: { codec: string; bitrate?: unknown }) => { add(buffer: AudioBuffer): Promise<void> };
+  canEncodeVideo?: (codec: any, options?: object) => Promise<boolean>;
+  canEncodeAudio?: (codec: any, options?: object) => Promise<boolean>;
+};
+export type VideoExportPlan = Readonly<{
+  engine: 'webcodecs' | 'recorder' | 'none';
+  container: VideoContainer | null; mime: string | null; extension: VideoContainer | null;
+  videoCodec: ExportVideoCodec | null; audioCodec: ExportAudioCodec | null;
+  /** The real-time MediaRecorder fallback, even when WebCodecs wins. */
+  recorderType: string | null;
+  /** Why WebCodecs was not chosen, else null. */
+  reason: null | 'muxer-missing' | 'webcodecs-missing' | 'codec-missing';
+}>;
+export declare function probeVideoExport(options?: { width?: number; height?: number; fps?: number; audio?: boolean; format?: 'auto' | VideoContainer; bitrate?: number; mediabunny?: MediabunnyLike | null; env?: object }): Promise<VideoExportPlan>;
+export type EncodedVideo = Readonly<{ blob: Blob; mime: string; container: VideoContainer; extension: VideoContainer; videoCodec: ExportVideoCodec; audioCodec: ExportAudioCodec | null; frames: number; fps: number; duration: number; bytes: number }>;
+export declare function encodeCanvasVideo(options: {
+  mediabunny: MediabunnyLike;
+  canvas: HTMLCanvasElement | OffscreenCanvas;
+  /** Draw frame N at `seconds` onto the canvas. */
+  render: (frame: number, seconds: number) => void | Promise<void>;
+  frames: number;
+  fps?: number;
+  audio?: AudioBuffer | null;
+  format?: VideoContainer;
+  videoCodec?: ExportVideoCodec;
+  audioCodec?: ExportAudioCodec;
+  bitrate?: number;
+  audioBitrate?: number;
+  keyFrameSeconds?: number;
+  signal?: AbortSignal;
+  onProgress?: (event: ProgressEvent) => void;
+  maxBytes?: number;
+}): Promise<EncodedVideo>;
+```
+
 ### `@optimai/creative-agents/verify`
 
 Declared in `src/verify.d.mts`, implemented in `src/verify.mjs`.
@@ -2596,6 +2678,12 @@ Storyboard Builder generates a purpose, action, visual treatment, framing, dialo
 
 The recipe's `network: "none"` and `execution: "declarative"` describe the **recipe's privileges**: it cannot supply code, choose remote endpoints or grant itself access. The trusted host may explicitly download the fixed browser model assets or perform validated loopback inference. A host that supplies a `baseUrl` must still use a validated local endpoint. `fetchImpl` exists for controlled tests and dependency injection, not to enable an untrusted recipe to choose its own transport.
 
+#### Video export with WebCodecs
+
+Install the optional reviewed peer in the host: `npm install --save-exact mediabunny@1.62.1`. The SDK never imports it; the host passes the module to `probeVideoExport({ mediabunny })` and `encodeCanvasVideo({ mediabunny })`, so a bundle without it still offers the MediaRecorder path. mediabunny is licensed under the Mozilla Public License 2.0 (file-level copyleft), not MIT: using it unmodified as a dependency keeps your own code under your license, but changes to its files must be shared under MPL-2.0. The SDK does not vendor or redistribute it.
+
+WebCodecs needs a secure context and `VideoEncoder`, `VideoFrame` and, for sound, `AudioEncoder`. Encoder support differs by browser and platform (some builds lack H.264 or AAC), which is why the probe tries several codecs and containers and always reports the recorder fallback. See [export video](docs/host-integration.md#export-video-with-webcodecs-or-the-recorder) for the host flow.
+
 #### Run a standalone agent from the command line
 
 Choose an eligible model already installed in your Ollama service. These commands perform real local inference and print the validated artifact as JSON. `--agent` and `--manifest` are mutually exclusive; `--model` is always explicit. A manifest supplies its own approved settings and creative brief, with optional additional direction from `--brief`.
@@ -2780,6 +2868,7 @@ A broader host can add these reviewed runtime adapters:
 | 3D scene | `scene-3d` → `scene3DRecipeSettings`; `scene-3d-runtime` → `createScene3DStage` | Procedural/local GLB WebGL stage, PNG and scene recipe; optional reviewed Three peer |
 | Camera effects/avatar | `camera-runtime`, `camera-renderer`, `camera-tracking`, `camera-worker`, `landmark-filter` | Canvas effects and original face-driven avatar; explicit permission and local verified tracking worker |
 | Music visuals | `music-reactive`, `beat-tracker` | Measured spectrum looks with an optional flash-limited beat pulse; the host owns the audio graph, playback and recording |
+| Video export | `video-export` → `probeVideoExport`, `encodeCanvasVideo`, `chooseRecorderType`, `readMediaForExport`, `waitMediaReady`, `rewindMedia`, `waitForExportSetup`, `videoExportFilename`, `saveBlob` | MP4 or WebM from a canvas: frame by frame through WebCodecs with the optional `mediabunny` peer, or a real-time MediaRecorder fallback with bounded input, a real rewind and cancellable setup; errors carry a stable `code` |
 | Run records | `run-record` → `createRunRecord`, `digestInputs`, `parseRunRecord`, `createRunHistory`, `runRecipeValues`; `canvas-lab` → `canvasLabRecipeValues` | A stable hash per result over template, settings, seed, SDK version and an input digest; tamper-checked JSON; a de-duplicated run list; settings back to recipe values for Remix; Node and browser |
 | Settings forms | `form-schema` → `getAgentFormSchema`, `listFormFields`, `getAgentFieldRoles`, `plainFormSchema` | JSON Schema 2020-12 per template with control, step, group and role hints; one source for builders, docs, MCP and host gates; Node and browser |
 | Capability probe | `capabilities` → `probeCreativeCapabilities`, `detectCreativeCapabilities`, `assessAgentCapabilities`, `modelSetupEnvironment` | What this browser and device can run (WebGPU adapter, WebGL, WebCodecs, OffscreenCanvas, `ctx.filter`, camera, memory, Save-Data) and the card words for each template, without asking for any permission; browser, testable in Node |
@@ -2944,6 +3033,33 @@ handle.addEventListener('keydown', event => { const next = stepSplit(position, e
 `compareOutputs(a, b, options)` measures two RGBA buffers (`ImageData` or `{ data, width, height }`) on one grid: `a`'s aspect, no larger than either image, and at most `maxSide` (512 by default) on the long side, so a 4K export costs the same as a thumbnail. Pixels are box-averaged onto the grid and transparent ones are read over mid grey. It returns `changed` (the share of pixels whose largest channel moved more than `threshold`, 8 by default), `meanDelta` and `maxDelta` (0–1), `psnr` in dB (`Infinity` when identical), `ssim` (SSIM-lite: the mean SSIM of half-overlapping 8 × 8 windows on luma; 1 is the same structure), `deltaE` (the mean OKLab distance), `overall` (the same colour shift and structure on a grid of at most 24 pixels, where grain, dither and halftone dots average out), `bounds` (the changed region in `a`'s pixels) and, with `{ diff: true }`, an RGBA heatmap of the change. The same two buffers always give the same numbers, and the metrics are symmetric when the sizes match. Different sizes still compare (`sameSize: false`); `b` is stretched to `a`'s aspect.
 
 `compareImages` is the browser path: it decodes each source once straight onto the comparison grid, reports `width`, `height` and `bounds` in `a`'s full pixels, closes the bitmaps it opened and stops when `signal` aborts. `describeComparison` says *Identical*, *No visible change* (only sub-threshold noise), *Small changes to …*, *Same picture with new grain or texture across …* (pixels differ but the overall look moved less than about one just-noticeable OKLab step, as when only a Print Shop or Glitch Cut seed changed), *Changed …* or *A new look across …*, with the share of the image and how much structure was kept. `splitView(position, width, height, { orientation })` gives the visible before and after rectangles, the divider line and the CSS `clipPath`; `stepSplit` moves a custom handle by 5% per arrow key, 20% per Page key, and to the ends on Home and End. A native range input needs neither.
+
+#### Export video with WebCodecs or the recorder
+
+Ask once which path this browser can take, then encode frame by frame or record in real time:
+
+```js
+import { probeVideoExport, encodeCanvasVideo, exportFrameCount, videoExportFilename, saveBlob } from '@optimai/creative-agents/video-export';
+
+const mediabunny = await import('mediabunny').catch(() => null);        // optional peer, pinned 1.62.1
+const plan = await probeVideoExport({ width: 1280, height: 720, fps: 30, audio: true, mediabunny });
+if (plan.engine === 'webcodecs') {
+  const video = await encodeCanvasVideo({
+    mediabunny, canvas, fps: 30, frames: exportFrameCount(song.duration, 30), audio: decodedSong,   // an AudioBuffer
+    format: plan.container, videoCodec: plan.videoCodec, audioCodec: plan.audioCodec,
+    render: (frame, seconds) => drawFrameAt(seconds), signal, onProgress: event => showProgress(event),
+  });
+  saveBlob(video.blob, videoExportFilename(title, video.mime, { suffix: '· visualizer' }));
+} else if (plan.engine === 'recorder') {
+  startRealTimeRecording(plan.recorderType);   // MediaRecorder with canvas.captureStream() and a cloned audio track
+}
+```
+
+`probeVideoExport` resolves to `{ engine, container, mime, extension, videoCodec, audioCodec, recorderType, reason }`. With WebCodecs and the peer it tries MP4 (H.264, then VP9, AV1, HEVC; AAC, then Opus) before WebM (VP9, VP8, AV1; Opus), using the peer's `canEncodeVideo`/`canEncodeAudio` or the browser's `isConfigSupported`. `recorderType` is always the best MediaRecorder type, so a host can fall back without probing again; `reason` says why WebCodecs was skipped (`webcodecs-missing`, `muxer-missing` or `codec-missing`). Sides must be even and at most 4096 pixels.
+
+`encodeCanvasVideo` calls `render(frame, seconds)` for each frame, adds it with an exact timestamp and reports the shared progress shape (`prepare`, `frame` N of M, `export`, `ready`). Because it does not depend on playback, it runs faster than real time where the encoder allows, keeps working in a background tab and never drops a frame. Cancelling, a render error or an encoder error cancels the output, so a partial file is never returned; a file over `maxBytes` (128 MiB by default) is refused.
+
+For the real-time path, `chooseRecorderType` picks a MediaRecorder type, `readMediaForExport` buffers a whole source with a byte cap (64 MiB by default), `waitMediaReady` and `rewindMedia` wait for real `canplay` and `seeked` events, and `waitForExportSetup` wraps a `resume()` or `play()` promise that may never settle with a cancel and a timeout. `checkExportDuration` returns `null`, `'unreadable'` or `'too-long'` (over five minutes by default). Every failure is a `VideoExportError` with a stable `code` (`source-too-large`, `seek-timeout`, `setup-timeout`, `encoder-failed`…) and a plain English default `message`, so a host can show its own words. Each wait helper takes injectable `timers` for tests.
 
 #### Render settings from the form schema
 
@@ -3139,7 +3255,7 @@ renderMusicReactiveFrame(canvas.getContext('2d'), {
 });
 ```
 
-The host owns the audio graph, file selection, playback, canvas, recording and disposal. Use one `MediaElementAudioSourceNode` per media element and route it to an analyser, speakers and a `MediaStreamAudioDestinationNode`. Full-song recording can combine `canvas.captureStream()` with a **clone** of the destination audio track. Stop cloned export tracks without destroying the reusable audio graph. Check `MediaRecorder.isTypeSupported()`, handle runtime encoder failures, wait for a real seek to the beginning, bound retained chunks, and discard a canceled or hidden-tab recording instead of presenting it as complete. If recording APIs are absent, provide preview and still export.
+The host owns the audio graph, file selection, playback, canvas, recording and disposal. Use one `MediaElementAudioSourceNode` per media element and route it to an analyser, speakers and a `MediaStreamAudioDestinationNode`. Full-song recording can combine `canvas.captureStream()` with a **clone** of the destination audio track. Stop cloned export tracks without destroying the reusable audio graph. Check `MediaRecorder.isTypeSupported()`, handle runtime encoder failures, wait for a real seek to the beginning, bound retained chunks, and discard a canceled or hidden-tab recording instead of presenting it as complete. If recording APIs are absent, provide preview and still export. The [`video-export`](docs/host-integration.md#export-video-with-webcodecs-or-the-recorder) module provides these recorder helpers (`chooseRecorderType`, `readMediaForExport`, `waitMediaReady`, `rewindMedia`, `waitForExportSetup`) and, with the optional `mediabunny` peer, a frame-by-frame WebCodecs path that does not depend on playback.
 
 ##### Beat sync (`beat-tracker`)
 

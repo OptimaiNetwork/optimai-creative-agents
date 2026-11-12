@@ -190,9 +190,9 @@ Use [issues](https://github.com/OptimaiNetwork/optimai-creative-agents/issues) f
 
 ## License and acknowledgments
 
-The SDK, examples and original agent artwork are [MIT licensed](./LICENSE). Optional Three.js, WebLLM and MediaPipe libraries, Qwen weights and vision models retain their upstream licenses; the SDK's license does not replace them.
+The SDK, examples and original agent artwork are [MIT licensed](./LICENSE). Optional Three.js, WebLLM, MediaPipe and mediabunny libraries, Qwen weights and vision models retain their upstream licenses; the SDK's license does not replace them.
 
-We build on the work of [WebLLM](https://github.com/mlc-ai/web-llm), [Qwen](https://github.com/QwenLM/Qwen3.5), [MediaPipe](https://github.com/google-ai-edge/mediapipe), [Three.js](https://threejs.org/) and the [Model Context Protocol](https://modelcontextprotocol.io/). These integrations are independent; their maintainers do not endorse OptimAI. See the [runtime guide](./docs/runtimes.md) for reviewed versions, asset integrity and redistribution notes.
+We build on the work of [WebLLM](https://github.com/mlc-ai/web-llm), [Qwen](https://github.com/QwenLM/Qwen3.5), [MediaPipe](https://github.com/google-ai-edge/mediapipe), [Three.js](https://threejs.org/), [mediabunny](https://mediabunny.dev/) and the [Model Context Protocol](https://modelcontextprotocol.io/). These integrations are independent; their maintainers do not endorse OptimAI. See the [runtime guide](./docs/runtimes.md) for reviewed versions, asset integrity and redistribution notes.
 
 ### Music and motion
 
