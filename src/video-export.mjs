@@ -207,10 +207,110 @@ export async function encodeCanvasVideo({ mediabunny: mb, canvas, render, frames
     if (bytes > maxBytes) throw fail('output-too-large', 'This export is larger than the device memory limit.');
     const blob = new Blob([buffer], { type: spec.mime });
     progress({ stage: 'ready' });
-    return Object.freeze({ blob, mime: spec.mime, container: spec.container, extension: spec.extension, videoCodec: video, audioCodec: sound, frames, fps, duration: frames / fps, bytes });
+    return Object.freeze({ engine: 'webcodecs', blob, mime: spec.mime, container: spec.container, extension: spec.extension, videoCodec: video, audioCodec: sound, frames, fps, duration: frames / fps, bytes });
   } catch (cause) {
     if (output.state !== 'finalized' && output.state !== 'canceled') await Promise.resolve().then(() => output.cancel()).catch(() => {});
     if (cause instanceof VideoExportError || cause?.name === 'AbortError') throw cause;
     const wrapped = fail('encoder-failed', cause?.message ? `The encoder stopped: ${cause.message}` : 'The encoder stopped.'); wrapped.cause = cause; throw wrapped;
   }
+}
+
+// Wait `ms` on the host clock; cancelling rejects at once.
+function pause(ms, signal, { set, clear }) {
+  if (signal?.aborted) return Promise.reject(aborted());
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const canceled = () => { clear(timer); reject(aborted()); };
+    const timer = set(() => { signal?.removeEventListener('abort', canceled); resolve(); }, ms);
+    signal?.addEventListener('abort', canceled, { once: true });
+  });
+}
+
+/**
+ * The real-time fallback with the same `render(frame, seconds)` contract as `encodeCanvasVideo`, for browsers or
+ * hosts without the muxer. Each frame is drawn, pushed with `requestFrame()` when the track has it, and held for
+ * 1/fps of wall-clock time while MediaRecorder writes it. `audio` (an `AudioBuffer`) plays into the recording from
+ * frame 0 through a muted Web Audio graph; `audioTracks` adds live tracks instead. Cancelling or any failure stops
+ * the recorder and returns no file. The tab must stay visible: hidden tabs slow timers and the clip drifts.
+ */
+export async function recordCanvasVideo({ canvas, render, frames, fps = 30, mimeType, audio, audioTracks = [], bitrate, signal, onProgress, maxBytes = VIDEO_EXPORT_LIMITS.maximumOutputBytes, env = globalThis, timers } = {}) {
+  if (!canvas || !fn(render)) throw new TypeError('recordCanvasVideo needs a canvas and a render(frame, seconds) function.');
+  if (!fn(canvas.captureStream) || !fn(env.MediaRecorder)) throw fail('recorder-missing', 'This browser cannot record a canvas.');
+  ({ fps } = size({ width: canvas.width, height: canvas.height, fps }));
+  if (!Number.isInteger(frames) || frames < 1 || frames / fps > VIDEO_EXPORT_LIMITS.maximumSeconds) throw new RangeError(`frames must be a positive integer covering at most ${VIDEO_EXPORT_LIMITS.maximumSeconds} seconds.`);
+  if (!Array.isArray(audioTracks)) throw new TypeError('audioTracks must be an array of MediaStreamTrack.');
+  const sound = !!audio || audioTracks.length > 0;
+  const type = mimeType ?? (fn(env.MediaRecorder.isTypeSupported) ? chooseRecorderType(value => env.MediaRecorder.isTypeSupported(value), { audio: sound }) : null);
+  if (!type) throw fail('recorder-missing', 'This browser has no supported recording format.');
+  if (audio && !fn(env.AudioContext)) throw fail('audio-missing', 'This browser cannot play the soundtrack into a recording.');
+  const progress = event => { try { onProgress?.(normalizeProgress(event)); } catch { /* A host callback never breaks an export. */ } };
+  const timing = clock(timers), now = timers?.now ?? (() => globalThis.performance?.now?.() ?? Date.now());
+  if (signal?.aborted) throw aborted();
+  progress({ stage: 'prepare' });
+  let stream = canvas.captureStream(0), track = stream.getVideoTracks?.()[0];
+  const manual = fn(track?.requestFrame);
+  if (!manual) { stream.getTracks?.().forEach(item => item.stop()); stream = canvas.captureStream(fps); track = stream.getVideoTracks?.()[0]; }
+  let context, player, recorder;
+  try {
+    if (audio) {
+      context = new env.AudioContext({ sampleRate: audio.sampleRate });
+      await waitForExportSetup(() => context.resume(), { signal, timers, message: 'The soundtrack could not start.' });
+      player = context.createBufferSource(); player.buffer = audio;
+      const destination = context.createMediaStreamDestination(); player.connect(destination);
+      destination.stream.getAudioTracks().forEach(item => stream.addTrack(item));
+    }
+    audioTracks.forEach(item => stream.addTrack(item));
+    recorder = new env.MediaRecorder(stream, { mimeType: type, ...(bitrate ? { videoBitsPerSecond: bitrate } : {}) });
+    const chunks = []; let bytes = 0, failure = null;
+    const stopped = new Promise(resolve => recorder.addEventListener('stop', resolve, { once: true }));
+    recorder.addEventListener('dataavailable', event => {
+      if (!event.data?.size || failure) return;
+      bytes += event.data.size;
+      if (bytes > maxBytes) failure = fail('output-too-large', 'This export is larger than the device memory limit.'); else chunks.push(event.data);
+    });
+    recorder.addEventListener('error', event => { failure ??= fail('recorder-failed', event?.error?.message ? `The recorder stopped: ${event.error.message}` : 'The recorder stopped.'); });
+    await render(0, 0);
+    if (signal?.aborted) throw aborted();
+    recorder.start(1000); player?.start();
+    const started = now();
+    for (let frame = 0; frame < frames; frame++) {
+      if (frame) await render(frame, frame / fps);
+      if (signal?.aborted) throw aborted();
+      if (failure) throw failure;
+      if (manual) track.requestFrame();
+      progress({ stage: 'frame', frame: frame + 1, frames });
+      await pause(started + (frame + 1) * 1000 / fps - now(), signal, timing);
+    }
+    progress({ stage: 'export' });
+    recorder.stop(); await stopped;
+    if (failure) throw failure;
+    const blob = new Blob(chunks, { type: recorder.mimeType || type });
+    if (!blob.size) throw fail('encoder-failed', 'The recorder finished without a file.');
+    progress({ stage: 'ready' });
+    const mime = blob.type || type;
+    return Object.freeze({ engine: 'recorder', blob, mime, container: videoExtension(mime), extension: videoExtension(mime), videoCodec: null, audioCodec: null, frames, fps, duration: frames / fps, bytes: blob.size });
+  } catch (cause) {
+    try { if (recorder && recorder.state !== 'inactive') recorder.stop(); } catch { /* Already stopped. */ }
+    if (cause instanceof VideoExportError || cause?.name === 'AbortError') throw cause;
+    const wrapped = fail('recorder-failed', cause?.message ? `The recorder stopped: ${cause.message}` : 'The recorder stopped.'); wrapped.cause = cause; throw wrapped;
+  } finally {
+    try { player?.stop(); } catch { /* Never started. */ }
+    stream.getTracks?.().forEach(item => item.stop());
+    await Promise.resolve(context?.close?.()).catch(() => {});
+  }
+}
+
+/**
+ * Export with whatever `probeVideoExport` chose: WebCodecs through `mediabunny`, or the real-time recorder.
+ * `audio` is an `AudioBuffer` for either path. When WebCodecs fails mid-way (`encoder-failed`) and the probe named a
+ * recorder type, the export restarts once on the recorder unless `fallback` is false. Result has `engine`.
+ */
+export async function exportCanvasVideo({ probe, mediabunny, fallback = true, ...options } = {}) {
+  const record = () => recordCanvasVideo({ ...options, audio: options.audio, mimeType: probe.recorderType });
+  if (probe?.engine === 'webcodecs') {
+    try { return await encodeCanvasVideo({ ...options, mediabunny, format: probe.container, videoCodec: probe.videoCodec, audioCodec: probe.audioCodec ?? undefined, audio: probe.audioCodec ? options.audio : undefined }); }
+    catch (cause) { if (!fallback || !probe.recorderType || cause?.code !== 'encoder-failed' || options.signal?.aborted) throw cause; return record(); }
+  }
+  if (probe?.engine === 'recorder' && probe.recorderType) return record();
+  throw fail('unsupported', 'This browser cannot export video.');
 }

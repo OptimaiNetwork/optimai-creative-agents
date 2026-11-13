@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { TRANSITION_DIRECTIONS, TRANSITION_LIMITS, TRANSITION_PACES, TRANSITION_STYLES, TRANSITION_TECHNIQUES, composeTransition, resolveTransition, transitionProgress, transitionTimes } from '../src/transition.mjs';
+import { TRANSITION_DIRECTIONS, TRANSITION_LIMITS, TRANSITION_PACES, TRANSITION_STYLES, TRANSITION_TECHNIQUES, TRANSITION_CLIP, composeTransition, resolveTransition, transitionClipTime, transitionProgress, transitionTimes } from '../src/transition.mjs';
 
 /** A width × height shot: a horizontal ramp on red, a vertical one on green and a fixed blue, so every pixel is distinct. */
 function shot(width, height, blue) {
@@ -103,4 +103,16 @@ test('matte styles give identical bytes in place and into a new buffer, and reje
   assert.throws(() => composeTransition(from, [...to], width, height, 0.5), TypeError);
   assert.throws(() => composeTransition(from, to, width, height, 1.5), RangeError);
   assert.throws(() => composeTransition(from, to, 0, height, 0.5), RangeError);
+});
+
+test('video clip times hold each shot, cover the move evenly and reject impossible frames', () => {
+  assert.deepEqual(TRANSITION_CLIP, { seconds: 2.4, fps: 30, hold: 0.15 });
+  const frames = 101, times = Array.from({ length: frames }, (_, frame) => transitionClipTime(frame, frames));
+  assert.equal(times[0], 0); assert.equal(times[100], 1);
+  assert.equal(times.filter(time => time === 0).length, 16, 'the first 15% of the clip shows the first shot');
+  assert.equal(times.filter(time => time === 1).length, 16, 'and the last 15% the second');
+  assert.ok(Math.abs(times[50] - 0.5) < 1e-12);
+  assert.ok(times.every((time, index) => !index || time >= times[index - 1]), 'time never runs backwards');
+  assert.deepEqual([transitionClipTime(0, 2, { hold: 0 }), transitionClipTime(1, 2, { hold: 0 })], [0, 1]);
+  for (const [frame, count, options] of [[0, 1], [2, 2], [-1, 5], [1.5, 5], [0, 5, { hold: 0.5 }], [0, 5, { hold: NaN }]]) assert.throws(() => transitionClipTime(frame, count, options), RangeError);
 });

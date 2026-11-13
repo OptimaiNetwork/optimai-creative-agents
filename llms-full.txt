@@ -314,6 +314,18 @@ export function canvasLabRecipeValues(templateId: string, settings?: Record<stri
 export function canvasLabSettings(operation: string, values?: Record<string, string | number>): { operation: string; title: string; color: string; layout: string; ratio: string; treatment: string; amount: number; mix: number; crop: 'smart' | 'center'; ink: 'readable' | 'image' | 'exact'; position: TextPosition; scrim: 'auto' | 'off'; transition: TransitionStyle; direction: TransitionDirection; pace: TransitionPace; effect: GlitchEffect; seed: number; look: PrintLook; inks: RisoInkPair; scale: number; frames: number };
 /** The fourth argument is an AbortSignal or `{ signal, onProgress }`; progress stages are prepare → render → frame (transition strip) → export → ready. */
 export function runCanvasLab(operation: string, files?: File[], values?: Record<string, string | number>, options?: AbortSignal | { signal?: AbortSignal; onProgress?: (event: ProgressEvent) => void }): Promise<{blob: Blob; width: number; height: number; filename: string; /** Title color actually drawn (poster and letter). */ ink?: string; /** Title lines as drawn (poster and letter). */ lines?: string[]; /** Where the title block was drawn (poster and letter). */ placement?: TitlePlacement; /** Scrim drawn behind the title, or null (poster and letter). */ scrim?: TextScrim | null; /** Transition drawn (transition only). */ transition?: DrawnTransition; /** Preview strip, or null when `frames` is 0 or pixels cannot be read (transition only). */ strip?: TransitionStrip | null; /** Glitch drawn, with the seed that reproduces it (glitch only). */ glitch?: DrawnGlitch; /** Print drawn, with the seed that reproduces its grain (print only). */ print?: DrawnPrint}>;
+/** A Transition Lab clip ready for frame-by-frame export. */
+export type TransitionClip = Readonly<{
+  canvas: HTMLCanvasElement; width: number; height: number; seconds: number;
+  /** Style drawn; `dissolve` when the canvas cannot read pixels. */
+  style: TransitionStyle; direction: TransitionDirection; pace: TransitionPace;
+  /** Draw frame `index` of a `frames`-long clip (frame 0 is the first shot, the last frame the second). */
+  draw(index: number, frames: number): void;
+  /** Release the images and the canvas. */
+  close(): void;
+}>;
+/** Open two shots with Transition Lab's crop and style and return a clip to render with `exportCanvasVideo`. */
+export function createTransitionClip(files: File[], values?: Record<string, string | number>, options?: { width?: number; seconds?: number; hold?: number; signal?: AbortSignal; onProgress?: (event: ProgressEvent) => void }): Promise<TransitionClip>;
 ```
 
 ### `@optimai/creative-agents/agent-runtime`
@@ -620,6 +632,7 @@ export declare function createModelSetupController(options: {
 Declared in `src/music-reactive.d.mts`, implemented in `src/music-reactive.mjs`.
 
 ```ts
+import type { OfflineAudioSource } from './offline-analyser.mjs';
 export type MusicReactiveLook = 'orbital' | 'ribbons' | 'spectrum' | 'aurora';
 export const MUSIC_REACTIVE_LOOKS: readonly Readonly<{ id: MusicReactiveLook; title: string; description: string }>[];
 export const MUSIC_REACTIVE_LIMITS: Readonly<{ bands: 48; maxFrequencyBins: 16384; maxDimension: 4096; maxPixels: 8388608 }>;
@@ -647,6 +660,22 @@ export interface MusicReactiveFrame {
 }
 /** Draws a bounded frame and restores caller canvas state. No network or timers. */
 export function renderMusicReactiveFrame(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, options: MusicReactiveFrame): void;
+export type MusicReactiveRendererOptions = Partial<Omit<MusicReactiveFrame, 'time' | 'energy' | 'bass' | 'treble' | 'bands' | 'pulse'>> & {
+  /** Video frame rate, above 0 and at most 120. Default 30. */
+  fps?: number;
+  /** Analyser FFT size. Default 2048, like the live preview. */
+  fftSize?: number;
+  /** Flash-limited beat pulse, as in playback. Default true. */
+  beatSync?: boolean;
+};
+export type MusicReactiveRenderer = Readonly<{
+  /** Song length in seconds. */ duration: number; fps: number; sampleRate: number;
+  /** Frames that cover the song at `fps`. */ frames: number;
+  /** Draw frame `index` (in order) onto `ctx`, as the live preview would have shown it at `index / fps`. */
+  draw(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, index: number): void;
+}>;
+/** A music video drawn frame by frame from a decoded song, matching the live preview; for `exportCanvasVideo`. */
+export function createMusicReactiveRenderer(audio: OfflineAudioSource, options?: MusicReactiveRendererOptions): MusicReactiveRenderer;
 ```
 
 ### `@optimai/creative-agents/beat-tracker`
@@ -710,7 +739,14 @@ export type FrameSculptureSettings = { layout: 'stack' | 'fan' | 'ribbon'; spaci
 export type FrameSample = { canvas: HTMLCanvasElement; time: number };
 export type FrameSamplesResult = { frames: FrameSample[]; duration: number; name: string; kind: 'image' | 'video' };
 export type FrameSculptureRuntime = { THREE: typeof import('three'); OrbitControls: typeof import('three/addons/controls/OrbitControls.js').OrbitControls };
-export type FrameSculptureController = { frames(samples: FrameSample[]): void; update(settings: FrameSculptureSettings): void; camera(preset: 'perspective' | 'front' | 'side'): void; fit(): void; zoom(direction: 'in' | 'out'): void; png(): Promise<Blob>; configuration(): Record<string, unknown>; dispose(): void };
+export type FrameSculptureController = { frames(samples: FrameSample[]): void; update(settings: FrameSculptureSettings): void; camera(preset: 'perspective' | 'front' | 'side'): void; fit(): void; zoom(direction: 'in' | 'out'): void; png(): Promise<Blob>; /** Orbit the current view for a video export; `close()` restores the stage. */ turntable(options?: FrameSculptureTurntableOptions): FrameSculptureTurntable; configuration(): Record<string, unknown>; dispose(): void };
+export type FrameSculptureTurntableOptions = { /** Even sides (2–1920); default from the stage's aspect. */ width?: number; height?: number; /** Longer side when width/height are not given. Default 1280. */ edge?: number; /** Orbit per clip, non-zero, −720 to 720. Default 360. */ degrees?: number };
+export type FrameSculptureTurntable = Readonly<{ canvas: HTMLCanvasElement; width: number; height: number; degrees: number; /** Draw frame `frame` of a `frames`-long orbit. */ draw(frame: number, frames: number): void; close(): void }>;
+export const FRAME_SCULPTURE_TURNTABLE: Readonly<{ seconds: 6; fps: 30; degrees: 360; edge: 1280 }>;
+/** Camera angle in radians for a turntable frame; a full orbit never repeats its first frame. */
+export function turntableAngle(frame: number, frames: number, options?: { degrees?: number }): number;
+/** Even video sides for an aspect ratio, the longer side `edge`. */
+export function turntableSize(aspect: number, edge?: number): { width: number; height: number };
 export const FRAME_SCULPTURE_LIMITS: Readonly<{ bytes: number; duration: number; frames: number; edge: number; sourceEdge: number; sourcePixels: number }>;
 export const defaultFrameSculptureSettings: Readonly<FrameSculptureSettings>;
 export function validateFrameSculptureSettings(value?: Partial<FrameSculptureSettings>): FrameSculptureSettings;
@@ -1641,10 +1677,48 @@ export type TransitionSettings = Readonly<{ style: TransitionStyle; direction: T
 export function resolveTransition(options?: TransitionOptions): TransitionSettings;
 /** Eased progress for a time from 0 to 1 (clamped); `in-out` is smoothstep, `out` a cubic ease-out. */
 export function transitionProgress(time: number, ease?: TransitionEase): number;
+/** Default video clip: duration, frame rate and the share of the clip each still shot holds at both ends. */
+export declare const TRANSITION_CLIP: Readonly<{ seconds: 2.4; fps: 30; hold: 0.15 }>;
+/** Linear time (0–1) of video frame `frame` of `frames` (≥ 2), holding each shot for `hold` (0–0.45) at both ends; ease it with `transitionProgress`. */
+export function transitionClipTime(frame: number, frames: number, options?: { hold?: number }): number;
 /** `count` (2–12) evenly spaced times from 0 to 1 inclusive. */
 export function transitionTimes(count: number): number[];
 /** Compose one opaque frame of `from` → `to` at an eased progress into `out` (which may alias an input, except for push). */
 export function composeTransition<T extends Uint8ClampedArray | Uint8Array = Uint8ClampedArray>(from: Uint8ClampedArray | Uint8Array, to: Uint8ClampedArray | Uint8Array, width: number, height: number, progress: number, options?: TransitionOptions, out?: T): T;
+```
+
+### `@optimai/creative-agents/offline-analyser`
+
+Declared in `src/offline-analyser.d.mts`, implemented in `src/offline-analyser.mjs`.
+
+```ts
+export declare const OFFLINE_ANALYSER_LIMITS: Readonly<{ maximumSeconds: number; maximumSampleRate: number; maximumChannels: number }>;
+export declare const OFFLINE_ANALYSER_DEFAULTS: Readonly<{ fftSize: 2048; smoothingTimeConstant: 0.8; minDecibels: -100; maxDecibels: -30 }>;
+/** Decoded audio: a Web Audio `AudioBuffer`, or plain channels with their sample rate. */
+export type OfflineAudioSource = { sampleRate: number; numberOfChannels: number; length?: number; getChannelData(channel: number): Float32Array } | { sampleRate: number; channels: readonly Float32Array[] };
+export type OfflineAnalyserOptions = {
+  /** Power of two from 32 to 32,768. Default 2048, like `AnalyserNode`. */
+  fftSize?: number;
+  /** 0–1, like `AnalyserNode.smoothingTimeConstant`. Default 0.8; pass 0 when an elapsed-time smoother runs after it. */
+  smoothingTimeConstant?: number;
+  minDecibels?: number;
+  maxDecibels?: number;
+};
+export type OfflineAnalyser = Readonly<{
+  sampleRate: number; fftSize: number; frequencyBinCount: number; smoothingTimeConstant: number; minDecibels: number; maxDecibels: number;
+  /** Song length in seconds. */
+  duration: number;
+  /** 0–255 bytes for the moment `seconds`, matching a live `AnalyserNode.getByteFrequencyData`. */
+  getByteFrequencyData<T extends Uint8Array>(out: T, seconds: number): T;
+  /** Decibels (−Infinity for silence) for the moment `seconds`. */
+  getFloatFrequencyData<T extends Float32Array>(out: T, seconds: number): T;
+  /** Clear the smoothing history. */
+  reset(): void;
+}>;
+/** In-place complex FFT (power-of-two length, forward, unscaled). */
+export function fft<T extends Float64Array | Float32Array>(re: T, im: T): { re: T; im: T };
+/** An offline `AnalyserNode` over decoded audio: read times in order for frame-by-frame video export. */
+export function createOfflineAnalyser(audio: OfflineAudioSource, options?: OfflineAnalyserOptions): OfflineAnalyser;
 ```
 
 ### `@optimai/creative-agents/video-export`
@@ -1665,14 +1739,14 @@ export type ExportVideoCodec = 'avc' | 'vp9' | 'vp8' | 'av1' | 'hevc';
 export type ExportAudioCodec = 'aac' | 'opus';
 export type VideoExportFormat = Readonly<{ container: VideoContainer; mime: string; extension: VideoContainer; video: readonly ExportVideoCodec[]; audio: readonly ExportAudioCodec[] }>;
 export declare const VIDEO_EXPORT_FORMATS: Readonly<Record<VideoContainer, VideoExportFormat>>;
-export type VideoExportErrorCode = 'setup-timeout' | 'source-unavailable' | 'source-too-large' | 'source-empty' | 'media-error' | 'media-timeout' | 'seek-error' | 'seek-timeout' | 'muxer-missing' | 'encoder-failed' | 'output-too-large';
+export type VideoExportErrorCode = 'setup-timeout' | 'source-unavailable' | 'source-too-large' | 'source-empty' | 'media-error' | 'media-timeout' | 'seek-error' | 'seek-timeout' | 'muxer-missing' | 'encoder-failed' | 'output-too-large' | 'recorder-missing' | 'recorder-failed' | 'audio-missing' | 'unsupported';
 /** An export failure with a stable `code`; `message` is a plain English default a host may replace. */
 export declare class VideoExportError extends Error {
   constructor(code: VideoExportErrorCode, message: string);
   readonly code: VideoExportErrorCode;
 }
 /** Injectable timers (for tests or hosts with their own clock). */
-export type ExportTimers = { setTimeout: (callback: () => void, ms: number) => unknown; clearTimeout: (id: any) => void };
+export type ExportTimers = { setTimeout: (callback: () => void, ms: number) => unknown; clearTimeout: (id: any) => void; /** Milliseconds clock used by the recorder's frame pacing; default `performance.now`. */ now?: () => number };
 
 export declare function chooseRecorderType(supports: (mime: string) => boolean, options?: { audio?: boolean; container?: VideoContainer }): string | null;
 export declare function checkExportDuration(seconds: number, options?: { maximumSeconds?: number }): null | 'unreadable' | 'too-long';
@@ -1708,7 +1782,7 @@ export type VideoExportPlan = Readonly<{
   reason: null | 'muxer-missing' | 'webcodecs-missing' | 'codec-missing';
 }>;
 export declare function probeVideoExport(options?: { width?: number; height?: number; fps?: number; audio?: boolean; format?: 'auto' | VideoContainer; bitrate?: number; mediabunny?: MediabunnyLike | null; env?: object }): Promise<VideoExportPlan>;
-export type EncodedVideo = Readonly<{ blob: Blob; mime: string; container: VideoContainer; extension: VideoContainer; videoCodec: ExportVideoCodec; audioCodec: ExportAudioCodec | null; frames: number; fps: number; duration: number; bytes: number }>;
+export type EncodedVideo = Readonly<{ engine: 'webcodecs'; blob: Blob; mime: string; container: VideoContainer; extension: VideoContainer; videoCodec: ExportVideoCodec; audioCodec: ExportAudioCodec | null; frames: number; fps: number; duration: number; bytes: number }>;
 export declare function encodeCanvasVideo(options: {
   mediabunny: MediabunnyLike;
   canvas: HTMLCanvasElement | OffscreenCanvas;
@@ -1727,6 +1801,39 @@ export declare function encodeCanvasVideo(options: {
   onProgress?: (event: ProgressEvent) => void;
   maxBytes?: number;
 }): Promise<EncodedVideo>;
+export type RecordedVideo = Readonly<{ engine: 'recorder'; blob: Blob; mime: string; container: VideoContainer; extension: VideoContainer; videoCodec: null; audioCodec: null; frames: number; fps: number; duration: number; bytes: number }>;
+export type CanvasVideoOptions = {
+  canvas: HTMLCanvasElement;
+  /** Draw frame N at `seconds` onto the canvas. */
+  render: (frame: number, seconds: number) => void | Promise<void>;
+  frames: number;
+  fps?: number;
+  /** Soundtrack laid from 0 s. */
+  audio?: AudioBuffer | null;
+  bitrate?: number;
+  signal?: AbortSignal;
+  onProgress?: (event: ProgressEvent) => void;
+  maxBytes?: number;
+};
+/** Real-time MediaRecorder fallback with the same render contract; the tab must stay visible. */
+export declare function recordCanvasVideo(options: CanvasVideoOptions & {
+  /** Recorder MIME type; default the best `chooseRecorderType` result. */
+  mimeType?: string;
+  /** Live audio tracks to record alongside (instead of, or as well as, `audio`). */
+  audioTracks?: MediaStreamTrack[];
+  env?: object;
+  timers?: ExportTimers;
+}): Promise<RecordedVideo>;
+/** Export on the path `probeVideoExport` chose; a mid-way WebCodecs failure restarts once on the recorder unless `fallback` is false. */
+export declare function exportCanvasVideo(options: CanvasVideoOptions & {
+  probe: VideoExportPlan;
+  mediabunny?: MediabunnyLike | null;
+  fallback?: boolean;
+  audioBitrate?: number;
+  keyFrameSeconds?: number;
+  env?: object;
+  timers?: ExportTimers;
+}): Promise<EncodedVideo | RecordedVideo>;
 ```
 
 ### `@optimai/creative-agents/verify`
@@ -2065,7 +2172,7 @@ These six templates use shared public engines rather than preparing direction al
 | Camera Stage | `camera-stage` | `camera:effects` | Local webcam or selected image/video filters, with optional tracked halo; canvas output |
 | Avatar Stage | `avatar-stage` | `camera:avatar` | Original procedural 3D avatar driven by local face geometry/blendshapes, or an animated demo |
 | Sound Canvas | `music-reactive` | `music:reactive` | Four original looks driven by a selected song's analyser data; still PNG or host-recorded visualizer |
-| Frame Sculpture | `frame-sculpture` | `frame:sculpture` | Real frames sampled from a short local clip, arranged as an interactive 2.5D sculpture; PNG and composition record |
+| Frame Sculpture | `frame-sculpture` | `frame:sculpture` | Real frames sampled from a short local clip, arranged as an interactive 2.5D sculpture; PNG, turntable video and composition record |
 
 `scene3DRecipeSettings(id, values)` maps `demo`, `lighting`, `finish`, `view`, lens and exposure into actual engine settings. `cameraRecipeSettings(id, values)` maps effect, look, intensity and mirror controls. Neither recipe can provide a model URL, decoder, renderer script or worker path. Three.js is an optional pinned peer. Face tracking reuses the pinned, verified Face Landmarker in a local CPU worker; basic filters and the avatar demo work without a downloaded face model.
 
@@ -2330,7 +2437,7 @@ const { ink, scrim } = chooseTitleInk(backgroundsUnder(place), { prefer: ['#ffff
 
 Transition Lab draws one frame of a move between two shots at `mix` (0–100, the time through the move) and a strip of the whole move. `transition` picks the move: `wipe` (a feathered edge travelling in `direction`: `right`, `left`, `down` or `up`), `radial` (an iris opening from the centre), `luma` (the brightest parts of the first shot give way first, like light burning through), `push` (both shots slide together in `direction`) or `dissolve`. The recipe's technique names are aliases: *match cut* draws `radial`, *camera move* `push`, *light wipe* `wipe` and *morph* `luma`. `pace` sets the feathered edge (`quick` 4%, `gentle` 15%, `slow cinematic` 35% of the move) and time is eased in and out, so the default middle frame is the true midpoint and evenly spaced frames read as motion. Frame 0 is exactly the first shot and frame 100 exactly the second.
 
-`frames` (default 5; 0, or 2–12) sets the strip: one PNG of evenly spaced frames, each at most 320 pixels wide. The result adds `output.transition` (`{ style, direction, pace, progress }`, with `requested` when a canvas that cannot read its pixels fell back to a dissolve) and `output.strip` (`{ blob, width, height, frames }`, where `frames` lists each frame's time in percent, or null). A dissolve needs no pixel reads. Reference Blend keeps its plain `mix` crossfade, and saved recipes need no new field. This is a still preview, not an encoded video.
+`frames` (default 5; 0, or 2–12) sets the strip: one PNG of evenly spaced frames, each at most 320 pixels wide. The result adds `output.transition` (`{ style, direction, pace, progress }`, with `requested` when a canvas that cannot read its pixels fell back to a dissolve) and `output.strip` (`{ blob, width, height, frames }`, where `frames` lists each frame's time in percent, or null). A dissolve needs no pixel reads. Reference Blend keeps its plain `mix` crossfade, and saved recipes need no new field. The run itself is a still preview; for a video of the whole move, `createTransitionClip` draws each frame for [video export](docs/host-integration.md#export-video-with-webcodecs-or-the-recorder).
 
 The compositor is a public module that works on any RGBA buffers in Node and the browser:
 
@@ -2859,7 +2966,7 @@ A broader host can add these reviewed runtime adapters:
 | Original image processing | `browser-runtime` → `runLocalTool` | PNG; selected PNG/JPEG/WebP files and bounded settings |
 | Additional composition | `canvas-lab` → `canvasLabRecipeSettings`, `runCanvasLab` | PNG and the title ink, lines, placement and scrim, transition, glitch seed or print look actually drawn; normalize defaults, canonical settings and saved v1 aliases |
 | Color | `color` → `pickLegibleColor`, `analyzeImageColors`, `dominantColors`, `mixColors`; `color-grade` → `gradePixels`, `resolveGrade`, `gradeColor`; `lut` → `parseCubeLut`, `applyLut`, `filmLut`, `lutColor` | OKLab/OKLCH conversions, WCAG contrast, readable ink, deterministic image palettes, a per-pixel OKLab grade and strict `.cube` LUTs; Node and browser |
-| Transitions | `transition` → `composeTransition`, `resolveTransition`, `transitionProgress`, `transitionTimes` | Wipe, iris, light-key, push and dissolve frames between two RGBA buffers with eased time and feathered edges; Node and browser |
+| Transitions | `transition` → `composeTransition`, `resolveTransition`, `transitionProgress`, `transitionTimes`, `transitionClipTime`; `canvas-lab` → `createTransitionClip` | Wipe, iris, light-key, push and dissolve frames between two RGBA buffers with eased time and feathered edges; a Transition Lab video clip that holds each shot and draws any frame; Node and browser |
 | Glitch | `glitch` → `glitchPixels`, `planGlitch`, `randomGlitchSeed`, `mulberry32` | Seeded block, colour-trail and echo glitches on an RGBA buffer, identical bytes for the same seed; Node and browser |
 | Print looks | `print` → `printPixels`, `resolvePrint`, `separateDuotone`, `bayerMatrix`, `blueNoiseMatrix` | Riso duotone, halftone dots and Floyd–Steinberg, Bayer and blue-noise dithers on an RGBA buffer, identical bytes for the same settings; Node and browser |
 | Typography | `typeset` → `fitTitle`, `breakLines`, `opticalSize`, `canvasMeasure`; `text-placement` → `placeTextBlock`, `chooseTitleInk`, `fitScrim`, `regionInterest` | Balanced or paragraph line breaks and optical tracking and leading for titles, against any measure function; title placement in the calmest region of a focus map and the lightest scrim that keeps an ink readable; Node and browser |
@@ -2867,8 +2974,8 @@ A broader host can add these reviewed runtime adapters:
 | Browser writing | `browser-writing-runtime` → `createBrowserAgentRuntime` | Validated written artifact; selected-agent setup policy, supported WebGPU device and local worker |
 | 3D scene | `scene-3d` → `scene3DRecipeSettings`; `scene-3d-runtime` → `createScene3DStage` | Procedural/local GLB WebGL stage, PNG and scene recipe; optional reviewed Three peer |
 | Camera effects/avatar | `camera-runtime`, `camera-renderer`, `camera-tracking`, `camera-worker`, `landmark-filter` | Canvas effects and original face-driven avatar; explicit permission and local verified tracking worker |
-| Music visuals | `music-reactive`, `beat-tracker` | Measured spectrum looks with an optional flash-limited beat pulse; the host owns the audio graph, playback and recording |
-| Video export | `video-export` → `probeVideoExport`, `encodeCanvasVideo`, `chooseRecorderType`, `readMediaForExport`, `waitMediaReady`, `rewindMedia`, `waitForExportSetup`, `videoExportFilename`, `saveBlob` | MP4 or WebM from a canvas: frame by frame through WebCodecs with the optional `mediabunny` peer, or a real-time MediaRecorder fallback with bounded input, a real rewind and cancellable setup; errors carry a stable `code` |
+| Music visuals | `music-reactive` → `createMusicReactiveRenderer`, `beat-tracker`; `offline-analyser` → `createOfflineAnalyser` | Measured spectrum looks with an optional flash-limited beat pulse; the host owns the audio graph, playback and recording. The offline analyser reads a decoded song at any time with live `AnalyserNode` bytes, for frame-by-frame export; Node and browser |
+| Video export | `video-export` → `probeVideoExport`, `exportCanvasVideo`, `encodeCanvasVideo`, `recordCanvasVideo`, `chooseRecorderType`, `readMediaForExport`, `waitMediaReady`, `rewindMedia`, `waitForExportSetup`, `videoExportFilename`, `saveBlob` | MP4 or WebM from a canvas: frame by frame through WebCodecs with the optional `mediabunny` peer, or a real-time MediaRecorder fallback with bounded input, a real rewind and cancellable setup; errors carry a stable `code` |
 | Run records | `run-record` → `createRunRecord`, `digestInputs`, `parseRunRecord`, `createRunHistory`, `runRecipeValues`; `canvas-lab` → `canvasLabRecipeValues` | A stable hash per result over template, settings, seed, SDK version and an input digest; tamper-checked JSON; a de-duplicated run list; settings back to recipe values for Remix; Node and browser |
 | Settings forms | `form-schema` → `getAgentFormSchema`, `listFormFields`, `getAgentFieldRoles`, `plainFormSchema` | JSON Schema 2020-12 per template with control, step, group and role hints; one source for builders, docs, MCP and host gates; Node and browser |
 | Capability probe | `capabilities` → `probeCreativeCapabilities`, `detectCreativeCapabilities`, `assessAgentCapabilities`, `modelSetupEnvironment` | What this browser and device can run (WebGPU adapter, WebGL, WebCodecs, OffscreenCanvas, `ctx.filter`, camera, memory, Save-Data) and the card words for each template, without asking for any permission; browser, testable in Node |
@@ -3039,25 +3146,26 @@ handle.addEventListener('keydown', event => { const next = stepSplit(position, e
 Ask once which path this browser can take, then encode frame by frame or record in real time:
 
 ```js
-import { probeVideoExport, encodeCanvasVideo, exportFrameCount, videoExportFilename, saveBlob } from '@optimai/creative-agents/video-export';
+import { probeVideoExport, exportCanvasVideo, exportFrameCount, videoExportFilename, saveBlob } from '@optimai/creative-agents/video-export';
 
 const mediabunny = await import('mediabunny').catch(() => null);        // optional peer, pinned 1.62.1
-const plan = await probeVideoExport({ width: 1280, height: 720, fps: 30, audio: true, mediabunny });
-if (plan.engine === 'webcodecs') {
-  const video = await encodeCanvasVideo({
-    mediabunny, canvas, fps: 30, frames: exportFrameCount(song.duration, 30), audio: decodedSong,   // an AudioBuffer
-    format: plan.container, videoCodec: plan.videoCodec, audioCodec: plan.audioCodec,
-    render: (frame, seconds) => drawFrameAt(seconds), signal, onProgress: event => showProgress(event),
-  });
-  saveBlob(video.blob, videoExportFilename(title, video.mime, { suffix: '· visualizer' }));
-} else if (plan.engine === 'recorder') {
-  startRealTimeRecording(plan.recorderType);   // MediaRecorder with canvas.captureStream() and a cloned audio track
-}
+const probe = await probeVideoExport({ width: 1280, height: 720, fps: 30, audio: true, mediabunny });
+const video = await exportCanvasVideo({
+  probe, mediabunny, canvas, fps: 30, frames: exportFrameCount(song.duration, 30), audio: decodedSong,   // an AudioBuffer
+  render: (frame, seconds) => drawFrameAt(seconds), signal, onProgress: event => showProgress(event),
+});
+saveBlob(video.blob, videoExportFilename(title, video.mime, { suffix: '· visualizer' }));   // video.engine: 'webcodecs' | 'recorder'
 ```
 
 `probeVideoExport` resolves to `{ engine, container, mime, extension, videoCodec, audioCodec, recorderType, reason }`. With WebCodecs and the peer it tries MP4 (H.264, then VP9, AV1, HEVC; AAC, then Opus) before WebM (VP9, VP8, AV1; Opus), using the peer's `canEncodeVideo`/`canEncodeAudio` or the browser's `isConfigSupported`. `recorderType` is always the best MediaRecorder type, so a host can fall back without probing again; `reason` says why WebCodecs was skipped (`webcodecs-missing`, `muxer-missing` or `codec-missing`). Sides must be even and at most 4096 pixels.
 
 `encodeCanvasVideo` calls `render(frame, seconds)` for each frame, adds it with an exact timestamp and reports the shared progress shape (`prepare`, `frame` N of M, `export`, `ready`). Because it does not depend on playback, it runs faster than real time where the encoder allows, keeps working in a background tab and never drops a frame. Cancelling, a render error or an encoder error cancels the output, so a partial file is never returned; a file over `maxBytes` (128 MiB by default) is refused.
+
+`exportCanvasVideo` takes the probe and runs the path it chose with the same `render(frame, seconds)` contract, so a host writes one export. On the recorder path it calls `recordCanvasVideo`: the canvas is captured with `captureStream(0)`, each frame is drawn, pushed with `requestFrame()` (or captured at the frame rate where a track lacks it) and held for 1/fps of wall-clock time while MediaRecorder writes it; frame 0 is drawn before recording starts. An `AudioBuffer` plays into the recording from frame 0 through a Web Audio graph that is never routed to the speakers (`audioTracks` adds live tracks instead). The tab must stay visible, since hidden tabs slow timers. If WebCodecs fails mid-way (`encoder-failed`) and the probe named a recorder type, the export restarts once on the recorder; pass `fallback: false` to surface the error instead. The result's `engine` says which path made the file, and `unsupported`, `recorder-missing`, `recorder-failed` and `audio-missing` join the error codes.
+
+To render a song frame by frame, decode it once (`await audioContext.decodeAudioData(bytes)`) and read it with `createOfflineAnalyser` from `@optimai/creative-agents/offline-analyser`. `analyser.getByteFrequencyData(bytes, seconds)` gives the bytes a live `AnalyserNode` with the same `fftSize`, `smoothingTimeConstant`, `minDecibels` and `maxDecibels` would show at that moment (mono down-mix, Blackman window, smoothing over successive reads), so the existing music-reactive and beat-tracker code draws the same picture as playback. Read times in order and call `reset()` before another export. For Sound Canvas looks, `createMusicReactiveRenderer` from `music-reactive` wraps the analyser, beat tracker and smoothing into `draw(ctx, frame)`; see [music and motion](docs/MUSIC-MOTION.md).
+
+Transition Lab has a ready clip: `createTransitionClip(files, values, { width, seconds, hold })` from `canvas-lab` opens both shots with the same smart crop and style as a run and returns `{ canvas, width, height, seconds, style, draw(frame, frames), close() }`. Each shot holds still for `hold` (15%) of the clip at both ends, and the move between them eases with the recipe pace (`transitionClipTime` gives the raw time). Pass `render: frame => clip.draw(frame, frames)` to `exportCanvasVideo` and `close()` the clip afterwards. The [playground](examples/playground/README.md) has an **Export video** button built this way. Frame Sculpture's `stage.turntable()` returns the same shape for an orbit of the framed view ([music and motion](docs/MUSIC-MOTION.md#frame-sculpture-frame-sculpture)).
 
 For the real-time path, `chooseRecorderType` picks a MediaRecorder type, `readMediaForExport` buffers a whole source with a byte cap (64 MiB by default), `waitMediaReady` and `rewindMedia` wait for real `canplay` and `seeked` events, and `waitForExportSetup` wraps a `resume()` or `play()` promise that may never settle with a cancel and a timeout. `checkExportDuration` returns `null`, `'unreadable'` or `'too-long'` (over five minutes by default). Every failure is a `VideoExportError` with a stable `code` (`source-too-large`, `seek-timeout`, `setup-timeout`, `encoder-failed`…) and a plain English default `message`, so a host can show its own words. Each wait helper takes injectable `timers` for tests.
 
@@ -3255,7 +3363,9 @@ renderMusicReactiveFrame(canvas.getContext('2d'), {
 });
 ```
 
-The host owns the audio graph, file selection, playback, canvas, recording and disposal. Use one `MediaElementAudioSourceNode` per media element and route it to an analyser, speakers and a `MediaStreamAudioDestinationNode`. Full-song recording can combine `canvas.captureStream()` with a **clone** of the destination audio track. Stop cloned export tracks without destroying the reusable audio graph. Check `MediaRecorder.isTypeSupported()`, handle runtime encoder failures, wait for a real seek to the beginning, bound retained chunks, and discard a canceled or hidden-tab recording instead of presenting it as complete. If recording APIs are absent, provide preview and still export. The [`video-export`](docs/host-integration.md#export-video-with-webcodecs-or-the-recorder) module provides these recorder helpers (`chooseRecorderType`, `readMediaForExport`, `waitMediaReady`, `rewindMedia`, `waitForExportSetup`) and, with the optional `mediabunny` peer, a frame-by-frame WebCodecs path that does not depend on playback.
+The host owns the audio graph, file selection, playback, canvas, recording and disposal. Use one `MediaElementAudioSourceNode` per media element and route it to an analyser, speakers and a `MediaStreamAudioDestinationNode`. Full-song recording can combine `canvas.captureStream()` with a **clone** of the destination audio track. Stop cloned export tracks without destroying the reusable audio graph. Check `MediaRecorder.isTypeSupported()`, handle runtime encoder failures, wait for a real seek to the beginning, bound retained chunks, and discard a canceled or hidden-tab recording instead of presenting it as complete. If recording APIs are absent, provide preview and still export. The [`video-export`](docs/host-integration.md#export-video-with-webcodecs-or-the-recorder) module provides these recorder helpers (`chooseRecorderType`, `readMediaForExport`, `waitMediaReady`, `rewindMedia`, `waitForExportSetup`) and, with the optional `mediabunny` peer, a frame-by-frame WebCodecs path that does not depend on playback. For that path, decode the song to an `AudioBuffer` and read it with `createOfflineAnalyser` (`offline-analyser` subpath): it returns the same bytes a live analyser would show at each frame's time, so the export looks like playback, runs faster than real time and keeps going in a hidden tab. Pass `smoothingTimeConstant: 0` there too when the elapsed-time smoother runs after it.
+
+`createMusicReactiveRenderer(song, { fps, look, intensity, title, artist, reducedMotion, beatSync })` does all of that in one object: `renderer.draw(ctx, frame)` reads the song at `frame / fps`, extracts features, runs the same flash-limited beat tracker and elapsed-time smoothing as playback, and draws the frame (width and height default to the canvas). `renderer.frames` covers the song. Draw frames in order; an earlier frame starts the smoothing again, so an export that restarts stays correct. Pass it as `render: frame => renderer.draw(ctx, frame)` with `audio: song` to `exportCanvasVideo`.
 
 ##### Beat sync (`beat-tracker`)
 
@@ -3302,6 +3412,17 @@ stage.frames(result.frames); // Takes ownership after validating the complete fr
 const png = await stage.png();
 const recipe = stage.configuration(); // Settings, sample times and camera; no source file bytes.
 stage.dispose(); // Releases renderer, textures, retained canvases, observers and listeners.
+```
+
+For a video of the composition, `stage.turntable()` orbits the view the creator framed around its target and returns `{ canvas, width, height, degrees, draw(frame, frames), close() }`. The canvas has even video sides from the stage's aspect (longer side `edge`, 1280 by default) or explicit `width`/`height`; `degrees` (360 by default, negative to turn the other way) is the orbit per clip, and a full orbit never repeats its first frame, so the clip loops. While it is open, the stage stops its auto-orbit and ignores resizes; `close()` puts the camera, size and motion back. `FRAME_SCULPTURE_TURNTABLE` holds the default clip (6 s at 30 fps), `turntableAngle` and `turntableSize` the maths:
+
+```js
+import { exportCanvasVideo, exportFrameCount, probeVideoExport } from '@optimai/creative-agents/video-export';
+const spin = stage.turntable(), frames = exportFrameCount(6, 30);
+try {
+  const probe = await probeVideoExport({ width: spin.width, height: spin.height, fps: 30, audio: false, mediabunny });
+  const video = await exportCanvasVideo({ probe, mediabunny, canvas: spin.canvas, frames, fps: 30, render: frame => spin.draw(frame, frames) });
+} finally { spin.close(); }
 ```
 
 Three.js is an optional pinned peer. Hosts may supply their reviewed `THREE` and `OrbitControls` through `createFrameSculptureStageWithRuntime()`; this avoids duplicate engines. If transferring the frame set fails, the caller must invoke `releaseFrameSamples()`. The renderer respects reduced motion, hidden tabs and off-screen visibility. Keep original source media alongside exported configurations; the JSON is a composition record, not an embedded media archive.

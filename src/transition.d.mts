@@ -28,6 +28,10 @@ export type TransitionSettings = Readonly<{ style: TransitionStyle; direction: T
 export function resolveTransition(options?: TransitionOptions): TransitionSettings;
 /** Eased progress for a time from 0 to 1 (clamped); `in-out` is smoothstep, `out` a cubic ease-out. */
 export function transitionProgress(time: number, ease?: TransitionEase): number;
+/** Default video clip: duration, frame rate and the share of the clip each still shot holds at both ends. */
+export declare const TRANSITION_CLIP: Readonly<{ seconds: 2.4; fps: 30; hold: 0.15 }>;
+/** Linear time (0–1) of video frame `frame` of `frames` (≥ 2), holding each shot for `hold` (0–0.45) at both ends; ease it with `transitionProgress`. */
+export function transitionClipTime(frame: number, frames: number, options?: { hold?: number }): number;
 /** `count` (2–12) evenly spaced times from 0 to 1 inclusive. */
 export function transitionTimes(count: number): number[];
 /** Compose one opaque frame of `from` → `to` at an eased progress into `out` (which may alias an input, except for push). */

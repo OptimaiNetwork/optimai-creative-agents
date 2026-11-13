@@ -19,3 +19,15 @@ export function canvasLabRecipeValues(templateId: string, settings?: Record<stri
 export function canvasLabSettings(operation: string, values?: Record<string, string | number>): { operation: string; title: string; color: string; layout: string; ratio: string; treatment: string; amount: number; mix: number; crop: 'smart' | 'center'; ink: 'readable' | 'image' | 'exact'; position: TextPosition; scrim: 'auto' | 'off'; transition: TransitionStyle; direction: TransitionDirection; pace: TransitionPace; effect: GlitchEffect; seed: number; look: PrintLook; inks: RisoInkPair; scale: number; frames: number };
 /** The fourth argument is an AbortSignal or `{ signal, onProgress }`; progress stages are prepare → render → frame (transition strip) → export → ready. */
 export function runCanvasLab(operation: string, files?: File[], values?: Record<string, string | number>, options?: AbortSignal | { signal?: AbortSignal; onProgress?: (event: ProgressEvent) => void }): Promise<{blob: Blob; width: number; height: number; filename: string; /** Title color actually drawn (poster and letter). */ ink?: string; /** Title lines as drawn (poster and letter). */ lines?: string[]; /** Where the title block was drawn (poster and letter). */ placement?: TitlePlacement; /** Scrim drawn behind the title, or null (poster and letter). */ scrim?: TextScrim | null; /** Transition drawn (transition only). */ transition?: DrawnTransition; /** Preview strip, or null when `frames` is 0 or pixels cannot be read (transition only). */ strip?: TransitionStrip | null; /** Glitch drawn, with the seed that reproduces it (glitch only). */ glitch?: DrawnGlitch; /** Print drawn, with the seed that reproduces its grain (print only). */ print?: DrawnPrint}>;
+/** A Transition Lab clip ready for frame-by-frame export. */
+export type TransitionClip = Readonly<{
+  canvas: HTMLCanvasElement; width: number; height: number; seconds: number;
+  /** Style drawn; `dissolve` when the canvas cannot read pixels. */
+  style: TransitionStyle; direction: TransitionDirection; pace: TransitionPace;
+  /** Draw frame `index` of a `frames`-long clip (frame 0 is the first shot, the last frame the second). */
+  draw(index: number, frames: number): void;
+  /** Release the images and the canvas. */
+  close(): void;
+}>;
+/** Open two shots with Transition Lab's crop and style and return a clip to render with `exportCanvasVideo`. */
+export function createTransitionClip(files: File[], values?: Record<string, string | number>, options?: { width?: number; seconds?: number; hold?: number; signal?: AbortSignal; onProgress?: (event: ProgressEvent) => void }): Promise<TransitionClip>;

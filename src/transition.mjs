@@ -49,6 +49,15 @@ export function transitionProgress(time, ease = 'in-out') {
   return ease === 'linear' ? x : ease === 'out' ? 1 - (1 - x) ** 3 : x * x * (3 - 2 * x);
 }
 
+/** Default video clip: the whole move over `seconds`, holding each still shot for `hold` of the clip at both ends. */
+export const TRANSITION_CLIP = Object.freeze({ seconds: 2.4, fps: 30, hold: 0.15 });
+/** Linear time (0–1) of video frame `frame` of `frames`: first and last frames show each shot exactly; ease it with `transitionProgress`. */
+export function transitionClipTime(frame, frames, { hold = TRANSITION_CLIP.hold } = {}) {
+  if (!Number.isInteger(frames) || frames < 2 || !Number.isInteger(frame) || frame < 0 || frame >= frames) throw new RangeError('A transition clip frame is a whole number inside a clip of at least 2 frames.');
+  if (!Number.isFinite(hold) || hold < 0 || hold > 0.45) throw new RangeError('A transition hold is from 0 to 0.45 of the clip.');
+  return Math.min(1, Math.max(0, (frame / (frames - 1) - hold) / (1 - 2 * hold)));
+}
+
 /** `count` evenly spaced times from 0 to 1 inclusive, for a preview strip. */
 export function transitionTimes(count) {
   if (!Number.isInteger(count) || count < 2 || count > TRANSITION_LIMITS.frames) throw new RangeError(`A transition strip has 2 to ${TRANSITION_LIMITS.frames} frames.`);

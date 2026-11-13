@@ -39,6 +39,21 @@ export function frameSculpturePose(index, count, value = defaultFrameSculptureSe
         rotationZ: settings.tilt * Math.PI / 180 + (settings.layout === 'ribbon' ? normalized * .08 * settings.spread : 0),
     };
 }
+/** Default turntable clip: one full orbit in six seconds at 30 fps. */
+export const FRAME_SCULPTURE_TURNTABLE = Object.freeze({ seconds: 6, fps: 30, degrees: 360, edge: 1280 });
+/** Camera angle (radians) of turntable frame `frame` of `frames`: a full orbit never repeats its first frame, so the clip loops. */
+export function turntableAngle(frame, frames, { degrees = FRAME_SCULPTURE_TURNTABLE.degrees } = {}) {
+    if (!Number.isInteger(frames) || frames < 1 || !Number.isInteger(frame) || frame < 0 || frame >= frames) throw new Error('Invalid turntable frame.');
+    if (typeof degrees !== 'number' || !Number.isFinite(degrees) || degrees === 0 || Math.abs(degrees) > 720) throw new Error('Turntable degrees must be a non-zero number from -720 to 720.');
+    return degrees * Math.PI / 180 * frame / frames;
+}
+/** Even video sides for a stage aspect ratio, the longer side `edge` (2–1920). */
+export function turntableSize(aspect, edge = FRAME_SCULPTURE_TURNTABLE.edge) {
+    if (!Number.isInteger(edge) || edge < 2 || edge > 1920) throw new Error('Turntable edge must be a whole number from 2 to 1920.');
+    const ratio = typeof aspect === 'number' && Number.isFinite(aspect) && aspect > 0 ? Math.min(4, Math.max(.25, aspect)) : 16 / 9;
+    const even = value => Math.max(2, Math.round(value / 2) * 2);
+    return ratio >= 1 ? { width: even(edge), height: even(edge / ratio) } : { width: even(edge * ratio), height: even(edge) };
+}
 export function releaseFrameSamples(frames) { frames.forEach(frame => { frame.canvas.width = 0; frame.canvas.height = 0; }); }
 /** Validate ownership before textures are allocated or the previous composition is released. */
 export function validateFrameSamples(next, owned = []) {
@@ -146,7 +161,7 @@ export function createFrameSculptureStageWithRuntime(container, initial, onError
     let settings = validateFrameSculptureSettings(initial);
     if (!container?.appendChild || !THREE?.WebGLRenderer || !OrbitControls) throw new Error('Provide a mounted container and a reviewed Three.js runtime.');
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'default' });
-    let controls, resizeObserver, intersectionObserver, grid, root, reduced, disposed = false, contextLost = false, animation = 0, lastTime = 0, visible = !document.hidden, intersecting = true, drawingMotion = false;
+    let controls, resizeObserver, intersectionObserver, grid, root, reduced, disposed = false, contextLost = false, exporting = false, animation = 0, lastTime = 0, visible = !document.hidden, intersecting = true, drawingMotion = false;
     const meshes = [], samples = [], resources = new Set(), listeners = [];
     const listen = (target, type, callback) => { target.addEventListener(type, callback); listeners.push(() => target.removeEventListener(type, callback)); };
     function disposeMesh(mesh) { mesh.geometry.dispose(); mesh.material.map?.dispose(); mesh.material.dispose(); }
@@ -170,8 +185,8 @@ export function createFrameSculptureStageWithRuntime(container, initial, onError
             animation = 0; if (disposed || contextLost || !visible || !intersecting || !settings.rotating || reduced.matches) return;
             drawingMotion = true; controls.autoRotate = true; controls.update(lastTime ? Math.min((time - lastTime) / 1000, .05) : 0); drawingMotion = false; lastTime = time; render(); animation = requestAnimationFrame(tick);
         }
-        function motion() { if (animation) cancelAnimationFrame(animation); animation = 0; lastTime = 0; controls.autoRotate = false; render(); if (!disposed && !contextLost && visible && intersecting && settings.rotating && !reduced.matches) animation = requestAnimationFrame(tick); }
-        function resize() { if (disposed) return; const width = Math.max(1, container.clientWidth), height = Math.max(1, container.clientHeight), scale = Math.min(1, 1600 / width, 1200 / height); renderer.setSize(Math.round(width * scale), Math.round(height * scale), false); camera.aspect = width / height; camera.updateProjectionMatrix(); render(); }
+        function motion() { if (exporting) { if (animation) cancelAnimationFrame(animation); animation = 0; return; } if (animation) cancelAnimationFrame(animation); animation = 0; lastTime = 0; controls.autoRotate = false; render(); if (!disposed && !contextLost && visible && intersecting && settings.rotating && !reduced.matches) animation = requestAnimationFrame(tick); }
+        function resize() { if (disposed || exporting) return; const width = Math.max(1, container.clientWidth), height = Math.max(1, container.clientHeight), scale = Math.min(1, 1600 / width, 1200 / height); renderer.setSize(Math.round(width * scale), Math.round(height * scale), false); camera.aspect = width / height; camera.updateProjectionMatrix(); render(); }
         function layout() {
             meshes.forEach((mesh, index) => { const pose = frameSculpturePose(index, meshes.length, settings); mesh.position.set(pose.x, pose.y, pose.z); mesh.rotation.set(0, pose.rotationY, pose.rotationZ); mesh.material.opacity = settings.opacity; mesh.material.transparent = settings.opacity < 1; mesh.material.depthWrite = settings.opacity === 1; mesh.material.needsUpdate = true; });
             scene.background.set(settings.background); render();
@@ -212,6 +227,40 @@ export function createFrameSculptureStageWithRuntime(container, initial, onError
             fit() { fit(); },
             zoom(direction) { if (disposed) return; if (!['in', 'out'].includes(direction)) throw new Error('Choose zoom in or out.'); const delta = camera.position.clone().sub(controls.target), length = Math.min(controls.maxDistance, Math.max(controls.minDistance, delta.length() * (direction === 'in' ? .82 : 1.22))); camera.position.copy(controls.target).add(delta.setLength(length)); controls.update(); render(); },
             configuration() { return { version: 1, type: 'optimai-frame-sculpture', dimension: '2.5D', settings: { ...settings }, frames: samples.map(frame => ({ time: frame.time, width: frame.canvas.width, height: frame.canvas.height })), camera: { position: camera.position.toArray(), target: controls.target.toArray() } }; },
+            /**
+             * Orbit the current view around its target for a video export: returns a 2D `canvas` at even video sides
+             * (from the stage's aspect, longer side `edge`, or explicit `width`/`height`) and `draw(frame, frames)`.
+             * The stage stays still and keeps its camera; `close()` restores it.
+             */
+            turntable({ width, height, edge = FRAME_SCULPTURE_TURNTABLE.edge, degrees = FRAME_SCULPTURE_TURNTABLE.degrees } = {}) {
+                if (disposed || contextLost || !meshes.length) throw new Error('Prepare a frame sculpture before exporting a turntable.');
+                if (exporting) throw new Error('A turntable export is already running.');
+                turntableAngle(0, 1, { degrees });
+                const side = value => Number.isInteger(value) && value >= 2 && value <= 1920 && value % 2 === 0;
+                if (width !== undefined || height !== undefined) { if (!side(width) || !side(height)) throw new Error('Turntable sides must be even whole numbers from 2 to 1920.'); }
+                else ({ width, height } = turntableSize(container.clientWidth / Math.max(1, container.clientHeight), edge));
+                const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+                const context = canvas.getContext('2d'); if (!context) throw new Error('Turntable export is unavailable.');
+                const target = controls.target.clone(), start = camera.position.clone(), offset = start.clone().sub(target), up = new THREE.Vector3(0, 1, 0);
+                const saved = { ratio: renderer.getPixelRatio(), aspect: camera.aspect, rotating: controls.autoRotate };
+                exporting = true; motion(); controls.enabled = false; controls.autoRotate = false;
+                renderer.setPixelRatio(1); renderer.setSize(width, height, false); camera.aspect = width / height; camera.updateProjectionMatrix();
+                let closed = false;
+                return Object.freeze({
+                    canvas, width, height, degrees,
+                    draw(frame, frames) {
+                        if (closed || disposed || contextLost) throw new Error('This turntable was closed.');
+                        camera.position.copy(target).add(offset.clone().applyAxisAngle(up, turntableAngle(frame, frames, { degrees }))); camera.lookAt(target);
+                        renderer.render(scene, camera); context.drawImage(renderer.domElement, 0, 0, width, height);
+                    },
+                    close() {
+                        if (closed) return; closed = true; exporting = false; canvas.width = 0; canvas.height = 0;
+                        if (disposed) return;
+                        controls.enabled = true; controls.autoRotate = saved.rotating; camera.position.copy(start); camera.lookAt(target);
+                        renderer.setPixelRatio(saved.ratio); camera.aspect = saved.aspect; camera.updateProjectionMatrix(); resize(); controls.update(); motion();
+                    },
+                });
+            },
             async png() {
                 if (disposed || contextLost || !meshes.length) throw new Error('Prepare a frame sculpture before saving it.');
                 // Render synchronously immediately before copying; no persistent drawing buffer is needed.

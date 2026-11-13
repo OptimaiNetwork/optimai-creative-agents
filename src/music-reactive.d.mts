@@ -1,3 +1,4 @@
+import type { OfflineAudioSource } from './offline-analyser.mjs';
 export type MusicReactiveLook = 'orbital' | 'ribbons' | 'spectrum' | 'aurora';
 export const MUSIC_REACTIVE_LOOKS: readonly Readonly<{ id: MusicReactiveLook; title: string; description: string }>[];
 export const MUSIC_REACTIVE_LIMITS: Readonly<{ bands: 48; maxFrequencyBins: 16384; maxDimension: 4096; maxPixels: 8388608 }>;
@@ -25,3 +26,19 @@ export interface MusicReactiveFrame {
 }
 /** Draws a bounded frame and restores caller canvas state. No network or timers. */
 export function renderMusicReactiveFrame(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, options: MusicReactiveFrame): void;
+export type MusicReactiveRendererOptions = Partial<Omit<MusicReactiveFrame, 'time' | 'energy' | 'bass' | 'treble' | 'bands' | 'pulse'>> & {
+  /** Video frame rate, above 0 and at most 120. Default 30. */
+  fps?: number;
+  /** Analyser FFT size. Default 2048, like the live preview. */
+  fftSize?: number;
+  /** Flash-limited beat pulse, as in playback. Default true. */
+  beatSync?: boolean;
+};
+export type MusicReactiveRenderer = Readonly<{
+  /** Song length in seconds. */ duration: number; fps: number; sampleRate: number;
+  /** Frames that cover the song at `fps`. */ frames: number;
+  /** Draw frame `index` (in order) onto `ctx`, as the live preview would have shown it at `index / fps`. */
+  draw(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, index: number): void;
+}>;
+/** A music video drawn frame by frame from a decoded song, matching the live preview; for `exportCanvasVideo`. */
+export function createMusicReactiveRenderer(audio: OfflineAudioSource, options?: MusicReactiveRendererOptions): MusicReactiveRenderer;

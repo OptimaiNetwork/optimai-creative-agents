@@ -7,6 +7,8 @@
  * onsets, tempo and a flash-limited beat pulse use ./beat-tracker.mjs.
  * https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/getByteFrequencyData
  */
+import { createOfflineAnalyser } from './offline-analyser.mjs';
+import { createBeatTracker } from './beat-tracker.mjs';
 export const MUSIC_REACTIVE_LOOKS = Object.freeze([
   Object.freeze({ id: 'orbital', title: 'Orbital bloom', description: 'Luminous orbit rings expand with the low end.' }),
   Object.freeze({ id: 'ribbons', title: 'Silk ribbons', description: 'Flowing contours turn your sound into a living sculpture.' }),
@@ -270,4 +272,34 @@ export function renderMusicReactiveFrame(ctx, options = {}) {
     ({ orbital: orbit, ribbons, spectrum, aurora })[look](ctx, settings);
     caption(ctx, width, height, plainText(options.title), plainText(options.artist));
   } finally { ctx.restore(); }
+}
+
+/**
+ * A music video drawn frame by frame from a decoded song (an `AudioBuffer`): each frame reads the bytes a live
+ * analyser (fftSize 2048, smoothing 0) would show at that moment, then the same smoothing and flash-limited beat
+ * pulse as playback, so an export looks like the preview. Draw frames in order; drawing an earlier frame starts
+ * the smoothing and beats again, and redrawing the last frame repeats it. `frame` options are those of
+ * `renderMusicReactiveFrame` (look, intensity, title, artist, reducedMotion; width/height default to the canvas).
+ */
+export function createMusicReactiveRenderer(audio, { fps = 30, fftSize = 2048, beatSync = true, ...frame } = {}) {
+  if (typeof fps !== 'number' || !Number.isFinite(fps) || fps <= 0 || fps > 120) throw new RangeError('Frame rate must be above 0 and at most 120.');
+  const analyser = createOfflineAnalyser(audio, { fftSize, smoothingTimeConstant: 0 });
+  const bytes = new Uint8Array(analyser.frequencyBinCount), analysis = { sampleRate: analyser.sampleRate, fftSize };
+  let previous = null, beats = null, pulse = 0, last = -1;
+  return Object.freeze({
+    duration: analyser.duration, fps, sampleRate: analyser.sampleRate, frames: Math.max(1, Math.ceil(analyser.duration * fps - 1e-9)),
+    draw(ctx, index) {
+      if (!Number.isInteger(index) || index < 0) throw new RangeError('Frame index must be a whole number from 0.');
+      const seconds = index / fps;
+      if (index !== last) {
+        if (index < last) { previous = null; beats = null; analyser.reset(); }
+        analyser.getByteFrequencyData(bytes, seconds);
+        const target = extractMusicReactiveFeatures(bytes, analysis);
+        if (beatSync) { beats ??= createBeatTracker(analysis); beats.reducedMotion = frame.reducedMotion === true; pulse = beats.push(bytes, seconds * 1000).pulse; } else pulse = 0;
+        previous = smoothMusicReactiveFeatures(previous, target, previous ? 1000 / fps : 0);
+        last = index;
+      }
+      renderMusicReactiveFrame(ctx, { width: ctx.canvas?.width, height: ctx.canvas?.height, ...frame, time: seconds, ...previous, pulse });
+    },
+  });
 }

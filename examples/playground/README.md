@@ -15,7 +15,8 @@ Open **http://127.0.0.1:8080/examples/playground/**. ES modules need an HTTP ori
 1. Choose **Poster Lab** and click **Run agent**. A poster appears without any image.
 2. Choose **Transition Lab**, click **Use sample images** (the SDK draws two samples itself), and run it.
 3. Change **Mix** and run again. **Compare with the previous run** puts the last result over the new one, with a line such as *Small changes to 12% of the image*.
-4. Click **Copy share link**. The link holds the agent and the settings you changed, never your images. Opening it restores the form; settings that don't fit the agent are named and left at their defaults.
+4. After a Transition Lab run, click **Export video** for a 2.4-second clip of the whole move. Without extra files the browser records it in real time as WebM (keep the tab open). For MP4 encoded frame by frame, add an import map that points `mediabunny` at a local copy of the optional peer (`mediabunny@1.62.1`, MPL-2.0).
+5. Click **Copy share link**. The link holds the agent and the settings you changed, never your images. Opening it restores the form; settings that don't fit the agent are named and left at their defaults.
 
 **Vision agents** (Select and Replace, Motion Pose, Face Performance) need the pinned MediaPipe files the [interactive example](../interactive/README.md#serve-reviewed-dependencies-locally) copies into `examples/interactive/vendor/`. The model itself downloads only when you click **Download model**, from the official model host, and is checked against its pinned size and SHA-256 before it is used.
 
@@ -32,6 +33,7 @@ Open **http://127.0.0.1:8080/examples/playground/**. ES modules need an HTTP ori
 | Result alt text | `describeAgentOutput` |
 | Compare | `compareImages`, `describeComparison`, `splitView` |
 | Share link | `encodePlaygroundState`, `decodePlaygroundState` |
+| Export video | `createTransitionClip`, `probeVideoExport`, `exportCanvasVideo`, `saveBlob` |
 
 Writing, 3D, camera, music and frame agents have their own workspaces. See the [browser example](../browser/README.md), the [interactive example](../interactive/README.md) and the [runtime guide](../../docs/runtimes.md).
 

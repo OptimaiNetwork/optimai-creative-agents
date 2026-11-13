@@ -113,7 +113,7 @@ A broader host can add these reviewed runtime adapters:
 | Original image processing | `browser-runtime` → `runLocalTool` | PNG; selected PNG/JPEG/WebP files and bounded settings |
 | Additional composition | `canvas-lab` → `canvasLabRecipeSettings`, `runCanvasLab` | PNG and the title ink, lines, placement and scrim, transition, glitch seed or print look actually drawn; normalize defaults, canonical settings and saved v1 aliases |
 | Color | `color` → `pickLegibleColor`, `analyzeImageColors`, `dominantColors`, `mixColors`; `color-grade` → `gradePixels`, `resolveGrade`, `gradeColor`; `lut` → `parseCubeLut`, `applyLut`, `filmLut`, `lutColor` | OKLab/OKLCH conversions, WCAG contrast, readable ink, deterministic image palettes, a per-pixel OKLab grade and strict `.cube` LUTs; Node and browser |
-| Transitions | `transition` → `composeTransition`, `resolveTransition`, `transitionProgress`, `transitionTimes` | Wipe, iris, light-key, push and dissolve frames between two RGBA buffers with eased time and feathered edges; Node and browser |
+| Transitions | `transition` → `composeTransition`, `resolveTransition`, `transitionProgress`, `transitionTimes`, `transitionClipTime`; `canvas-lab` → `createTransitionClip` | Wipe, iris, light-key, push and dissolve frames between two RGBA buffers with eased time and feathered edges; a Transition Lab video clip that holds each shot and draws any frame; Node and browser |
 | Glitch | `glitch` → `glitchPixels`, `planGlitch`, `randomGlitchSeed`, `mulberry32` | Seeded block, colour-trail and echo glitches on an RGBA buffer, identical bytes for the same seed; Node and browser |
 | Print looks | `print` → `printPixels`, `resolvePrint`, `separateDuotone`, `bayerMatrix`, `blueNoiseMatrix` | Riso duotone, halftone dots and Floyd–Steinberg, Bayer and blue-noise dithers on an RGBA buffer, identical bytes for the same settings; Node and browser |
 | Typography | `typeset` → `fitTitle`, `breakLines`, `opticalSize`, `canvasMeasure`; `text-placement` → `placeTextBlock`, `chooseTitleInk`, `fitScrim`, `regionInterest` | Balanced or paragraph line breaks and optical tracking and leading for titles, against any measure function; title placement in the calmest region of a focus map and the lightest scrim that keeps an ink readable; Node and browser |
@@ -121,8 +121,8 @@ A broader host can add these reviewed runtime adapters:
 | Browser writing | `browser-writing-runtime` → `createBrowserAgentRuntime` | Validated written artifact; selected-agent setup policy, supported WebGPU device and local worker |
 | 3D scene | `scene-3d` → `scene3DRecipeSettings`; `scene-3d-runtime` → `createScene3DStage` | Procedural/local GLB WebGL stage, PNG and scene recipe; optional reviewed Three peer |
 | Camera effects/avatar | `camera-runtime`, `camera-renderer`, `camera-tracking`, `camera-worker`, `landmark-filter` | Canvas effects and original face-driven avatar; explicit permission and local verified tracking worker |
-| Music visuals | `music-reactive`, `beat-tracker` | Measured spectrum looks with an optional flash-limited beat pulse; the host owns the audio graph, playback and recording |
-| Video export | `video-export` → `probeVideoExport`, `encodeCanvasVideo`, `chooseRecorderType`, `readMediaForExport`, `waitMediaReady`, `rewindMedia`, `waitForExportSetup`, `videoExportFilename`, `saveBlob` | MP4 or WebM from a canvas: frame by frame through WebCodecs with the optional `mediabunny` peer, or a real-time MediaRecorder fallback with bounded input, a real rewind and cancellable setup; errors carry a stable `code` |
+| Music visuals | `music-reactive` → `createMusicReactiveRenderer`, `beat-tracker`; `offline-analyser` → `createOfflineAnalyser` | Measured spectrum looks with an optional flash-limited beat pulse; the host owns the audio graph, playback and recording. The offline analyser reads a decoded song at any time with live `AnalyserNode` bytes, for frame-by-frame export; Node and browser |
+| Video export | `video-export` → `probeVideoExport`, `exportCanvasVideo`, `encodeCanvasVideo`, `recordCanvasVideo`, `chooseRecorderType`, `readMediaForExport`, `waitMediaReady`, `rewindMedia`, `waitForExportSetup`, `videoExportFilename`, `saveBlob` | MP4 or WebM from a canvas: frame by frame through WebCodecs with the optional `mediabunny` peer, or a real-time MediaRecorder fallback with bounded input, a real rewind and cancellable setup; errors carry a stable `code` |
 | Run records | `run-record` → `createRunRecord`, `digestInputs`, `parseRunRecord`, `createRunHistory`, `runRecipeValues`; `canvas-lab` → `canvasLabRecipeValues` | A stable hash per result over template, settings, seed, SDK version and an input digest; tamper-checked JSON; a de-duplicated run list; settings back to recipe values for Remix; Node and browser |
 | Settings forms | `form-schema` → `getAgentFormSchema`, `listFormFields`, `getAgentFieldRoles`, `plainFormSchema` | JSON Schema 2020-12 per template with control, step, group and role hints; one source for builders, docs, MCP and host gates; Node and browser |
 | Capability probe | `capabilities` → `probeCreativeCapabilities`, `detectCreativeCapabilities`, `assessAgentCapabilities`, `modelSetupEnvironment` | What this browser and device can run (WebGPU adapter, WebGL, WebCodecs, OffscreenCanvas, `ctx.filter`, camera, memory, Save-Data) and the card words for each template, without asking for any permission; browser, testable in Node |
@@ -293,25 +293,26 @@ handle.addEventListener('keydown', event => { const next = stepSplit(position, e
 Ask once which path this browser can take, then encode frame by frame or record in real time:
 
 ```js
-import { probeVideoExport, encodeCanvasVideo, exportFrameCount, videoExportFilename, saveBlob } from '@optimai/creative-agents/video-export';
+import { probeVideoExport, exportCanvasVideo, exportFrameCount, videoExportFilename, saveBlob } from '@optimai/creative-agents/video-export';
 
 const mediabunny = await import('mediabunny').catch(() => null);        // optional peer, pinned 1.62.1
-const plan = await probeVideoExport({ width: 1280, height: 720, fps: 30, audio: true, mediabunny });
-if (plan.engine === 'webcodecs') {
-  const video = await encodeCanvasVideo({
-    mediabunny, canvas, fps: 30, frames: exportFrameCount(song.duration, 30), audio: decodedSong,   // an AudioBuffer
-    format: plan.container, videoCodec: plan.videoCodec, audioCodec: plan.audioCodec,
-    render: (frame, seconds) => drawFrameAt(seconds), signal, onProgress: event => showProgress(event),
-  });
-  saveBlob(video.blob, videoExportFilename(title, video.mime, { suffix: '· visualizer' }));
-} else if (plan.engine === 'recorder') {
-  startRealTimeRecording(plan.recorderType);   // MediaRecorder with canvas.captureStream() and a cloned audio track
-}
+const probe = await probeVideoExport({ width: 1280, height: 720, fps: 30, audio: true, mediabunny });
+const video = await exportCanvasVideo({
+  probe, mediabunny, canvas, fps: 30, frames: exportFrameCount(song.duration, 30), audio: decodedSong,   // an AudioBuffer
+  render: (frame, seconds) => drawFrameAt(seconds), signal, onProgress: event => showProgress(event),
+});
+saveBlob(video.blob, videoExportFilename(title, video.mime, { suffix: '· visualizer' }));   // video.engine: 'webcodecs' | 'recorder'
 ```
 
 `probeVideoExport` resolves to `{ engine, container, mime, extension, videoCodec, audioCodec, recorderType, reason }`. With WebCodecs and the peer it tries MP4 (H.264, then VP9, AV1, HEVC; AAC, then Opus) before WebM (VP9, VP8, AV1; Opus), using the peer's `canEncodeVideo`/`canEncodeAudio` or the browser's `isConfigSupported`. `recorderType` is always the best MediaRecorder type, so a host can fall back without probing again; `reason` says why WebCodecs was skipped (`webcodecs-missing`, `muxer-missing` or `codec-missing`). Sides must be even and at most 4096 pixels.
 
 `encodeCanvasVideo` calls `render(frame, seconds)` for each frame, adds it with an exact timestamp and reports the shared progress shape (`prepare`, `frame` N of M, `export`, `ready`). Because it does not depend on playback, it runs faster than real time where the encoder allows, keeps working in a background tab and never drops a frame. Cancelling, a render error or an encoder error cancels the output, so a partial file is never returned; a file over `maxBytes` (128 MiB by default) is refused.
+
+`exportCanvasVideo` takes the probe and runs the path it chose with the same `render(frame, seconds)` contract, so a host writes one export. On the recorder path it calls `recordCanvasVideo`: the canvas is captured with `captureStream(0)`, each frame is drawn, pushed with `requestFrame()` (or captured at the frame rate where a track lacks it) and held for 1/fps of wall-clock time while MediaRecorder writes it; frame 0 is drawn before recording starts. An `AudioBuffer` plays into the recording from frame 0 through a Web Audio graph that is never routed to the speakers (`audioTracks` adds live tracks instead). The tab must stay visible, since hidden tabs slow timers. If WebCodecs fails mid-way (`encoder-failed`) and the probe named a recorder type, the export restarts once on the recorder; pass `fallback: false` to surface the error instead. The result's `engine` says which path made the file, and `unsupported`, `recorder-missing`, `recorder-failed` and `audio-missing` join the error codes.
+
+To render a song frame by frame, decode it once (`await audioContext.decodeAudioData(bytes)`) and read it with `createOfflineAnalyser` from `@optimai/creative-agents/offline-analyser`. `analyser.getByteFrequencyData(bytes, seconds)` gives the bytes a live `AnalyserNode` with the same `fftSize`, `smoothingTimeConstant`, `minDecibels` and `maxDecibels` would show at that moment (mono down-mix, Blackman window, smoothing over successive reads), so the existing music-reactive and beat-tracker code draws the same picture as playback. Read times in order and call `reset()` before another export. For Sound Canvas looks, `createMusicReactiveRenderer` from `music-reactive` wraps the analyser, beat tracker and smoothing into `draw(ctx, frame)`; see [music and motion](./MUSIC-MOTION.md).
+
+Transition Lab has a ready clip: `createTransitionClip(files, values, { width, seconds, hold })` from `canvas-lab` opens both shots with the same smart crop and style as a run and returns `{ canvas, width, height, seconds, style, draw(frame, frames), close() }`. Each shot holds still for `hold` (15%) of the clip at both ends, and the move between them eases with the recipe pace (`transitionClipTime` gives the raw time). Pass `render: frame => clip.draw(frame, frames)` to `exportCanvasVideo` and `close()` the clip afterwards. The [playground](../examples/playground/README.md) has an **Export video** button built this way. Frame Sculpture's `stage.turntable()` returns the same shape for an orbit of the framed view ([music and motion](./MUSIC-MOTION.md#frame-sculpture-frame-sculpture)).
 
 For the real-time path, `chooseRecorderType` picks a MediaRecorder type, `readMediaForExport` buffers a whole source with a byte cap (64 MiB by default), `waitMediaReady` and `rewindMedia` wait for real `canplay` and `seeked` events, and `waitForExportSetup` wraps a `resume()` or `play()` promise that may never settle with a cancel and a timeout. `checkExportDuration` returns `null`, `'unreadable'` or `'too-long'` (over five minutes by default). Every failure is a `VideoExportError` with a stable `code` (`source-too-large`, `seek-timeout`, `setup-timeout`, `encoder-failed`…) and a plain English default `message`, so a host can show its own words. Each wait helper takes injectable `timers` for tests.
 

@@ -18,6 +18,11 @@ import { mcpRecipeManifest, mcpToolDefinitions, type McpToolDefinition } from '@
 import { createFlashLimiter, prefersReducedMotion } from '@optimai/creative-agents/accessibility';
 import { createBeatTracker } from '@optimai/creative-agents/beat-tracker';
 import type { Scene3DController } from '@optimai/creative-agents/scene-3d-runtime';
+import { createOfflineAnalyser } from '@optimai/creative-agents/offline-analyser';
+import { exportCanvasVideo, probeVideoExport } from '@optimai/creative-agents/video-export';
+import { createTransitionClip } from '@optimai/creative-agents/canvas-lab';
+import { createMusicReactiveRenderer } from '@optimai/creative-agents/music-reactive';
+import { FRAME_SCULPTURE_TURNTABLE, type FrameSculptureController } from '@optimai/creative-agents/frame-sculpture';
 
 // Build and validate a recipe.
 const recipe: AgentManifest = createAgentManifest('poster-lab', { id: 'sunrise-poster', title: 'Sunrise Poster', brief: 'Warm first light.' });
@@ -79,3 +84,28 @@ export const calm: boolean = prefersReducedMotion();
 export const limiter: ReturnType<typeof createFlashLimiter> = createFlashLimiter();
 export const tracker: ReturnType<typeof createBeatTracker> = createBeatTracker();
 export type Stage = Scene3DController;
+// Frame-by-frame export: the offline analyser feeds a renderer, the probe picks the path.
+const song = createOfflineAnalyser({ sampleRate: 48000, channels: [new Float32Array(48000)] }, { smoothingTimeConstant: 0 });
+export const bytes: Uint8Array = song.getByteFrequencyData(new Uint8Array(song.frequencyBinCount), 0.5);
+// @ts-expect-error frequency bytes need a Uint8Array, not a number array
+song.getByteFrequencyData([0, 0], 0);
+export async function exportTransition(files: File[]): Promise<'webcodecs' | 'recorder'> {
+  const clip = await createTransitionClip(files, { transition: 'light wipe' }, { width: 1280 });
+  const probe = await probeVideoExport({ width: clip.width, height: clip.height, fps: 30, audio: false });
+  const video = await exportCanvasVideo({ probe, canvas: clip.canvas, frames: 72, render: frame => clip.draw(frame, 72) });
+  clip.close();
+  return video.engine;
+}
+export function songVideo(song: AudioBuffer, ctx: CanvasRenderingContext2D): number {
+  const renderer = createMusicReactiveRenderer(song, { fps: 30, look: 'aurora', beatSync: true });
+  renderer.draw(ctx, 0);
+  // @ts-expect-error frames are drawn onto a 2D context, not a canvas element
+  renderer.draw(ctx.canvas, 1);
+  return renderer.frames;
+}
+export function orbit(stage: FrameSculptureController): HTMLCanvasElement {
+  const spin = stage.turntable({ edge: 1280, degrees: -360 });
+  spin.draw(0, FRAME_SCULPTURE_TURNTABLE.seconds * FRAME_SCULPTURE_TURNTABLE.fps);
+  spin.close();
+  return spin.canvas;
+}

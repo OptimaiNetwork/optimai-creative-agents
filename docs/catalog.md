@@ -71,7 +71,7 @@ These six templates use shared public engines rather than preparing direction al
 | Camera Stage | `camera-stage` | `camera:effects` | Local webcam or selected image/video filters, with optional tracked halo; canvas output |
 | Avatar Stage | `avatar-stage` | `camera:avatar` | Original procedural 3D avatar driven by local face geometry/blendshapes, or an animated demo |
 | Sound Canvas | `music-reactive` | `music:reactive` | Four original looks driven by a selected song's analyser data; still PNG or host-recorded visualizer |
-| Frame Sculpture | `frame-sculpture` | `frame:sculpture` | Real frames sampled from a short local clip, arranged as an interactive 2.5D sculpture; PNG and composition record |
+| Frame Sculpture | `frame-sculpture` | `frame:sculpture` | Real frames sampled from a short local clip, arranged as an interactive 2.5D sculpture; PNG, turntable video and composition record |
 
 `scene3DRecipeSettings(id, values)` maps `demo`, `lighting`, `finish`, `view`, lens and exposure into actual engine settings. `cameraRecipeSettings(id, values)` maps effect, look, intensity and mirror controls. Neither recipe can provide a model URL, decoder, renderer script or worker path. Three.js is an optional pinned peer. Face tracking reuses the pinned, verified Face Landmarker in a local CPU worker; basic filters and the avatar demo work without a downloaded face model.
 

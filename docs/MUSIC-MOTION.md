@@ -29,7 +29,9 @@ renderMusicReactiveFrame(canvas.getContext('2d'), {
 });
 ```
 
-The host owns the audio graph, file selection, playback, canvas, recording and disposal. Use one `MediaElementAudioSourceNode` per media element and route it to an analyser, speakers and a `MediaStreamAudioDestinationNode`. Full-song recording can combine `canvas.captureStream()` with a **clone** of the destination audio track. Stop cloned export tracks without destroying the reusable audio graph. Check `MediaRecorder.isTypeSupported()`, handle runtime encoder failures, wait for a real seek to the beginning, bound retained chunks, and discard a canceled or hidden-tab recording instead of presenting it as complete. If recording APIs are absent, provide preview and still export. The [`video-export`](./host-integration.md#export-video-with-webcodecs-or-the-recorder) module provides these recorder helpers (`chooseRecorderType`, `readMediaForExport`, `waitMediaReady`, `rewindMedia`, `waitForExportSetup`) and, with the optional `mediabunny` peer, a frame-by-frame WebCodecs path that does not depend on playback.
+The host owns the audio graph, file selection, playback, canvas, recording and disposal. Use one `MediaElementAudioSourceNode` per media element and route it to an analyser, speakers and a `MediaStreamAudioDestinationNode`. Full-song recording can combine `canvas.captureStream()` with a **clone** of the destination audio track. Stop cloned export tracks without destroying the reusable audio graph. Check `MediaRecorder.isTypeSupported()`, handle runtime encoder failures, wait for a real seek to the beginning, bound retained chunks, and discard a canceled or hidden-tab recording instead of presenting it as complete. If recording APIs are absent, provide preview and still export. The [`video-export`](./host-integration.md#export-video-with-webcodecs-or-the-recorder) module provides these recorder helpers (`chooseRecorderType`, `readMediaForExport`, `waitMediaReady`, `rewindMedia`, `waitForExportSetup`) and, with the optional `mediabunny` peer, a frame-by-frame WebCodecs path that does not depend on playback. For that path, decode the song to an `AudioBuffer` and read it with `createOfflineAnalyser` (`offline-analyser` subpath): it returns the same bytes a live analyser would show at each frame's time, so the export looks like playback, runs faster than real time and keeps going in a hidden tab. Pass `smoothingTimeConstant: 0` there too when the elapsed-time smoother runs after it.
+
+`createMusicReactiveRenderer(song, { fps, look, intensity, title, artist, reducedMotion, beatSync })` does all of that in one object: `renderer.draw(ctx, frame)` reads the song at `frame / fps`, extracts features, runs the same flash-limited beat tracker and elapsed-time smoothing as playback, and draws the frame (width and height default to the canvas). `renderer.frames` covers the song. Draw frames in order; an earlier frame starts the smoothing again, so an export that restarts stays correct. Pass it as `render: frame => renderer.draw(ctx, frame)` with `audio: song` to `exportCanvasVideo`.
 
 ### Beat sync (`beat-tracker`)
 
@@ -76,6 +78,17 @@ stage.frames(result.frames); // Takes ownership after validating the complete fr
 const png = await stage.png();
 const recipe = stage.configuration(); // Settings, sample times and camera; no source file bytes.
 stage.dispose(); // Releases renderer, textures, retained canvases, observers and listeners.
+```
+
+For a video of the composition, `stage.turntable()` orbits the view the creator framed around its target and returns `{ canvas, width, height, degrees, draw(frame, frames), close() }`. The canvas has even video sides from the stage's aspect (longer side `edge`, 1280 by default) or explicit `width`/`height`; `degrees` (360 by default, negative to turn the other way) is the orbit per clip, and a full orbit never repeats its first frame, so the clip loops. While it is open, the stage stops its auto-orbit and ignores resizes; `close()` puts the camera, size and motion back. `FRAME_SCULPTURE_TURNTABLE` holds the default clip (6 s at 30 fps), `turntableAngle` and `turntableSize` the maths:
+
+```js
+import { exportCanvasVideo, exportFrameCount, probeVideoExport } from '@optimai/creative-agents/video-export';
+const spin = stage.turntable(), frames = exportFrameCount(6, 30);
+try {
+  const probe = await probeVideoExport({ width: spin.width, height: spin.height, fps: 30, audio: false, mediabunny });
+  const video = await exportCanvasVideo({ probe, mediabunny, canvas: spin.canvas, frames, fps: 30, render: frame => spin.draw(frame, frames) });
+} finally { spin.close(); }
 ```
 
 Three.js is an optional pinned peer. Hosts may supply their reviewed `THREE` and `OrbitControls` through `createFrameSculptureStageWithRuntime()`; this avoids duplicate engines. If transferring the frame set fails, the caller must invoke `releaseFrameSamples()`. The renderer respects reduced motion, hidden tabs and off-screen visibility. Keep original source media alongside exported configurations; the JSON is a composition record, not an embedded media archive.

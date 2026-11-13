@@ -209,6 +209,11 @@
       "import": "./src/transition.mjs",
       "default": "./src/transition.mjs"
     },
+    "./offline-analyser": {
+      "types": "./src/offline-analyser.d.mts",
+      "import": "./src/offline-analyser.mjs",
+      "default": "./src/offline-analyser.mjs"
+    },
     "./video-export": {
       "types": "./src/video-export.d.mts",
       "import": "./src/video-export.mjs",

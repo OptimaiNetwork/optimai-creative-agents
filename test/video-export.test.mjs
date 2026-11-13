@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VIDEO_EXPORT_LIMITS, VIDEO_EXPORT_FORMATS, RECORDER_VIDEO_TYPES, VideoExportError, chooseRecorderType, checkExportDuration, exportFrameCount, videoExtension, videoExportFilename, waitForExportSetup, readMediaForExport, waitMediaReady, rewindMedia, saveBlob, probeVideoExport, encodeCanvasVideo } from '../src/video-export.mjs';
+import { VIDEO_EXPORT_LIMITS, VIDEO_EXPORT_FORMATS, RECORDER_VIDEO_TYPES, VideoExportError, chooseRecorderType, checkExportDuration, exportFrameCount, videoExtension, videoExportFilename, waitForExportSetup, readMediaForExport, waitMediaReady, rewindMedia, saveBlob, probeVideoExport, encodeCanvasVideo, recordCanvasVideo, exportCanvasVideo } from '../src/video-export.mjs';
 
 // A fake mediabunny with the same surface as 1.62.1: it records every call and builds a byte "file" from frames.
 function fakeMediabunny({ encodable = () => true, failAt, noAudio } = {}) {
@@ -179,4 +179,94 @@ test('formats describe what each container can carry', () => {
   assert.deepEqual([...VIDEO_EXPORT_FORMATS.mp4.video], ['avc', 'vp9', 'av1', 'hevc']);
   assert.deepEqual([...VIDEO_EXPORT_FORMATS.webm.audio], ['opus']);
   assert.ok(Object.isFrozen(VIDEO_EXPORT_FORMATS.webm.video));
+});
+
+// A fake recording stack: a canvas whose captured track can push frames, a MediaRecorder that writes one chunk per
+// pushed frame, a Web Audio graph and a virtual clock that advances by each wait.
+function recordingStack({ requestFrame = true, chunkBytes = 10, failOnFrame, audioContext = true } = {}) {
+  const log = [], clock = { now: 0, waits: [] };
+  const track = kind => ({ kind, stopped: false, stop() { this.stopped = true; log.push(['stop-track', kind]); } });
+  const canvas = { width: 320, height: 180, drawn: -1, captureStream(rate) {
+    const video = track('video'), tracks = [video];
+    if (requestFrame) video.requestFrame = () => { log.push(['push', canvas.drawn]); stack.recorder?.frame(); };
+    log.push(['capture', rate]);
+    return { getVideoTracks: () => [video], getTracks: () => tracks, addTrack: item => { tracks.push(item); log.push(['add-track', item.kind]); } };
+  } };
+  class MediaRecorder extends EventTarget {
+    static isTypeSupported = type => type.startsWith('video/webm');
+    constructor(stream, options) { super(); this.stream = stream; this.mimeType = options.mimeType; this.options = options; this.state = 'inactive'; this.pushed = 0; stack.recorder = this; log.push(['recorder', options.mimeType, stream.getTracks().length]); }
+    start(slice) { this.state = 'recording'; log.push(['start', slice]); }
+    frame() { this.pushed++; if (failOnFrame === this.pushed) this.dispatchEvent(Object.assign(new Event('error'), { error: new Error('disk full') })); const event = new Event('dataavailable'); event.data = new Blob([new Uint8Array(chunkBytes)]); this.dispatchEvent(event); }
+    stop() { if (this.state === 'inactive') return; this.state = 'inactive'; log.push(['recorder-stop']); queueMicrotask(() => this.dispatchEvent(new Event('stop'))); }
+  }
+  class AudioContext {
+    constructor(options) { log.push(['audio-context', options.sampleRate]); }
+    async resume() { log.push(['resume']); }
+    createBufferSource() { return { connect() {}, start() { log.push(['play']); }, stop() { log.push(['stop-audio']); } }; }
+    createMediaStreamDestination() { return { stream: { getAudioTracks: () => [track('audio')] } }; }
+    async close() { log.push(['audio-close']); }
+  }
+  const env = { MediaRecorder, ...(audioContext ? { AudioContext } : {}) };
+  const timers = { now: () => clock.now, setTimeout: (callback, ms) => setImmediate(() => { clock.now += ms; clock.waits.push(ms); callback(); }), clearTimeout: id => clearImmediate(id) };
+  const stack = { log, clock, canvas, env, timers, render: frame => { canvas.drawn = frame; log.push(['draw', frame]); } };
+  return stack;
+}
+
+test('the recorder fallback draws, pushes and holds every frame in real time, then returns the file', async () => {
+  const stack = recordingStack(), events = [];
+  const result = await recordCanvasVideo({ canvas: stack.canvas, render: stack.render, frames: 6, fps: 30, env: stack.env, timers: stack.timers, onProgress: event => events.push(event.stage) });
+  assert.deepEqual([result.engine, result.mime, result.extension, result.frames, result.duration, result.bytes], ['recorder', 'video/webm;codecs=vp9', 'webm', 6, 0.2, 60]);
+  assert.deepEqual(stack.log.filter(([kind]) => kind === 'push').map(([, frame]) => frame), [0, 1, 2, 3, 4, 5], 'each frame is pushed once, in order, after it is drawn');
+  assert.deepEqual(stack.log.slice(0, 4), [['capture', 0], ['recorder', 'video/webm;codecs=vp9', 1], ['draw', 0], ['start', 1000]], 'frame 0 is drawn before recording starts');
+  assert.ok(Math.abs(stack.clock.now - 200) < 1e-9, 'six frames at 30 fps hold for 200 ms of wall clock');
+  assert.ok(stack.log.filter(([kind]) => kind === 'stop-track').length >= 1);
+  assert.deepEqual([events[0], events.at(-2), events.at(-1), events.filter(stage => stage === 'frame').length], ['prepare', 'export', 'ready', 6]);
+});
+
+test('without requestFrame the canvas is captured at the frame rate; an AudioBuffer plays into the recording', async () => {
+  const stack = recordingStack({ requestFrame: false });
+  const recorder = recordCanvasVideo({ canvas: stack.canvas, render: stack.render, frames: 3, fps: 24, audio: { sampleRate: 44100, duration: 1 }, env: stack.env, timers: stack.timers });
+  // Nothing pushes frames here, so the fake recorder writes one chunk when stopped.
+  const realStop = stack.env.MediaRecorder.prototype.stop;
+  stack.env.MediaRecorder.prototype.stop = function () { this.frame(); realStop.call(this); };
+  const result = await recorder;
+  stack.env.MediaRecorder.prototype.stop = realStop;
+  assert.equal(result.mime, 'video/webm;codecs=vp9,opus', 'a soundtrack picks a recorder type with audio');
+  const kinds = stack.log.map(([kind, value]) => value === undefined ? kind : `${kind}:${value}`);
+  assert.deepEqual(kinds.filter(kind => kind.startsWith('capture')), ['capture:0', 'capture:24']);
+  for (const [before, after] of [['audio-context:44100', 'resume'], ['resume', 'add-track:audio'], ['start:1000', 'play'], ['recorder-stop', 'stop-audio'], ['stop-audio', 'audio-close']]) assert.ok(kinds.indexOf(before) < kinds.indexOf(after), `${before} before ${after}`);
+});
+
+test('the recorder fallback cancels, caps its size and names every failure', async () => {
+  const controller = new AbortController(), stack = recordingStack();
+  await assert.rejects(recordCanvasVideo({ canvas: stack.canvas, render: frame => { stack.render(frame); if (frame === 2) controller.abort(); }, frames: 10, env: stack.env, timers: stack.timers, signal: controller.signal }), { name: 'AbortError' });
+  assert.ok(stack.log.some(([kind]) => kind === 'recorder-stop') && stack.log.some(([kind]) => kind === 'stop-track'), 'the recorder and tracks stop');
+  const big = recordingStack({ chunkBytes: 600 });
+  await assert.rejects(recordCanvasVideo({ canvas: big.canvas, render: big.render, frames: 5, maxBytes: 1000, env: big.env, timers: big.timers }), { code: 'output-too-large' });
+  const broken = recordingStack({ failOnFrame: 2 });
+  await assert.rejects(recordCanvasVideo({ canvas: broken.canvas, render: broken.render, frames: 5, env: broken.env, timers: broken.timers }), { code: 'recorder-failed', message: /disk full/ });
+  const plain = recordingStack();
+  await assert.rejects(recordCanvasVideo({ canvas: plain.canvas, render: plain.render, frames: 2, env: {}, timers: plain.timers }), { code: 'recorder-missing' });
+  await assert.rejects(recordCanvasVideo({ canvas: { ...plain.canvas, captureStream: undefined }, render: plain.render, frames: 2, env: plain.env }), { code: 'recorder-missing' });
+  await assert.rejects(recordCanvasVideo({ canvas: plain.canvas, render: plain.render, frames: 2, env: { MediaRecorder: class { static isTypeSupported = () => false; } } }), { code: 'recorder-missing' });
+  const silent = recordingStack({ audioContext: false });
+  await assert.rejects(recordCanvasVideo({ canvas: silent.canvas, render: silent.render, frames: 2, audio: { sampleRate: 48000 }, env: silent.env, timers: silent.timers }), { code: 'audio-missing' });
+  await assert.rejects(recordCanvasVideo({ canvas: plain.canvas, render: plain.render, frames: 0, env: plain.env }), RangeError);
+  await assert.rejects(recordCanvasVideo({ canvas: plain.canvas, frames: 2, env: plain.env }), TypeError);
+});
+
+test('exportCanvasVideo follows the probe, falls back to the recorder once, and refuses when nothing works', async () => {
+  const stack = recordingStack(), mb = fakeMediabunny();
+  const webcodecs = { engine: 'webcodecs', container: 'webm', mime: 'video/webm', extension: 'webm', videoCodec: 'vp8', audioCodec: null, recorderType: 'video/webm;codecs=vp8', reason: null };
+  const encoded = await exportCanvasVideo({ probe: webcodecs, mediabunny: mb, canvas: stack.canvas, render: stack.render, frames: 4, audio: { duration: 1 }, env: stack.env, timers: stack.timers });
+  assert.deepEqual([encoded.engine, encoded.container, encoded.videoCodec, encoded.audioCodec], ['webcodecs', 'webm', 'vp8', null], 'a silent probe drops the soundtrack');
+  assert.ok(!mb.log.some(([kind]) => kind === 'audio'));
+  const fallen = await exportCanvasVideo({ probe: webcodecs, mediabunny: fakeMediabunny({ failAt: 1 }), canvas: stack.canvas, render: stack.render, frames: 4, env: stack.env, timers: stack.timers });
+  assert.deepEqual([fallen.engine, fallen.mime], ['recorder', 'video/webm;codecs=vp8'], 'an encoder failure restarts on the recorder');
+  await assert.rejects(exportCanvasVideo({ probe: webcodecs, fallback: false, mediabunny: fakeMediabunny({ failAt: 1 }), canvas: stack.canvas, render: stack.render, frames: 4, env: stack.env, timers: stack.timers }), { code: 'encoder-failed' });
+  await assert.rejects(exportCanvasVideo({ probe: { ...webcodecs, recorderType: null }, mediabunny: fakeMediabunny({ failAt: 1 }), canvas: stack.canvas, render: stack.render, frames: 4 }), { code: 'encoder-failed' });
+  const recorded = await exportCanvasVideo({ probe: { engine: 'recorder', recorderType: 'video/webm;codecs=vp9', reason: 'muxer-missing' }, canvas: stack.canvas, render: stack.render, frames: 2, env: stack.env, timers: stack.timers });
+  assert.equal(recorded.engine, 'recorder');
+  await assert.rejects(exportCanvasVideo({ probe: { engine: 'none', recorderType: null }, canvas: stack.canvas, render: stack.render, frames: 2 }), { code: 'unsupported' });
+  await assert.rejects(exportCanvasVideo({ canvas: stack.canvas, render: stack.render, frames: 2 }), { code: 'unsupported' });
 });

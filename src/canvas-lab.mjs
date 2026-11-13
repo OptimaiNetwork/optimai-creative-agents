@@ -8,7 +8,7 @@ import { runRecipeValues } from './run-record.mjs';
 import { GLITCH_EFFECTS, GLITCH_LIMITS, GLITCH_TREATMENTS, glitchPixels, planGlitch } from './glitch.mjs';
 import { PRINT_LOOKS, PRINT_STYLES, printPixels, resolvePrint, RISO_INKS } from './print.mjs';
 import { createProgressReporter } from './progress.mjs';
-import { composeTransition, resolveTransition, TRANSITION_DIRECTIONS, TRANSITION_LIMITS, TRANSITION_PACES, TRANSITION_STYLES, TRANSITION_TECHNIQUES, transitionProgress, transitionTimes } from './transition.mjs';
+import { composeTransition, resolveTransition, TRANSITION_DIRECTIONS, TRANSITION_LIMITS, TRANSITION_PACES, TRANSITION_STYLES, TRANSITION_TECHNIQUES, transitionClipTime, transitionProgress, transitionTimes, TRANSITION_CLIP } from './transition.mjs';
 
 const LAB_OPERATIONS = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition', 'print']);
 export const CANVAS_LAB_AGENTS = Object.freeze(Object.fromEntries(AGENT_CATALOG.flatMap(agent =>
@@ -148,6 +148,23 @@ function paintTransition(ctx, shots, width, height, progress, plan, x = 0, y = 0
   composeTransition(shots[0].data, shots[1].data, width, height, progress, plan, image.data);
   ctx.putImageData(image, x, y);
 }
+// Reuse the signature, dimensions, decode and memory validation of the public processor; decoded images go into `images`.
+async function openImages(files, images, signal, report) {
+  let pixels = 0;
+  for (const file of files) {
+    report('prepare', { frame: images.length + 1, frames: files.length, message: 'Opening your images on this device.' });
+    const resized = await runLocalTool('image-resize', [file], { width: 1024, ratio: 'original' }, signal); abort(signal);
+    if (typeof createImageBitmap !== 'function') throw new Error('This browser cannot decode canvas compositions. Use a browser with ImageBitmap support.');
+    const image = await abortable(createImageBitmap(resized.blob), signal, late => late.close());
+    try {
+      abort(signal);
+      getToolOutputSize('image-filter', { width: image.width, height: image.height });
+      pixels += image.width * image.height;
+      if (pixels > LOCAL_IMAGE_LIMITS.pixels) throw new Error('Together, these images contain more than 16 million pixels. Use smaller images for this composition.');
+      images.push(image);
+    } catch (error) { image.close(); throw error; }
+  }
+}
 /** Original browser-only canvas utilities. No network, image generation or video codec. */
 export async function runCanvasLab(operation, files = [], values = {}, options) {
   // The fourth argument is an AbortSignal (as before) or `{ signal, onProgress }`.
@@ -157,22 +174,9 @@ export async function runCanvasLab(operation, files = [], values = {}, options) 
   if (!Array.isArray(files) || files.length > maximum) throw new Error(`Choose up to ${maximum} images.`);
   if (!files.length && !['poster', 'letter'].includes(operation)) throw new Error('Add an image to start.');
   if (['blend', 'transition'].includes(operation) && files.length !== 2) throw new Error('Choose two images for this composition.');
-  const images = []; let canvas, source, thumb, film, ink, lines, placement, scrim, transition, strip, glitch, print; let pixels = 0;
+  const images = []; let canvas, source, thumb, film, ink, lines, placement, scrim, transition, strip, glitch, print;
   try {
-    // Reuse the signature, dimensions, decode and memory validation of the public processor.
-    for (const file of files) {
-      report('prepare', { frame: images.length + 1, frames: files.length, message: 'Opening your images on this device.' });
-      const resized = await runLocalTool('image-resize', [file], { width: 1024, ratio: 'original' }, signal); abort(signal);
-      if (typeof createImageBitmap !== 'function') throw new Error('This browser cannot decode canvas compositions. Use a browser with ImageBitmap support.');
-      const image = await abortable(createImageBitmap(resized.blob), signal, late => late.close());
-      try {
-        abort(signal);
-        getToolOutputSize('image-filter', { width: image.width, height: image.height });
-        pixels += image.width * image.height;
-        if (pixels > LOCAL_IMAGE_LIMITS.pixels) throw new Error('Together, these images contain more than 16 million pixels. Use smaller images for this composition.');
-        images.push(image);
-      } catch (error) { image.close(); throw error; }
-    }
+    await openImages(files, images, signal, report);
     // Keep each subject in frame; environments without pixel reads stay centred.
     const focus = images.map(image => settings.crop === 'smart' ? analyzeImageFocus(image, image.width, image.height) : null);
     abort(signal); report('render', { message: 'Drawing the composition.' });
@@ -267,4 +271,41 @@ export async function runCanvasLab(operation, files = [], values = {}, options) 
     report('ready');
     return { blob, width, height, filename: `optimai-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}), ...(transition ? { transition, strip: strip ?? null } : {}), ...(glitch ? { glitch } : {}), ...(print ? { print } : {}) };
   } finally { images.forEach(image => image.close()); for (const value of [source, thumb, film, canvas]) if (value) value.width = value.height = 1; }
+}
+
+/**
+ * Transition Lab as a video clip: opens the two shots with the same crop (smart focus included), size checks and
+ * style as `runCanvasLab('transition', …)`, and returns a canvas plus `draw(frame, frames)` for frame-by-frame
+ * export (`exportCanvasVideo`). The move eases with the recipe pace and each shot holds still at both ends.
+ * `width` is the clip width (even, 2–1920; height follows the recipe ratio). Call `close()` when done.
+ */
+export async function createTransitionClip(files = [], values = {}, { width = 1280, seconds = TRANSITION_CLIP.seconds, hold = TRANSITION_CLIP.hold, signal, onProgress } = {}) {
+  const settings = canvasLabSettings('transition', values), report = createProgressReporter(onProgress, { signal }); abort(signal);
+  if (!Number.isInteger(width) || width < 2 || width > 1920 || width % 2) throw new RangeError('Clip width must be an even whole number from 2 to 1920.');
+  if (!Number.isFinite(seconds) || seconds < 0.5 || seconds > 30) throw new RangeError('A transition clip lasts 0.5 to 30 seconds.');
+  transitionClipTime(0, 2, { hold });
+  if (!Array.isArray(files) || files.length !== 2) throw new Error('Choose two images for this composition.');
+  const images = [];
+  try {
+    await openImages(files, images, signal, report);
+    const focus = images.map(image => settings.crop === 'smart' ? analyzeImageFocus(image, image.width, image.height) : null);
+    const [rw, rh] = settings.ratio.split(':').map(Number), height = Math.max(2, Math.round(width * rh / rw / 2) * 2);
+    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('This browser cannot create a canvas.');
+    const plan = resolveTransition({ style: settings.transition, direction: settings.direction, pace: settings.pace });
+    const shots = plan.style === 'dissolve' ? null : shotPixels(ctx, images, focus, width, height), frame = shots ? ctx.createImageData(width, height) : null;
+    if (shots) { images.forEach(image => image.close()); images.length = 0; }
+    report('render', { message: 'Clip ready to export.' });
+    return Object.freeze({
+      canvas, width, height, seconds, style: shots ? plan.style : 'dissolve', direction: plan.direction, pace: settings.pace,
+      /** Draw frame `index` of a `frames`-long clip. */
+      draw(index, frames) {
+        const progress = transitionProgress(transitionClipTime(index, frames, { hold }), plan.ease);
+        if (shots) { composeTransition(shots[0].data, shots[1].data, width, height, progress, plan, frame.data); ctx.putImageData(frame, 0, 0); return; }
+        if (!images.length) throw new Error('This clip was closed.');
+        fit(ctx, images[0], 0, 0, width, height, false, focus[0]); ctx.globalAlpha = progress; fit(ctx, images[1], 0, 0, width, height, false, focus[1]); ctx.globalAlpha = 1;
+      },
+      close() { images.forEach(image => image.close()); images.length = 0; canvas.width = 0; canvas.height = 0; },
+    });
+  } catch (error) { images.forEach(image => image.close()); throw error; }
 }

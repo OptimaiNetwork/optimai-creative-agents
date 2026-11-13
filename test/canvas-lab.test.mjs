@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { AGENT_CATALOG } from '../src/index.mjs';
-import { CANVAS_LAB_AGENTS, canvasLabRecipeSettings, canvasLabSettings, runCanvasLab } from '../src/canvas-lab.mjs';
+import { CANVAS_LAB_AGENTS, canvasLabRecipeSettings, canvasLabSettings, createTransitionClip, runCanvasLab } from '../src/canvas-lab.mjs';
 import { contrastRatio, toOklch } from '../src/color.mjs';
 import { fitTitle } from '../src/typeset.mjs';
 import { planGlitch } from '../src/glitch.mjs';
@@ -384,6 +384,37 @@ test('a dissolve, or a canvas without pixel reads, crossfades at the eased time 
   assert.equal(blend.transition, undefined, 'Reference Blend is unchanged');
   for (const [values, pattern] of [[{ frames: 1 }, /frames/], [{ frames: 13 }, /frames/], [{ frames: 2.5 }, /frames/], [{ transition: '__proto__' }, /transition/], [{ transition: 'teleport' }, /transition/], [{ direction: 'north' }, /direction/], [{ pace: 'rapid' }, /pace/]]) {
     assert.throws(() => canvasLabSettings('transition', values), pattern);
+  }
+});
+
+test('a Transition Lab clip draws every video frame from the first shot to the second, then releases everything', async () => {
+  await canvasHarness(async h => {
+    const events = [];
+    const clip = await createTransitionClip([image('first.png'), image('second.png')], canvasLabRecipeSettings('transition-lab', { transition: 'light wipe', ratio: '16:9' }), { width: 320, onProgress: event => events.push(event.stage) });
+    assert.deepEqual([clip.width, clip.height, clip.style, clip.direction, clip.pace, clip.seconds], [320, 180, 'wipe', 'right', 'quick', 2.4]);
+    assert.deepEqual([...new Set(events)], ['prepare', 'render']);
+    assert.ok(h.calls.bitmaps.every(value => value.closed === 1), 'shots are read once and their bitmaps closed');
+    const frames = 72, levels = index => { clip.draw(index, frames); const { data } = h.calls.put.at(-1).image; return [data[0], data[(319) * 4]]; };
+    assert.deepEqual(levels(0), [40, 40], 'frame 0 is the first shot');
+    assert.deepEqual(levels(5), [40, 40], 'the first shot holds still');
+    assert.deepEqual(levels(36), [220, 40], 'mid-clip the rightward wipe has revealed the left side');
+    assert.deepEqual(levels(71), [220, 220], 'the last frame is the second shot');
+    assert.equal(h.calls.put.at(-1).canvas, clip.canvas);
+    clip.close();
+    assert.deepEqual([clip.canvas.width, clip.canvas.height], [0, 0]);
+    assert.equal(h.calls.network, 0);
+  }, { context: pixelContext });
+  await canvasHarness(async h => {
+    const clip = await createTransitionClip([image(), image()], { transition: 'wipe' }, { width: 200, seconds: 1, hold: 0 });
+    assert.equal(clip.style, 'dissolve', 'no pixel reads: the clip crossfades');
+    clip.draw(15, 31);
+    assert.deepEqual(h.calls.draw.filter(value => value.canvas === clip.canvas).map(value => value.alpha), [1, 0.5]);
+    clip.close();
+    assert.ok(h.calls.bitmaps.every(value => value.closed === 1));
+    assert.throws(() => clip.draw(0, 31), /closed/);
+  });
+  for (const [files, options, pattern] of [[[image()], {}, /two images/], [[image(), image()], { width: 321 }, /even/], [[image(), image()], { width: 4000 }, /even/], [[image(), image()], { seconds: 0.1 }, /0\.5 to 30/], [[image(), image()], { hold: 0.6 }, /hold/]]) {
+    await canvasHarness(async () => assert.rejects(createTransitionClip(files, {}, options), pattern));
   }
 });
 

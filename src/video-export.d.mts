@@ -11,14 +11,14 @@ export type ExportVideoCodec = 'avc' | 'vp9' | 'vp8' | 'av1' | 'hevc';
 export type ExportAudioCodec = 'aac' | 'opus';
 export type VideoExportFormat = Readonly<{ container: VideoContainer; mime: string; extension: VideoContainer; video: readonly ExportVideoCodec[]; audio: readonly ExportAudioCodec[] }>;
 export declare const VIDEO_EXPORT_FORMATS: Readonly<Record<VideoContainer, VideoExportFormat>>;
-export type VideoExportErrorCode = 'setup-timeout' | 'source-unavailable' | 'source-too-large' | 'source-empty' | 'media-error' | 'media-timeout' | 'seek-error' | 'seek-timeout' | 'muxer-missing' | 'encoder-failed' | 'output-too-large';
+export type VideoExportErrorCode = 'setup-timeout' | 'source-unavailable' | 'source-too-large' | 'source-empty' | 'media-error' | 'media-timeout' | 'seek-error' | 'seek-timeout' | 'muxer-missing' | 'encoder-failed' | 'output-too-large' | 'recorder-missing' | 'recorder-failed' | 'audio-missing' | 'unsupported';
 /** An export failure with a stable `code`; `message` is a plain English default a host may replace. */
 export declare class VideoExportError extends Error {
   constructor(code: VideoExportErrorCode, message: string);
   readonly code: VideoExportErrorCode;
 }
 /** Injectable timers (for tests or hosts with their own clock). */
-export type ExportTimers = { setTimeout: (callback: () => void, ms: number) => unknown; clearTimeout: (id: any) => void };
+export type ExportTimers = { setTimeout: (callback: () => void, ms: number) => unknown; clearTimeout: (id: any) => void; /** Milliseconds clock used by the recorder's frame pacing; default `performance.now`. */ now?: () => number };
 
 export declare function chooseRecorderType(supports: (mime: string) => boolean, options?: { audio?: boolean; container?: VideoContainer }): string | null;
 export declare function checkExportDuration(seconds: number, options?: { maximumSeconds?: number }): null | 'unreadable' | 'too-long';
@@ -54,7 +54,7 @@ export type VideoExportPlan = Readonly<{
   reason: null | 'muxer-missing' | 'webcodecs-missing' | 'codec-missing';
 }>;
 export declare function probeVideoExport(options?: { width?: number; height?: number; fps?: number; audio?: boolean; format?: 'auto' | VideoContainer; bitrate?: number; mediabunny?: MediabunnyLike | null; env?: object }): Promise<VideoExportPlan>;
-export type EncodedVideo = Readonly<{ blob: Blob; mime: string; container: VideoContainer; extension: VideoContainer; videoCodec: ExportVideoCodec; audioCodec: ExportAudioCodec | null; frames: number; fps: number; duration: number; bytes: number }>;
+export type EncodedVideo = Readonly<{ engine: 'webcodecs'; blob: Blob; mime: string; container: VideoContainer; extension: VideoContainer; videoCodec: ExportVideoCodec; audioCodec: ExportAudioCodec | null; frames: number; fps: number; duration: number; bytes: number }>;
 export declare function encodeCanvasVideo(options: {
   mediabunny: MediabunnyLike;
   canvas: HTMLCanvasElement | OffscreenCanvas;
@@ -73,3 +73,36 @@ export declare function encodeCanvasVideo(options: {
   onProgress?: (event: ProgressEvent) => void;
   maxBytes?: number;
 }): Promise<EncodedVideo>;
+export type RecordedVideo = Readonly<{ engine: 'recorder'; blob: Blob; mime: string; container: VideoContainer; extension: VideoContainer; videoCodec: null; audioCodec: null; frames: number; fps: number; duration: number; bytes: number }>;
+export type CanvasVideoOptions = {
+  canvas: HTMLCanvasElement;
+  /** Draw frame N at `seconds` onto the canvas. */
+  render: (frame: number, seconds: number) => void | Promise<void>;
+  frames: number;
+  fps?: number;
+  /** Soundtrack laid from 0 s. */
+  audio?: AudioBuffer | null;
+  bitrate?: number;
+  signal?: AbortSignal;
+  onProgress?: (event: ProgressEvent) => void;
+  maxBytes?: number;
+};
+/** Real-time MediaRecorder fallback with the same render contract; the tab must stay visible. */
+export declare function recordCanvasVideo(options: CanvasVideoOptions & {
+  /** Recorder MIME type; default the best `chooseRecorderType` result. */
+  mimeType?: string;
+  /** Live audio tracks to record alongside (instead of, or as well as, `audio`). */
+  audioTracks?: MediaStreamTrack[];
+  env?: object;
+  timers?: ExportTimers;
+}): Promise<RecordedVideo>;
+/** Export on the path `probeVideoExport` chose; a mid-way WebCodecs failure restarts once on the recorder unless `fallback` is false. */
+export declare function exportCanvasVideo(options: CanvasVideoOptions & {
+  probe: VideoExportPlan;
+  mediabunny?: MediabunnyLike | null;
+  fallback?: boolean;
+  audioBitrate?: number;
+  keyFrameSeconds?: number;
+  env?: object;
+  timers?: ExportTimers;
+}): Promise<EncodedVideo | RecordedVideo>;

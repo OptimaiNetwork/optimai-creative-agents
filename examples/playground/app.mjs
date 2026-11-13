@@ -1,7 +1,9 @@
 // Agent Playground: every form is built from the catalog's form schema; every run goes through a real SDK engine.
 import { getAgentFormSchema, listFormFields } from '../../src/form-schema.mjs';
 import { colorInputValue, decodePlaygroundState, encodePlaygroundState, formDefaults, listPlaygroundAgents, playgroundRunPlan, readFormValue, rerollSeed } from '../../src/playground.mjs';
-import { runCanvasLab } from '../../src/canvas-lab.mjs';
+import { createTransitionClip, runCanvasLab } from '../../src/canvas-lab.mjs';
+import { TRANSITION_CLIP } from '../../src/transition.mjs';
+import { exportCanvasVideo, exportFrameCount, probeVideoExport, saveBlob, videoExportFilename } from '../../src/video-export.mjs';
 import { runLocalTool, validateLocalImageFile } from '../../src/browser-runtime.mjs';
 import { downloadVisionModel, getVisionModelStatus, runBrowserVision } from '../../src/vision-runtime.mjs';
 import { describeProgress, normalizeProgress } from '../../src/progress.mjs';
@@ -92,7 +94,7 @@ function select(id, shared) {
   const { min, max, accept } = agent.inputs;
   $('files').accept = accept; $('files').multiple = max > 1; $('files').value = '';
   $('input-rule').textContent = min === 0 ? `(optional, up to ${max})` : min === max ? `(${min} required)` : `(${min}–${max})`;
-  setFiles([]);
+  setFiles([]); $('export-video').hidden = true;
   hero?.dispose?.(); hero = createPreviewPlayer($('hero'), agent.id, { motion: reducedMotion }); hero.play();
   renderForm(); renderList(); syncHash(); void renderSetup();
   if (shared?.dropped?.length) say(`This link had settings that couldn't be used here: ${shared.dropped.join(', ')}. Defaults are shown instead.`, true);
@@ -180,11 +182,33 @@ $('form').addEventListener('submit', async event => {
     $('output-detail').textContent = `${agent.title} · ${next.width} × ${next.height} · ${formatBytes(next.blob.size)}`;
     $('figure').hidden = false; $('empty').hidden = true;
     Object.assign($('save'), { href: resultUrl, download: next.filename, hidden: false });
+    $('export-video').hidden = agent.operation !== 'transition';
     say(`Done on this device in ${((performance.now() - started) / 1000).toFixed(2)} s.`);
     await offerCompare(controller.signal).catch(() => hideCompare());
   } catch (error) {
     say(error?.name === 'AbortError' ? 'Stopped. Your last result is still here.' : error?.message ?? 'This run failed. Try other images or settings.', error?.name !== 'AbortError');
   } finally { controller = undefined; busy(false); }
+});
+
+// Transition Lab as a video: the same shots and crop, drawn frame by frame. MP4/WebM through WebCodecs needs the optional
+// mediabunny peer mapped in an import map; without it the browser records the clip in real time.
+async function loadMediabunny() { try { return await import('mediabunny'); } catch { return null; } }
+$('export-video').addEventListener('click', async () => {
+  if (controller || agent.operation !== 'transition' || files.length !== 2) return;
+  let plan, clip;
+  try { plan = playgroundRunPlan(agent.id, values); } catch (error) { say(error.message, true); return; }
+  controller = new AbortController(); busy(true); $('export-video').disabled = true;
+  try {
+    const { signal } = controller, { fps, seconds } = TRANSITION_CLIP, frames = exportFrameCount(seconds, fps);
+    clip = await createTransitionClip(files, plan.settings, { signal, onProgress: progress });
+    const mediabunny = await loadMediabunny();
+    const probe = await probeVideoExport({ width: clip.width, height: clip.height, fps, audio: false, mediabunny });
+    const video = await exportCanvasVideo({ probe, mediabunny, canvas: clip.canvas, render: frame => clip.draw(frame, frames), frames, fps, signal, onProgress: progress });
+    saveBlob(video.blob, videoExportFilename(agent.title, video.mime));
+    say(`Saved ${video.extension.toUpperCase()} · ${video.duration.toFixed(1)} s · ${formatBytes(video.bytes)} · ${video.engine === 'webcodecs' ? 'encoded frame by frame' : 'recorded in real time (add mediabunny for MP4)'}.`);
+  } catch (error) {
+    say(error?.name === 'AbortError' ? 'Video export stopped.' : error?.message ?? 'The video could not be exported.', error?.name !== 'AbortError');
+  } finally { clip?.close(); controller = undefined; busy(false); $('export-video').disabled = false; }
 });
 
 function hideCompare() { $('compare').hidden = true; $('before').hidden = true; $('divider').hidden = true; }

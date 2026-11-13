@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { FRAME_SCULPTURE_LIMITS, frameSampleTimes, frameTextureSize, frameSculpturePose, validateFrameSculptureSettings, validateFrameSamples, extractFrameSamples } from '../src/frame-sculpture.mjs';
+import { FRAME_SCULPTURE_LIMITS, FRAME_SCULPTURE_TURNTABLE, createFrameSculptureStageWithRuntime, turntableAngle, turntableSize, frameSampleTimes, frameTextureSize, frameSculpturePose, validateFrameSculptureSettings, validateFrameSamples, extractFrameSamples } from '../src/frame-sculpture.mjs';
 
 test('frame sampling covers equal intervals without seeking the ended position', () => {
   assert.deepEqual(frameSampleTimes(4, 4), [.5, 1.5, 2.5, 3.5]);
@@ -74,4 +74,88 @@ test('repeated or overlapping ownership cannot clear existing frame pixels', () 
   assert.throws(() => validateFrameSamples([...owned, ...owned]), /distinct canvas/);
   assert.equal(canvas.width, 640); assert.equal(canvas.height, 360);
   assert.doesNotThrow(() => validateFrameSamples([{ canvas: { ...canvas }, time: 2 }], owned));
+});
+
+// A minimal Three.js stand-in: real vector maths, a renderer that records each camera position it draws.
+class V3 {
+  constructor(x = 0, y = 0, z = 0) { this.x = x; this.y = y; this.z = z; }
+  set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; }
+  copy(v) { return this.set(v.x, v.y, v.z); } clone() { return new V3(this.x, this.y, this.z); }
+  add(v) { return this.set(this.x + v.x, this.y + v.y, this.z + v.z); } sub(v) { return this.set(this.x - v.x, this.y - v.y, this.z - v.z); }
+  addScaledVector(v, s) { return this.set(this.x + v.x * s, this.y + v.y * s, this.z + v.z * s); }
+  length() { return Math.hypot(this.x, this.y, this.z); } normalize() { const l = this.length() || 1; return this.set(this.x / l, this.y / l, this.z / l); }
+  setLength(l) { return this.normalize().set(this.x * l, this.y * l, this.z * l); } toArray() { return [this.x, this.y, this.z]; }
+  applyAxisAngle(axis, angle) { // Rodrigues' rotation about a unit axis.
+    const { x, y, z } = this, c = Math.cos(angle), s = Math.sin(angle), d = axis.x * x + axis.y * y + axis.z * z;
+    return this.set(x * c + (axis.y * z - axis.z * y) * s + axis.x * d * (1 - c), y * c + (axis.z * x - axis.x * z) * s + axis.y * d * (1 - c), z * c + (axis.x * y - axis.y * x) * s + axis.z * d * (1 - c));
+  }
+}
+function stageFixture(t) {
+  const drawn = [], listeners = new EventTarget(), saved = Object.fromEntries(['document', 'window', 'requestAnimationFrame', 'cancelAnimationFrame'].map(key => [key, globalThis[key]]));
+  const element = () => Object.assign(new EventTarget(), { width: 300, height: 150, style: {}, setAttribute() {}, remove() {} });
+  globalThis.document = Object.assign(listeners, { hidden: false, createElement(kind) { assert.equal(kind, 'canvas'); const canvas = { width: 0, height: 0, getContext: () => ({ drawImage: (source, x, y, w, h) => drawn.push({ source, size: [w, h] }) }) }; return canvas; } });
+  globalThis.window = Object.assign(new EventTarget(), { devicePixelRatio: 2 });
+  globalThis.requestAnimationFrame = () => 1; globalThis.cancelAnimationFrame = () => {};
+  t.after(() => { for (const [key, value] of Object.entries(saved)) if (value === undefined) delete globalThis[key]; else globalThis[key] = value; });
+  const THREE = {
+    SRGBColorSpace: 'srgb', LinearFilter: 1, DoubleSide: 2, Vector3: V3,
+    WebGLRenderer: class { constructor() { this.domElement = element(); this.ratio = 1; this.size = [0, 0]; this.renders = []; THREE.renderer = this; } setPixelRatio(r) { this.ratio = r; } getPixelRatio() { return this.ratio; } setSize(w, h) { this.size = [w, h]; } render(scene, camera) { this.renders.push({ position: camera.position.clone(), size: [...this.size], aspect: camera.aspect }); } dispose() {} forceContextLoss() {} },
+    Scene: class { add() {} }, Group: class { add() {} remove() {} }, Color: class { set() {} },
+    PerspectiveCamera: class { constructor(fov, aspect) { this.fov = fov; this.aspect = aspect; this.far = 100; this.position = new V3(); THREE.camera = this; } updateProjectionMatrix() {} lookAt(target) { this.looking = target.clone(); } },
+    GridHelper: class { position = new V3(); geometry = { dispose() {} }; material = { dispose() {} }; },
+    Box3: class { setFromObject() { return this; } getCenter(v) { v.set(0, 0, 0); } getSize(v) { v.set(4, 3, 3); } },
+    CanvasTexture: class { dispose() {} }, PlaneGeometry: class { dispose() {} }, MeshBasicMaterial: class { constructor(options) { Object.assign(this, options); } dispose() {} },
+    Mesh: class { constructor(geometry, material) { this.geometry = geometry; this.material = material; this.position = new V3(); this.rotation = new V3(); } },
+  };
+  class OrbitControls extends EventTarget { constructor(camera) { super(); this.camera = camera; this.target = new V3(); this.enabled = true; } update() {} dispose() {} }
+  const container = { clientWidth: 800, clientHeight: 450, appendChild() {} }, motion = Object.assign(new EventTarget(), { matches: false });
+  const stage = createFrameSculptureStageWithRuntime(container, {}, () => {}, { THREE, OrbitControls }, { motion });
+  const sample = () => ({ canvas: { width: 320, height: 180, getContext() { return {}; } }, time: 0 });
+  return { THREE, stage, drawn, container, sample };
+}
+test('a turntable orbits the chosen view at video size, keeps the stage still and restores it', t => {
+  const { THREE, stage, drawn, sample } = stageFixture(t);
+  assert.throws(() => stage.turntable(), /Prepare a frame sculpture/);
+  stage.frames([sample(), sample(), sample()]);
+  const start = THREE.camera.position.clone(), before = { size: [...THREE.renderer.size], ratio: THREE.renderer.ratio, aspect: THREE.camera.aspect };
+  const spin = stage.turntable();
+  assert.deepEqual([spin.width, spin.height, spin.degrees], [1280, 720, 360], 'video sides follow the stage aspect');
+  assert.deepEqual([THREE.renderer.size, THREE.renderer.ratio, THREE.camera.aspect], [[1280, 720], 1, 1280 / 720]);
+  assert.throws(() => stage.turntable(), /already running/);
+  const frames = 8, radius = Math.hypot(start.x, start.z);
+  for (let frame = 0; frame < frames; frame++) spin.draw(frame, frames);
+  const positions = THREE.renderer.renders.slice(-frames).map(render => render.position);
+  assert.ok(positions.every(p => Math.abs(Math.hypot(p.x, p.z) - radius) < 1e-9 && Math.abs(p.y - start.y) < 1e-9), 'the camera keeps its distance and height');
+  assert.deepEqual(positions[0].toArray(), start.toArray(), 'frame 0 is the chosen view');
+  const quarter = positions[2], angle = Math.atan2(quarter.x, quarter.z) - Math.atan2(start.x, start.z);
+  assert.ok(Math.abs(Math.cos(angle)) < 1e-9 && Math.abs(Math.sin(angle) - 1) < 1e-9, 'a quarter of the clip is a quarter turn');
+  assert.ok(THREE.renderer.renders.slice(-frames).every(render => render.size[0] === 1280 && render.aspect === 1280 / 720));
+  assert.equal(drawn.length, frames); assert.ok(drawn.every(call => call.source === THREE.renderer.domElement && call.size[0] === 1280 && call.size[1] === 720));
+  spin.close(); spin.close();
+  assert.deepEqual(THREE.camera.position.toArray(), start.toArray(), 'closing restores the camera');
+  assert.deepEqual([THREE.renderer.size, THREE.renderer.ratio, THREE.camera.aspect], [before.size, before.ratio, before.aspect]);
+  assert.deepEqual([spin.canvas.width, spin.canvas.height], [0, 0]);
+  assert.throws(() => spin.draw(0, 8), /closed/);
+  const square = stage.turntable({ width: 720, height: 720, degrees: -180 });
+  square.draw(4, 8); const back = THREE.renderer.renders.at(-1).position, turned = Math.atan2(back.x, back.z) - Math.atan2(start.x, start.z);
+  assert.ok(Math.abs(Math.sin(turned) + 1) < 1e-9, 'frame 4 of an 8-frame −180° clip is a quarter turn the other way');
+  assert.deepEqual(THREE.renderer.renders.at(-1).size, [720, 720]);
+  square.close();
+  assert.throws(() => stage.turntable({ width: 721, height: 720 }), /even/);
+  assert.throws(() => stage.turntable({ degrees: 0 }), /degrees/);
+  stage.dispose();
+});
+test('turntable angles loop without repeating the first frame, and video sides stay even', () => {
+  assert.equal(turntableAngle(0, 180), 0);
+  assert.ok(Math.abs(turntableAngle(90, 180) - Math.PI) < 1e-12);
+  assert.ok(turntableAngle(179, 180) < 2 * Math.PI, 'the last frame stops short of the first');
+  assert.ok(Math.abs(turntableAngle(1, 4, { degrees: -90 }) + Math.PI / 8) < 1e-12);
+  for (const [frame, frames, options] of [[0, 0], [4, 4], [-1, 4], [.5, 4], [0, 4, { degrees: 0 }], [0, 4, { degrees: 721 }], [0, 4, { degrees: NaN }]]) assert.throws(() => turntableAngle(frame, frames, options));
+  assert.deepEqual(FRAME_SCULPTURE_TURNTABLE, { seconds: 6, fps: 30, degrees: 360, edge: 1280 });
+  assert.deepEqual(turntableSize(16 / 9), { width: 1280, height: 720 });
+  assert.deepEqual(turntableSize(9 / 16, 1280), { width: 720, height: 1280 });
+  assert.deepEqual(turntableSize(1.37, 999 + 1), { width: 1000, height: 730 });
+  assert.deepEqual(turntableSize(NaN), { width: 1280, height: 720 }, 'an unreadable aspect falls back to 16:9');
+  assert.deepEqual(turntableSize(100), { width: 1280, height: 320 }, 'extreme aspects are capped at 4:1');
+  assert.throws(() => turntableSize(1, 1921)); assert.throws(() => turntableSize(1, 1));
 });

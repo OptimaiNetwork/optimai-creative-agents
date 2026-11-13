@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { MUSIC_REACTIVE_LIMITS, MUSIC_REACTIVE_LOOKS, extractMusicReactiveFeatures, smoothMusicReactiveFeatures, renderMusicReactiveFrame } from '../src/music-reactive.mjs';
+import { MUSIC_REACTIVE_LIMITS, MUSIC_REACTIVE_LOOKS, createMusicReactiveRenderer, extractMusicReactiveFeatures, smoothMusicReactiveFeatures, renderMusicReactiveFrame } from '../src/music-reactive.mjs';
+import { createOfflineAnalyser } from '../src/offline-analyser.mjs';
+import { createBeatTracker } from '../src/beat-tracker.mjs';
 
 const silent = () => ({ energy: 0, bass: 0, treble: 0, bands: Array(48).fill(0) });
 const full = () => ({ energy: 1, bass: 1, treble: 1, bands: Array(48).fill(1) });
@@ -166,4 +168,38 @@ test('rendering handles hostile values, long Unicode titles, portrait layouts an
   const failed = contextHarness({ throwOnStroke: true });
   assert.throws(() => renderMusicReactiveFrame(failed.ctx, frame()), /drawing failed/);
   assert.equal(failed.state.depth, 0); assert.equal(failed.state.restored, 2, 'Both the orbit transform and caller state need restoration.');
+});
+
+test('a decoded song renders frame by frame exactly as the live preview pipeline would', () => {
+  const rate = 48000, seconds = 6, channel = new Float32Array(rate * seconds);
+  // Kick-like bass bursts every half second over a quiet 3 kHz shimmer.
+  for (let i = 0; i < channel.length; i++) { const t = i / rate, beat = t % .5; channel[i] = .6 * Math.sin(2 * Math.PI * 60 * t) * Math.exp(-beat * 12) + .05 * Math.sin(2 * Math.PI * 3000 * t); }
+  const song = { sampleRate: rate, channels: [channel, channel] }, look = { width: 640, height: 360, look: 'spectrum', intensity: .8, title: 'Offline', artist: 'Test' };
+  const renderer = createMusicReactiveRenderer(song, { fps: 30, ...look });
+  assert.deepEqual([renderer.duration, renderer.fps, renderer.frames, renderer.sampleRate], [6, 30, 180, rate]);
+  // The live loop: analyser bytes → features → beat pulse → smoothing → frame, one step per video frame.
+  const analyser = createOfflineAnalyser(song, { smoothingTimeConstant: 0 }), bytes = new Uint8Array(1024), analysis = { sampleRate: rate, fftSize: 2048 }, beats = createBeatTracker(analysis);
+  let previous = null; const expected = contextHarness(), actual = contextHarness(), pulses = [];
+  for (let index = 0; index < renderer.frames; index++) {
+    const time = index / 30; analyser.getByteFrequencyData(bytes, time);
+    const target = extractMusicReactiveFeatures(bytes, analysis), pulse = beats.push(bytes, time * 1000).pulse; pulses.push(pulse);
+    previous = smoothMusicReactiveFeatures(previous, target, previous ? 1000 / 30 : 0);
+    renderMusicReactiveFrame(expected.ctx, { ...look, time, ...previous, pulse });
+    renderer.draw(actual.ctx, index);
+  }
+  assert.deepEqual(actual.trace, expected.trace, 'every drawing command matches the live pipeline');
+  assert.ok(pulses.some(value => value > .5), 'the bass bursts drive the beat pulse');
+  const again = contextHarness(), twice = contextHarness(), first = contextHarness();
+  renderer.draw(again.ctx, 179); renderer.draw(twice.ctx, 179); renderer.draw(first.ctx, 0);
+  assert.deepEqual(twice.trace, again.trace, 'redrawing the last frame repeats it');
+  const fresh = contextHarness(); createMusicReactiveRenderer(song, { fps: 30, ...look }).draw(fresh.ctx, 0);
+  assert.deepEqual(first.trace, fresh.trace, 'drawing an earlier frame starts the smoothing and beats again');
+  const calm = contextHarness(), still = contextHarness();
+  createMusicReactiveRenderer(song, { ...look, reducedMotion: true }).draw(calm.ctx, 30);
+  renderMusicReactiveFrame(still.ctx, { ...look, time: 0, ...silent(), reducedMotion: true });
+  assert.deepEqual(calm.trace, still.trace, 'reduced motion exports the calm cover frame');
+  for (const options of [{ fps: 0 }, { fps: 121 }, { fps: '30' }, { fftSize: 1000 }]) assert.throws(() => createMusicReactiveRenderer(song, options), RangeError);
+  assert.throws(() => renderer.draw(actual.ctx, -1), RangeError);
+  assert.throws(() => renderer.draw(actual.ctx, 1.5), RangeError);
+  assert.throws(() => createMusicReactiveRenderer({ sampleRate: rate }), TypeError);
 });
