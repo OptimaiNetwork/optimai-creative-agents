@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Benchmarks · OptimAI Creative Agents</title>
+  <style>
+    :root { --bg: #fff; --fg: #15181f; --muted: #5a6170; --line: #d8dce4; --accent: #2457d6; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #11141a; --fg: #eceff4; --muted: #9aa3b5; --line: #2b3140; --accent: #7aa2ff; } }
+    body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+    main { max-width: 760px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; margin: 0 0 4px; } p { color: var(--muted); margin: 4px 0 16px; }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 16px; }
+    label { display: grid; gap: 2px; font-size: .85rem; color: var(--muted); }
+    select, button { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+    button { background: var(--accent); color: #fff; border-color: transparent; cursor: pointer; } button:disabled { opacity: .5; cursor: default; }
+    table { width: 100%; border-collapse: collapse; } th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; } th:first-child, td:first-child { text-align: left; }
+    #status { min-height: 1.5em; } textarea { width: 100%; box-sizing: border-box; height: 8em; font: 12px/1.4 ui-monospace, monospace; background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Benchmarks</h1>
+  <p>How long each SDK operation takes on this device, in milliseconds per operation. Everything runs here; nothing is uploaded.</p>
+  <div class="row">
+    <label>Image size<select id="size"><option value="640x360">640 × 360</option><option value="1024x576" selected>1024 × 576</option><option value="1920x1080">1920 × 1080</option></select></label>
+    <button id="run" type="button">Run benchmarks</button><button id="stop" type="button" disabled>Stop</button>
+  </div>
+  <p id="status" role="status" aria-live="polite"></p>
+  <table id="table" hidden><thead><tr><th>Operation</th><th>Median ms</th><th>p95 ms</th><th>Mpx/s</th><th>Runs</th></tr></thead><tbody></tbody></table>
+  <h2>Copy for the docs</h2>
+  <textarea id="markdown" readonly aria-label="Markdown table"></textarea>
+</main>
+<script type="module" src="./app.mjs"></script>
+</body>
+</html>

@@ -184,6 +184,11 @@
       "import": "./src/compare.mjs",
       "default": "./src/compare.mjs"
     },
+    "./benchmark": {
+      "types": "./src/benchmark.d.mts",
+      "import": "./src/benchmark.mjs",
+      "default": "./src/benchmark.mjs"
+    },
     "./playground": {
       "types": "./src/playground.d.mts",
       "import": "./src/playground.mjs",
