@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1.0",
+  "id": "capybara-family-short",
+  "version": "1.0.0",
+  "title": "Capybara Family Short",
+  "description": "Plan a warm, child-safe 3D animated family short with a complete 12-scene screenplay and storyboard.",
+  "category": "writing",
+  "license": "MIT",
+  "capabilities": {
+    "network": "none",
+    "execution": "declarative",
+    "dataAccess": "selected-inputs"
+  },
+  "recipe": {
+    "templateId": "storyboard-builder",
+    "values": {
+      "scenes": 12,
+      "form": "short film"
+    },
+    "brief": "Write in English for children aged 3–10. Plan a 5–8 minute warm, playful stylized 3D animated family comedy; this is pre-production direction only, not a rendered film. The original capybara family is Bramble and Marigold with their children Pip (curious), Nell (careful planner), and Momo (playful youngest). Their pets are Pebble the turtle, Biscuit the puppy, and Poppy the kitten. Ollie is a friendly young otter who initially insists on solving everything alone. Capybaras must have elongated blunt muzzles, broad dark noses, tiny high-set ears, coarse brown fur, barrel-shaped bodies, and short legs; never describe them as bears or teddy bears. At a neighbourhood festival, Momo accidentally sends the family's toy boat down the river. Keep every mistake harmless, funny, and useful: the family learns from failed attempts, works with Ollie, retrieves the boat, and celebrates together. Use short, simple, expressive dialogue; clear scene continuity; warm pastel 3D visual direction; practical camera framing; and gentle sound notes. Do not use villains, frightening threats, violence, humiliation, brands, copyrighted characters, or promises of video or 3D rendering. End with the idea that mistakes are part of learning and a shared adventure."
+  }
+}
