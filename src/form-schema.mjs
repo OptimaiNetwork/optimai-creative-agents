@@ -20,7 +20,7 @@ const ENGINE_FIELDS = Object.freeze({
   'canvas:mockup': [...LAB, 'layout'], 'canvas:poster': [...LAB, 'title', 'color', 'treatment'], 'canvas:letter': [...LAB, 'title', 'color', 'treatment'],
   'canvas:bento': LAB, 'canvas:glitch': [...LAB, 'effect', 'amount', 'seed'], 'canvas:blend': [...LAB, 'mix'],
   'canvas:transition': [...LAB, 'transition', 'pace', 'mix'], 'canvas:print': [...LAB, 'look', 'inks', 'color', 'scale', 'amount', 'seed'],
-  'vision:person-cutout': ['background', 'threshold', 'softness'],
+  'vision:person-cutout': ['background', 'threshold', 'softness', 'edge'],
   '3d:scene': ['demo', 'lighting', 'finish', 'view', 'focalLength', 'exposure', 'color', 'background'],
   'camera:effects': ['effect', 'intensity', 'mirror'], 'camera:avatar': ['look', 'mirror'],
 });

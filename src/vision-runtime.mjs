@@ -175,7 +175,9 @@ export function normalizeVisionValues(operation, values = {}) {
   if (background !== 'transparent' && !(typeof background === 'string' && /^#[0-9a-f]{6}$/i.test(background))) throw new VisionError('invalid-options', 'Choose transparent or a six-digit background color.');
   const threshold = Number(values.threshold ?? 0.5), softness = Number(values.softness ?? 0.12);
   if (!Number.isFinite(threshold) || threshold < 0.1 || threshold > 0.9 || !Number.isFinite(softness) || softness < 0.02 || softness > 0.4) throw new VisionError('invalid-options', 'Mask threshold must be 0.1–0.9 and edge softness 0.02–0.4.');
-  return { background, threshold, softness };
+  const edge = values.edge ?? 'refined';
+  if (edge !== 'refined' && edge !== 'soft') throw new VisionError('invalid-options', 'Edge must be refined or soft.');
+  return { background, threshold, softness, edge };
 }
 function safeWasmBase(value) {
   const origin = globalThis.location?.origin;

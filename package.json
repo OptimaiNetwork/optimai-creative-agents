@@ -189,6 +189,11 @@
       "import": "./src/benchmark.mjs",
       "default": "./src/benchmark.mjs"
     },
+    "./matte": {
+      "types": "./src/matte.d.mts",
+      "import": "./src/matte.mjs",
+      "default": "./src/matte.mjs"
+    },
     "./playground": {
       "types": "./src/playground.d.mts",
       "import": "./src/playground.mjs",

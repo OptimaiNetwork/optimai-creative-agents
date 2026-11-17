@@ -429,7 +429,7 @@ const controller = new AbortController();
 const file = imageInput.files[0]; // A local file selected by the user.
 await downloadVisionModel('person-cutout', { signal: controller.signal }); // Host policy or manual Download action.
 const result = await runBrowserVision('person-cutout', file, {
-  background: 'transparent', threshold: .5, softness: .12
+  background: 'transparent', threshold: .5, softness: .12, edge: 'refined'
 }, {
   workerFactory: () => new Worker(new URL('./vision-worker.mjs', import.meta.url), { type: 'module' }),
   wasmBaseUrl: new URL('./vision-wasm/', location.href).href,
@@ -445,6 +445,42 @@ Vision progress events use the shared [progress shape](./host-integration.md#sho
 Vision requires HTTPS or localhost, Web Crypto, Web Workers, ImageBitmap, OffscreenCanvas and WASM SIMD support. It uses a CPU worker and does not require WebGPU. Check the target browser before enabling the workspace.
 
 Selected PNG, JPEG and WebP images remain in the browser. Inputs are limited to 20 MiB, 4096 pixels per side and 16 million pixels; analysis and PNG output are scaled to at most 1600 pixels per side. A CPU WASM worker is stopped after 60 seconds or on cancellation. Results depend on subject visibility and the model's training scope; an undetected subject produces a useful error rather than a fabricated landmark result. Raw landmark analysis is available in `result.analysis`; the consumer can create a reviewed JSON export if needed.
+
+### Matte refinement
+
+Person Cutout's mask comes from a small model at low resolution, so on its own it smears hair and leaves a band of the old background around the person. With `edge: 'refined'` (the default; `'soft'` keeps the earlier upscaled mask) the worker snaps the mask to the photo's own edges and cleans the edge colours before it writes the PNG. `analysis.edge` and `analysis.refinement` (`method`, `radius`, `workSize`) say what ran.
+
+The same step is a public module, `@optimai/creative-agents/matte`, for any coarse mask: a segmenter, a depth cut or a hand-painted one.
+
+```js
+import { applyMatte, createMatteRefiner } from '@optimai/creative-agents/matte';
+
+const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+// mask: one value per pixel at any size; Float32Array as 0–1, byte arrays as 0–255.
+const { coverage } = applyMatte(image, { data: maskValues, width: 256, height: 256 });
+ctx.putImageData(image, 0, 0); // alpha written, edge colours cleaned
+
+// Video: one refiner per stream keeps its scratch planes between frames.
+const refiner = createMatteRefiner({ maxSide: 320 });
+const { alpha } = refiner.refine(frame, mask); // full-size alpha, 0–255, image untouched
+refiner.dispose();
+```
+
+How it works, in linear time for any window size:
+
+1. **Colour guided filter** (He, Sun & Tang). On a working grid of at most `maxSide` (512) pixels on the long side, every window fits alpha as a linear function of the photo's RGB, so the edge moves to where the colour changes. The averaged coefficients are then applied to the full-size photo (the "fast guided filter"), so the edge has full-resolution detail although the maths ran on the small grid. Box means use running sums, so the cost does not grow with `radius`.
+2. **Edge band.** The filter keeps the coarse mask's average, so a smeared ramp survives inside the edge. A smoothstep over `0.5 ± band` (0.3) makes it crisp again; `band: 0.5` keeps the filter's own ramp.
+3. **Foreground colour** (`apply` only, blur-fusion after Forte & Pitié). For partly transparent pixels, local foreground and background colour means weighted by alpha give `F = F̄ + α(I − αF̄ − (1 − α)B̄)`, which removes the old background's tint from hair and edges. `foreground: false` writes alpha only.
+
+| Option | Default | Range | Effect |
+| --- | --- | --- | --- |
+| `radius` | 0 (automatic, about 1/80 of the working long side) | 1–32 | Window size on the working grid; larger reaches further from a misplaced mask edge |
+| `epsilon` | 0.001 | 0.000001–0.1 | How much colour change counts as an edge; smaller follows finer detail and more noise |
+| `band` | 0.3 | 0.05–0.5 | Soft zone around alpha 0.5 after filtering |
+| `maxSide` | 512 | 64–1024 | Working grid size; the result is always full size |
+| `foreground` | true | boolean | Clean edge colours in `apply` |
+
+On a synthetic portrait (a 1/6-resolution mask, 14 hair strands, a textured subject on an uneven background) the mean alpha error in a band around the head edge falls from 0.12 for the upscaled mask to under 0.03, and the old background's tint on edge pixels falls from about 64 to 9 levels of 255. A 1600 × 1200 photo takes about 0.3 s on a laptop CPU in Node. It is still a filter, not a matting model: it sharpens and cleans hair the mask partly covers, but strands the segmenter dropped entirely do not come back, and hair against a background of the same colour and see-through fabric stay hard.
 
 ## Interactive 3D scenes
 

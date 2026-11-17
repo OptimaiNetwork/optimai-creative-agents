@@ -1,5 +1,6 @@
 /** Worker-only MediaPipe adapter. The host supplies its pinned, bundled Tasks Vision module. */
 import { VISION_MODELS, VISION_LIMITS, VisionError, getVisionAnalysisSize, normalizeVisionValues } from './vision-runtime.mjs';
+import { applyMatte } from './matte.mjs';
 
 export function personMaskAlpha(confidence, threshold = 0.5, softness = 0.12) {
   if (!Number.isFinite(confidence)) return 0;
@@ -59,22 +60,34 @@ export async function executeVisionTask({ vision, operation, bitmap, modelBuffer
       if (!mask) throw new VisionError('invalid-result', 'The segmentation model did not return a person mask.');
       const confidence = mask.getAsFloat32Array();
       if (!mask.width || !mask.height || confidence.length !== mask.width * mask.height || confidence.length > VISION_LIMITS.pixels) throw new VisionError('invalid-result', 'The segmentation mask has invalid dimensions.');
-      maskCanvas = new OffscreenCanvas(mask.width, mask.height);
-      const maskCtx = maskCanvas.getContext('2d');
-      if (!maskCtx) throw new VisionError('unsupported-browser', 'The browser could not create a segmentation mask.');
-      const pixels = maskCtx.createImageData(mask.width, mask.height); let foreground = 0;
-      for (let i = 0; i < confidence.length; i++) {
-        const alpha = personMaskAlpha(confidence[i], options.threshold, options.softness);
-        pixels.data[i * 4] = pixels.data[i * 4 + 1] = pixels.data[i * 4 + 2] = 255;
-        pixels.data[i * 4 + 3] = alpha; foreground += alpha / 255;
+      let coverage, refinement;
+      if (options.edge === 'refined') {
+        // Snap the low-resolution mask to the photo's own edges (hair, sleeves) and clean the old background out of edge colours.
+        const coarse = new Float32Array(confidence.length);
+        for (let i = 0; i < confidence.length; i++) coarse[i] = personMaskAlpha(confidence[i], options.threshold, options.softness) / 255;
+        const image = ctx.getImageData(0, 0, width, height);
+        const matte = applyMatte(image, { data: coarse, width: mask.width, height: mask.height });
+        coverage = matte.coverage; refinement = { method: 'guided-filter', radius: matte.radius, workSize: [matte.workWidth, matte.workHeight] };
+        if (coverage < 0.01) throw new VisionError('no-subject', 'No clear person was found. Use a well-lit portrait with a visible silhouette.');
+        ctx.putImageData(image, 0, 0);
+      } else {
+        maskCanvas = new OffscreenCanvas(mask.width, mask.height);
+        const maskCtx = maskCanvas.getContext('2d');
+        if (!maskCtx) throw new VisionError('unsupported-browser', 'The browser could not create a segmentation mask.');
+        const pixels = maskCtx.createImageData(mask.width, mask.height); let foreground = 0;
+        for (let i = 0; i < confidence.length; i++) {
+          const alpha = personMaskAlpha(confidence[i], options.threshold, options.softness);
+          pixels.data[i * 4] = pixels.data[i * 4 + 1] = pixels.data[i * 4 + 2] = 255;
+          pixels.data[i * 4 + 3] = alpha; foreground += alpha / 255;
+        }
+        coverage = foreground / confidence.length;
+        if (coverage < 0.01) throw new VisionError('no-subject', 'No clear person was found. Use a well-lit portrait with a visible silhouette.');
+        maskCtx.putImageData(pixels, 0, 0);
+        ctx.globalCompositeOperation = 'destination-in'; ctx.drawImage(maskCanvas, 0, 0, width, height);
       }
-      const coverage = foreground / confidence.length;
-      if (coverage < 0.01) throw new VisionError('no-subject', 'No clear person was found. Use a well-lit portrait with a visible silhouette.');
-      maskCtx.putImageData(pixels, 0, 0);
-      ctx.globalCompositeOperation = 'destination-in'; ctx.drawImage(maskCanvas, 0, 0, width, height);
       if (options.background !== 'transparent') { ctx.globalCompositeOperation = 'destination-over'; ctx.fillStyle = options.background; ctx.fillRect(0, 0, width, height); }
       ctx.globalCompositeOperation = 'source-over';
-      analysis = { kind: 'person-segmentation', personCoverage: Math.round(coverage * 10000) / 10000, threshold: options.threshold, softness: options.softness, background: options.background, limits: 'People only. Fine hair, transparent fabric and occluded edges may need manual editing.' };
+      analysis = { kind: 'person-segmentation', personCoverage: Math.round(coverage * 10000) / 10000, threshold: options.threshold, softness: options.softness, background: options.background, edge: options.edge, ...(refinement ? { refinement } : {}), limits: 'People only. Edges follow the photo, but very fine hair, transparent fabric and occluded edges may still need manual editing.' };
     } else if (operation === 'pose-reference') {
       inference = task.detect(canvas);
       if (!inference.landmarks?.[0]?.length) throw new VisionError('no-subject', 'No clear pose was found. Use a photo with one person and visible arms and legs.');

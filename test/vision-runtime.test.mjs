@@ -26,9 +26,10 @@ test('vision analysis dimensions preserve aspect and reject unbounded pixels', (
   for (const [w, h] of [[0, 1], [1.5, 2], [4097, 4], [4096, 4096], [NaN, 2]]) assert.throws(() => getVisionAnalysisSize(w, h), /4096/);
 });
 test('cutout controls are bounded, ignore arbitrary properties and disallow external backgrounds', () => {
-  assert.deepEqual(normalizeVisionValues('person-cutout'), { background: 'transparent', threshold: 0.5, softness: 0.12 });
+  assert.deepEqual(normalizeVisionValues('person-cutout'), { background: 'transparent', threshold: 0.5, softness: 0.12, edge: 'refined' });
+  assert.equal(normalizeVisionValues('person-cutout', { edge: 'soft' }).edge, 'soft');
   assert.deepEqual(normalizeVisionValues('pose-reference', { url: 'https://example.com' }), {});
-  for (const values of [{ background: 'url(https://example.com)' }, { threshold: 2 }, { softness: 0 }, { background: '#abc' }]) assert.throws(() => normalizeVisionValues('person-cutout', values));
+  for (const values of [{ background: 'url(https://example.com)' }, { threshold: 2 }, { softness: 0 }, { background: '#abc' }, { edge: 'sharp' }]) assert.throws(() => normalizeVisionValues('person-cutout', values));
   assert.throws(() => normalizeVisionValues('unknown'));
 });
 test('model status is local and never starts a network request', async () => {
@@ -162,9 +163,9 @@ test('mask alpha has smooth, bounded and non-finite-safe transitions', () => {
 });
 function processorFixture(operation, fail) {
   const counts = { tasks: 0, results: 0, bitmaps: 0 }, points = Array.from({ length: operation === 'pose-reference' ? 33 : 478 }, () => ({ x: 0.5, y: 0.5, z: 0, visibility: 1 }));
-  const context = { drawImage() {}, createImageData(w, h) { return { data: new Uint8ClampedArray(w * h * 4) }; }, putImageData() {}, fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, arc() {}, fill() {} };
+  const context = { drawImage() {}, createImageData(w, h) { return { data: new Uint8ClampedArray(w * h * 4) }; }, getImageData(x, y, w, h) { counts.read = [w, h]; return { data: Uint8ClampedArray.from({ length: w * h * 4 }, (_, i) => i % 4 === 3 ? 255 : (i >> 2) % w < w / 2 ? 220 : 40), width: w, height: h }; }, putImageData(image) { counts.written = image.data.filter((v, i) => i % 4 === 3 && v > 0).length; }, fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, arc() {}, fill() {} };
   class Canvas { constructor(w, h) { this.width = w; this.height = h; } getContext() { return context; } async convertToBlob() { return new Blob(['png'], { type: 'image/png' }); } }
-  const inference = operation === 'person-cutout' ? { confidenceMasks: [...(fail === 'single-mask' ? [] : [null]), { width: 2, height: 2, getAsFloat32Array: () => new Float32Array([1, 0, 1, 0]) }], close() { counts.results++; } } : operation === 'pose-reference' ? { landmarks: fail === 'empty' ? [] : [points], worldLandmarks: [points], close() { counts.results++; } } : { faceLandmarks: [points], faceBlendshapes: [{ categories: [{ categoryName: 'mouthSmileLeft', score: 0.1 }] }] };
+  const inference = operation === 'person-cutout' ? { confidenceMasks: [...(fail === 'single-mask' ? [] : [null]), { width: 32, height: 2, getAsFloat32Array: () => Float32Array.from({ length: 64 }, (_, i) => i % 32 < 16 ? 1 : 0) }], close() { counts.results++; } } : operation === 'pose-reference' ? { landmarks: fail === 'empty' ? [] : [points], worldLandmarks: [points], close() { counts.results++; } } : { faceLandmarks: [points], faceBlendshapes: [{ categories: [{ categoryName: 'mouthSmileLeft', score: 0.1 }] }] };
   const task = { segment() { if (fail === 'inference') throw Error('model failure'); return inference; }, detect() { if (fail === 'inference') throw Error('model failure'); return inference; }, close() { counts.tasks++; } };
   const factory = { createFromOptions: async () => task, POSE_CONNECTIONS: [{ start: 0, end: 1 }], FACE_LANDMARKS_CONTOURS: [{ start: 0, end: 1 }] };
   const vision = { FilesetResolver: { isSimdSupported: async () => true, forVisionTasks: async () => ({}) }, ImageSegmenter: factory, PoseLandmarker: factory, FaceLandmarker: factory };
@@ -173,11 +174,23 @@ function processorFixture(operation, fail) {
 }
 test('segmentation closes masks, task and bitmap and returns an actual alpha image', async () => {
   const f = processorFixture('person-cutout');
-  try { const result = await executeVisionTask(f.options); assert.equal(result.analysis.personCoverage, 0.5); assert.equal(result.blob.type, 'image/png'); assert.deepEqual(f.counts, { tasks: 1, results: 1, bitmaps: 1 }); } finally { f.restore(); }
+  f.options.values = { edge: 'soft' };
+  try { const result = await executeVisionTask(f.options); assert.equal(result.analysis.personCoverage, 0.5); assert.equal(result.analysis.edge, 'soft'); assert.equal(result.analysis.refinement, undefined); assert.equal(f.counts.read, undefined); assert.equal(result.blob.type, 'image/png'); assert.deepEqual([f.counts.tasks, f.counts.results, f.counts.bitmaps], [1, 1, 1]); } finally { f.restore(); }
+});
+test('person cutout refines the mask against the full-size photo by default', async () => {
+  const f = processorFixture('person-cutout');
+  try {
+    const result = await executeVisionTask(f.options), { analysis } = result;
+    assert.equal(analysis.edge, 'refined'); assert.equal(analysis.refinement.method, 'guided-filter'); assert.deepEqual(analysis.refinement.workSize, [512, 384]);
+    assert.deepEqual(f.counts.read, [800, 600]);
+    // The coarse mask is opaque on its left half and the photo changes colour halfway: the left half is kept, to within a few columns.
+    assert.ok(Math.abs(analysis.personCoverage - 0.5) < 0.01, String(analysis.personCoverage)); assert.ok(Math.abs(f.counts.written / 600 - 400) <= 8, String(f.counts.written / 600));
+    assert.deepEqual({ tasks: f.counts.tasks, results: f.counts.results, bitmaps: f.counts.bitmaps }, { tasks: 1, results: 1, bitmaps: 1 });
+  } finally { f.restore(); }
 });
 test('the reviewed binary Selfie Segmenter uses its single foreground confidence mask', async () => {
   const f = processorFixture('person-cutout','single-mask');
-  try { const result = await executeVisionTask(f.options); assert.equal(result.analysis.personCoverage,0.5); assert.equal(result.blob.type,'image/png'); assert.deepEqual(f.counts,{tasks:1,results:1,bitmaps:1}); } finally { f.restore(); }
+  try { const result = await executeVisionTask(f.options); assert.ok(Math.abs(result.analysis.personCoverage-0.5)<0.05); assert.equal(result.blob.type,'image/png'); assert.deepEqual([f.counts.tasks,f.counts.results,f.counts.bitmaps],[1,1,1]); } finally { f.restore(); }
 });
 
 test('pose and face processors produce all real provider landmarks and bounded rig values', async () => {
