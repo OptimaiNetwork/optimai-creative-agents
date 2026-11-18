@@ -1,6 +1,6 @@
 # OptimAI Creative Agents: full reference
 
-> Local-first browser AI, creative workflows and a community builder SDK. MIT-licensed JavaScript SDK, version 0.5.0, workspace contract 1.3, 39 reviewed agent templates. Node.js >=20 and modern browsers; no runtime dependencies. This file inlines every public declaration and guide; [llms.txt](llms.txt) is the short map.
+> Local-first browser AI, creative workflows and a community builder SDK. MIT-licensed JavaScript SDK, version 0.5.0, workspace contract 1.4, 40 reviewed agent templates. Node.js >=20 and modern browsers; no runtime dependencies. This file inlines every public declaration and guide; [llms.txt](llms.txt) is the short map.
 
 How to work with this SDK:
 
@@ -12,7 +12,7 @@ How to work with this SDK:
 
 ## Templates
 
-- Canvas (11): `mockup-maker`, `image-finish`, `reference-blend`, `image-grid`, `print-shop`, `title-frame`, `pixel-layout`, `poster-lab`, `transition-lab`, `glitch-cut`, `letter-pose`
+- Canvas (12): `mockup-maker`, `image-finish`, `reference-blend`, `image-grid`, `print-shop`, `palette-pull`, `title-frame`, `pixel-layout`, `poster-lab`, `transition-lab`, `glitch-cut`, `letter-pose`
 - Browser vision (3): `select-and-replace`, `motion-pose`, `face-performance`
 - Writing (5): `cast-notes`, `style-brief`, `storyboard-builder`, `prompt-branches`, `story-seed`
 - Interactive (6): `music-reactive`, `frame-sculpture`, `camera-stage`, `model-turntable`, `scene-lighting`, `avatar-stage`
@@ -151,7 +151,7 @@ export type LocalOperation = 'image-filter' | 'image-resize' | 'image-grid' | 't
 export type RecipeValues = Record<string, string | number>;
 export type AgentCategory = ToolCategory;
 export type AgentExecutionKind = 'browser' | 'browser-interactive' | 'local-model' | 'studio-guided';
-export type CanvasLabOperation = 'mockup' | 'poster' | 'bento' | 'glitch' | 'letter' | 'blend' | 'transition' | 'print';
+export type CanvasLabOperation = 'mockup' | 'poster' | 'bento' | 'glitch' | 'letter' | 'blend' | 'transition' | 'print' | 'palette';
 export type AgentWorkspace = (
   | { readonly kind: 'canvas'; readonly operation: Exclude<LocalOperation, 'prompt-builder'> | CanvasLabOperation }
   | { readonly kind: 'vision'; readonly operation: 'person-cutout' | 'pose-reference' | 'face-reference' }
@@ -206,7 +206,7 @@ export type AgentTemplate = ToolTemplate;
 export type AgentManifest = ToolManifest;
 export type AgentManifestValidation = ManifestValidation;
 export declare const MANIFEST_VERSION: '1.0';
-export declare const AGENT_WORKSPACE_CONTRACT_VERSION: '1.3';
+export declare const AGENT_WORKSPACE_CONTRACT_VERSION: '1.4';
 export declare const MAX_PROMPT_LENGTH: number;
 export declare const TOOL_CATALOG: readonly ToolTemplate[];
 export declare const AGENT_CATALOG: readonly AgentTemplate[];
@@ -297,6 +297,7 @@ import type { ProgressEvent } from './progress.mjs';
 import type { TextPosition, TextScrim, TitlePlacement } from './text-placement.mjs';
 import type { GlitchEffect } from './glitch.mjs';
 import type { PrintLook, RisoInkPair } from './print.mjs';
+import type { Palette, PaletteSort } from './palette.mjs';
 import type { TransitionDirection, TransitionPace, TransitionStyle } from './transition.mjs';
 /** What Transition Lab drew; `requested` is set when a canvas without pixel reads fell back to a dissolve. */
 export type DrawnTransition = { style: TransitionStyle; requested?: TransitionStyle; direction: TransitionDirection; pace: TransitionPace; /** Eased progress of the exported frame, 0–1. */ progress: number };
@@ -311,9 +312,9 @@ export const CANVAS_LAB_AGENTS: Readonly<Record<string, string>>;
 export function canvasLabRecipeSettings(templateId: string, values?: Record<string, string | number>): ReturnType<typeof canvasLabSettings>;
 /** Engine settings (a run record's, say) back to v1 recipe `values`, plus engine-only `extra` settings that differ from the template defaults. */
 export function canvasLabRecipeValues(templateId: string, settings?: Record<string, unknown>): { values: Record<string, string | number>; extra: Record<string, string | number> };
-export function canvasLabSettings(operation: string, values?: Record<string, string | number>): { operation: string; title: string; color: string; layout: string; ratio: string; treatment: string; amount: number; mix: number; crop: 'smart' | 'center'; ink: 'readable' | 'image' | 'exact'; position: TextPosition; scrim: 'auto' | 'off'; transition: TransitionStyle; direction: TransitionDirection; pace: TransitionPace; effect: GlitchEffect; seed: number; look: PrintLook; inks: RisoInkPair; scale: number; frames: number };
+export function canvasLabSettings(operation: string, values?: Record<string, string | number>): { operation: string; title: string; color: string; layout: string; ratio: string; treatment: string; amount: number; mix: number; crop: 'smart' | 'center'; ink: 'readable' | 'image' | 'exact'; position: TextPosition; scrim: 'auto' | 'off'; transition: TransitionStyle; direction: TransitionDirection; pace: TransitionPace; effect: GlitchEffect; seed: number; look: PrintLook; inks: RisoInkPair; scale: number; sort: PaletteSort; count: number; frames: number };
 /** The fourth argument is an AbortSignal or `{ signal, onProgress }`; progress stages are prepare → render → frame (transition strip) → export → ready. */
-export function runCanvasLab(operation: string, files?: File[], values?: Record<string, string | number>, options?: AbortSignal | { signal?: AbortSignal; onProgress?: (event: ProgressEvent) => void }): Promise<{blob: Blob; width: number; height: number; filename: string; /** Title color actually drawn (poster and letter). */ ink?: string; /** Title lines as drawn (poster and letter). */ lines?: string[]; /** Where the title block was drawn (poster and letter). */ placement?: TitlePlacement; /** Scrim drawn behind the title, or null (poster and letter). */ scrim?: TextScrim | null; /** Transition drawn (transition only). */ transition?: DrawnTransition; /** Preview strip, or null when `frames` is 0 or pixels cannot be read (transition only). */ strip?: TransitionStrip | null; /** Glitch drawn, with the seed that reproduces it (glitch only). */ glitch?: DrawnGlitch; /** Print drawn, with the seed that reproduces its grain (print only). */ print?: DrawnPrint}>;
+export function runCanvasLab(operation: string, files?: File[], values?: Record<string, string | number>, options?: AbortSignal | { signal?: AbortSignal; onProgress?: (event: ProgressEvent) => void }): Promise<{blob: Blob; width: number; height: number; filename: string; /** Title color actually drawn (poster and letter). */ ink?: string; /** Title lines as drawn (poster and letter). */ lines?: string[]; /** Where the title block was drawn (poster and letter). */ placement?: TitlePlacement; /** Scrim drawn behind the title, or null (poster and letter). */ scrim?: TextScrim | null; /** Transition drawn (transition only). */ transition?: DrawnTransition; /** Preview strip, or null when `frames` is 0 or pixels cannot be read (transition only). */ strip?: TransitionStrip | null; /** Glitch drawn, with the seed that reproduces it (glitch only). */ glitch?: DrawnGlitch; /** Print drawn, with the seed that reproduces its grain (print only). */ print?: DrawnPrint; /** Named swatches and roles pulled from the whole photo; pass it to `paletteFiles` for CSS, JSON, ASE and GPL (palette only). */ palette?: Palette}>;
 /** A Transition Lab clip ready for frame-by-frame export. */
 export type TransitionClip = Readonly<{
   canvas: HTMLCanvasElement; width: number; height: number; seconds: number;
@@ -1150,6 +1151,60 @@ export function separateDuotone(color: readonly [number, number, number] | reado
 export function printPixels<T extends Uint8ClampedArray | Uint8Array = Uint8ClampedArray>(pixels: Uint8ClampedArray | Uint8Array, width: number, height: number, options?: PrintOptions, out?: T): T;
 ```
 
+### `@optimai/creative-agents/palette`
+
+Declared in `src/palette.d.mts`, implemented in `src/palette.mjs`.
+
+```ts
+import type { ColorInput, PaletteSwatch } from './color.mjs';
+
+export type PaletteSort = 'weight' | 'lightness' | 'hue';
+export type PaletteOrder = 'by presence' | 'by lightness' | 'by hue';
+export type PaletteFormat = 'css' | 'json' | 'ase' | 'gpl';
+export declare const PALETTE_SORTS: readonly PaletteSort[];
+/** Recipe order names (the Palette Pull `sort` field) and the order each one draws. */
+export declare const PALETTE_ORDERS: Readonly<Record<PaletteOrder, PaletteSort>>;
+export declare const PALETTE_LIMITS: Readonly<{ colors: 12; minColors: 2; name: 64; analysisEdge: 192; aseBytes: 1048576; aseColors: 4096 }>;
+export declare const PALETTE_FORMATS: readonly PaletteFormat[];
+/** One named color; `oklch` is `[L 0–1, C, h°]`, `css` its `oklch()` text, `weight` its share of the image (all sum to 1). */
+export type PaletteColor = { readonly name: string; readonly hex: string; readonly oklch: readonly [number, number, number]; readonly css: string; readonly weight: number };
+/** `background` is the most present color, `text` reads over it at 4.5:1, `accent` is the most vivid present color or null. */
+export type PaletteRoles = { readonly background: string; readonly text: string; readonly accent: string | null };
+export type Palette = { readonly name: string; readonly sort: PaletteSort; readonly colors: readonly PaletteColor[]; readonly roles: PaletteRoles };
+export type PaletteFile = { readonly format: PaletteFormat; readonly filename: string; readonly type: string; readonly data: string | Uint8Array<ArrayBuffer> };
+
+/** A plain English name such as `deep teal`, `pale pink` or `warm grey`. */
+export declare function colorName(color: ColorInput): string;
+/** CSS `oklch()` text, for example `oklch(62.4% 0.142 241.2)`. */
+export declare function oklchCss(color: ColorInput): string;
+/** Name, order and assign roles to 1–12 swatches (`dominantColors` output, `{ color, weight? }` or hex strings). */
+export declare function buildPalette(
+    swatches: Array<PaletteSwatch | { color: string; weight?: number } | { hex: string; weight?: number } | string>,
+    options?: { sort?: PaletteSort | PaletteOrder; name?: string },
+): Palette;
+/** Pull a named palette of `count` (2–12) colors from RGBA thumbnail pixels. */
+export declare function pullPalette(
+    rgba: Uint8ClampedArray | Uint8Array,
+    width: number,
+    height: number,
+    options?: { count?: number; sort?: PaletteSort | PaletteOrder; name?: string },
+): Palette;
+/** The thumbnail size a palette is read at (longest edge `PALETTE_LIMITS.analysisEdge`, never upscaled). */
+export declare function palettePixelSize(width: number, height: number, edge?: number): { width: number; height: number };
+/** CSS custom properties `--{prefix}-1…n`, `-bg`, `-text`, `-accent` in hex, upgraded to `oklch()` under `@supports`. */
+export declare function paletteCss(palette: Palette, options?: { prefix?: string; selector?: string }): string;
+/** `{ format: 'optimai.palette', version: 1, name, sort, colors, roles }` as pretty JSON. */
+export declare function paletteJson(palette: Palette): string;
+/** A GIMP `.gpl` palette. */
+export declare function paletteGpl(palette: Palette): string;
+/** Adobe Swatch Exchange (`.ase`) bytes: one group of global RGB swatches. */
+export declare function paletteAse(palette: Palette): Uint8Array<ArrayBuffer>;
+/** Read `.ase` bytes (RGB, gray, CMYK and Lab swatches); other models are counted in `skipped`. */
+export declare function readAse(bytes: Uint8Array | ArrayBuffer): { name: string | null; colors: Array<{ name: string; hex: string }>; skipped: number };
+/** Every requested export as `{ format, filename, type, data }`; ASE data is bytes, the rest text. */
+export declare function paletteFiles(palette: Palette, options?: { formats?: readonly PaletteFormat[]; basename?: string; prefix?: string }): PaletteFile[];
+```
+
 ### `@optimai/creative-agents/form-schema`
 
 Declared in `src/form-schema.d.mts`, implemented in `src/form-schema.mjs`.
@@ -1373,7 +1428,7 @@ import type { MotionPreferenceLike } from './accessibility.mjs';
 export declare const PREVIEW_SIZE: Readonly<{ width: 480; height: 270 }>;
 /** One loop, in milliseconds; `t = 0` and every multiple of it is the poster frame. */
 export declare const PREVIEW_LOOP_MS: 4800;
-export type PreviewMotif = 'bars' | 'stack' | 'sketch' | 'mockup' | 'grade' | 'blend' | 'grid' | 'halftone' | 'title' | 'bento' | 'poster' | 'iris' | 'glitch' | 'letters' | 'cutout' | 'pose' | 'face' | 'viewfinder' | 'avatar' | 'orbit' | 'light' | 'lines' | 'panels' | 'branches' | 'parallax' | 'track' | 'reframe' | 'strip';
+export type PreviewMotif = 'bars' | 'stack' | 'sketch' | 'mockup' | 'grade' | 'blend' | 'grid' | 'halftone' | 'title' | 'bento' | 'poster' | 'iris' | 'glitch' | 'letters' | 'cutout' | 'pose' | 'face' | 'viewfinder' | 'avatar' | 'orbit' | 'light' | 'lines' | 'panels' | 'branches' | 'parallax' | 'track' | 'reframe' | 'strip' | 'swatches';
 export declare const PREVIEW_MOTIFS: readonly PreviewMotif[];
 
 export type PreviewPalette = Readonly<{ background: string; end: string; accent: string; ink: string; paper: string; sky: string; sun: string; hill: string; hill2: string; soft: string }>;
@@ -1987,7 +2042,7 @@ Start with a **recipe** when an existing template already does the job. A recipe
 
 | Goal | Guide | What you will finish with |
 | --- | --- | --- |
-| Choose a capability | [Agent catalog](docs/catalog.md) | All 39 templates, their execution paths and actual outputs |
+| Choose a capability | [Agent catalog](docs/catalog.md) | All 40 templates, their execution paths and actual outputs |
 | Create your first recipe | [Quickstart](docs/quickstart.md) | A validated manga-planning recipe and its prepared prompt, with no model required |
 | Run a browser tool or add optional local AI | [Runtime guide](docs/runtimes.md) | The correct API, requirements and output for each runtime |
 | Try every canvas and vision agent in a browser | [Agent Playground](examples/playground/README.md) | Forms built from the catalog, real runs, share links |
@@ -2001,7 +2056,7 @@ Start with a **recipe** when an existing template already does the job. A recipe
 
 #### What runs today
 
-The catalog contains 39 reviewed templates: 11 canvas, 3 browser vision, 5 writing, 6 interactive (3D, camera, music and frames) and 14 guided entries (12 workflows and two sketches). Canvas tools export still-image PNGs. Vision, camera tracking and browser writing use the selected-agent setup policy: supported devices prepare reviewed models automatically; Data Saver and constrained connections offer manual setup; writing can also use an eligible model already installed in a local Ollama service. A guided workflow prepares a brief rather than generating its final media.
+The catalog contains 40 reviewed templates: 12 canvas, 3 browser vision, 5 writing, 6 interactive (3D, camera, music and frames) and 14 guided entries (12 workflows and two sketches). Canvas tools export still-image PNGs. Vision, camera tracking and browser writing use the selected-agent setup policy: supported devices prepare reviewed models automatically; Data Saver and constrained connections offer manual setup; writing can also use an eligible model already installed in a local Ollama service. A guided workflow prepares a brief rather than generating its final media.
 
 The core manifest, canvas and Ollama SDKs use no package dependencies. Browser writing, vision and 3D use pinned optional dependencies installed by the host. The real 3D scene, camera effects, face worker and avatar renderers are public modules shared with Studio. The package has no Studio account system, billing, project database or private asset library.
 
@@ -2034,7 +2089,7 @@ node --version
 npm run verify
 ```
 
-Verification should begin with `Validated 39 reviewed agent templates.` and list each template's actual capability. These commands run from the repository root throughout this guide. You do not need the Studio source repository. The package is not currently published to npm; `npm install @optimai/creative-agents` is not the onboarding path.
+Verification should begin with `Validated 40 reviewed agent templates.` and list each template's actual capability. These commands run from the repository root throughout this guide. You do not need the Studio source repository. The package is not currently published to npm; `npm install @optimai/creative-agents` is not the onboarding path.
 
 #### 2. Scaffold Cloud Companion
 
@@ -2168,7 +2223,7 @@ A recipe contribution reuses an existing runtime. A new renderer, model or opera
 
 ### Agent catalog
 
-Choose a template by the result its reviewed implementation produces. The current catalog has **39 templates: 11 canvas, 3 browser vision, 5 writing, 6 interactive and 14 guided entries**. Every template can prepare a prompt; execution uses the runtime listed below.
+Choose a template by the result its reviewed implementation produces. The current catalog has **40 templates: 12 canvas, 3 browser vision, 5 writing, 6 interactive and 14 guided entries**. Every template can prepare a prompt; execution uses the runtime listed below.
 
 These groups follow each template's versioned `workspace` descriptor. The SDK exposes `getAgentWorkspace(id)` for dispatch, `getAgentInputPolicy(id)` for file limits, accepted types and browser needs, and derives `CANVAS_LAB_AGENTS` from the same catalog. The two sketch workspaces include browser drawing before guided production; the other 12 guided templates prepare direction directly. Display categories and legacy `runtime` and `executionKind` metadata remain compatible with older recipes. Hosts maintain their own supported-operation allowlist as described in [host integration](docs/host-integration.md).
 
@@ -2188,6 +2243,7 @@ These 10 tools render selected images or text into still-image PNGs in the brows
 | Transition Lab | `transition-lab` | `transition` | A still frame of a wipe, iris, light-key or push between exactly two images at a selected time, plus a strip of the whole move; PNG |
 | Glitch Cut | `glitch-cut` | `glitch` | A seeded glitch (shifted bands and blocks, colour trails or echoes, RGB split and scanlines) on one still image; the same seed redraws it exactly; PNG |
 | Print Shop | `print-shop` | `print` | A riso duotone, halftone dots or a Floyd–Steinberg, Bayer or blue-noise dither of one still image on warm paper; the seed redraws the same grain; PNG |
+| Palette Pull | `palette-pull` | `palette` | The 3–12 colors a photo is made of, as named OKLCH swatches with background, text and accent roles; a swatch card PNG plus CSS, JSON, `.ase` and `.gpl` exports through the `palette` module |
 | Letter Pose | `letter-pose` | `letter` | Typographic artboard with an optional background image; PNG |
 
 Inputs must be selected PNG, JPEG or WebP files, each at most 20 MiB and 4096 pixels per side. The original image processors enforce a 16-million-pixel budget for retained images and output; compositions validate each input through that processor and enforce a shared budget for normalized inputs. Compositions have a 1200-pixel output width and ratios of 1:1, 4:5, 16:9 or 9:16. Exported PNGs are limited to 20 MiB.
@@ -2278,7 +2334,7 @@ node --input-type=module -e 'import { getAgentTemplate } from "./src/index.mjs";
 
 Scaffold a recipe with a known template ID, then validate the resulting JSON. [Create your first recipe](docs/quickstart.md) walks through those steps. Unknown template IDs and settings are rejected; new capabilities require a reviewed source contribution following [CONTRIBUTING.md](CONTRIBUTING.md#new-reviewed-operations).
 
-The [MCP adapter](docs/mcp.md) exposes all 39 template names. It prepares recipes by default and supports explicit local Ollama execution for the five writers. Canvas and vision execute through a browser host. Sharing source or importing recipe JSON does not create a public catalog listing; see [release and review](docs/release-and-feature.md).
+The [MCP adapter](docs/mcp.md) exposes all 40 template names. It prepares recipes by default and supports explicit local Ollama execution for the five writers. Canvas and vision execute through a browser host. Sharing source or importing recipe JSON does not create a public catalog listing; see [release and review](docs/release-and-feature.md).
 
 <!-- docs/runtimes.md -->
 
@@ -2345,7 +2401,7 @@ const output = await runCanvasLab(CANVAS_LAB_AGENTS['poster-lab'], [], {
 }, controller.signal);
 ```
 
-`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`; `transition` draws a real [still transition](docs/runtimes.md#still-transitions) at that time rather than a crossfade. `glitch` draws a [seeded glitch](docs/runtimes.md#seeded-glitch) on one still image with `amount: 0–100`, an `effect` and a `seed`. `print` turns one still image into a [print look](docs/runtimes.md#print-looks) with a `look`, `scale`, `amount`, `seed`, an ink `color` and riso `inks`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](docs/runtimes.md#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. Poster and letter titles use [readable ink](docs/runtimes.md#readable-titles-and-image-palettes) by default; pass `ink: 'exact'` to draw `color` unchanged. Titles are set in [balanced lines](docs/runtimes.md#balanced-titles) with optical tracking and leading. These tools export PNGs, not video or model-generated artwork.
+`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`; `transition` draws a real [still transition](docs/runtimes.md#still-transitions) at that time rather than a crossfade. `palette` pulls one image's [color palette](docs/runtimes.md#color-palettes) with `count` and `sort`. `glitch` draws a [seeded glitch](docs/runtimes.md#seeded-glitch) on one still image with `amount: 0–100`, an `effect` and a `seed`. `print` turns one still image into a [print look](docs/runtimes.md#print-looks) with a `look`, `scale`, `amount`, `seed`, an ink `color` and riso `inks`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](docs/runtimes.md#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. Poster and letter titles use [readable ink](docs/runtimes.md#readable-titles-and-image-palettes) by default; pass `ink: 'exact'` to draw `color` unchanged. Titles are set in [balanced lines](docs/runtimes.md#balanced-titles) with optical tracking and leading. These tools export PNGs, not video or model-generated artwork.
 
 ##### Focus-aware cropping
 
@@ -2562,6 +2618,28 @@ const [pink, blue] = separateDuotone([180, 90, 140], '#ff48b0', '#0078bf');     
 
 `bayerMatrix(size)` and `blueNoiseMatrix(size)` return the threshold ranks for your own shaders, and `resolvePrint` validates settings on their own. Every look uses integer math, basic arithmetic and `Math.sqrt` only; the blue-noise tile is built once from integer weights, so it does not depend on the last bit of `Math.exp`.
 
+##### Color palettes
+
+Palette Pull reads the colors one photo is made of and draws them as a swatch card on the palette's own background: the photo above (or beside, at 16:9) and one swatch per color, labelled with its name, hex, `oklch()` value and share of the image. `count` (2–12 for the engine, 3–12 in recipes, default 6) is how many colors to find, and `sort` orders them: `weight` (*by presence*, most present first), `lightness` (*by lightness*, light to dark) or `hue` (*by hue*, around the wheel with neutrals last). Colors come from a thumbnail of the whole photo (longest edge 192 px), not the crop the card shows, through the same deterministic OKLab k-means as `dominantColors`, so the same photo always gives the same palette and never a color it lacks. A palette needs pixel reads: on a canvas that cannot read them, Palette Pull fails with a clear message rather than inventing colors. The result adds `output.palette` (`{ name, sort, colors: [{ name, hex, oklch, css, weight }], roles: { background, text, accent } }`), named after the selected file.
+
+`roles.background` is the most present color, `roles.text` reads over it at 4.5:1 or better (a palette color when one does, otherwise one whose lightness was moved) and `roles.accent` is the most vivid color that is also present, or `null` for a grey palette. Names are plain English from OKLCH lightness, chroma and hue (`deep teal`, `light orange`, `warm white`); two colors that share a name become `dark blue` and `dark blue 2`.
+
+The palette module turns any palette into files other tools open, in Node and the browser:
+
+```js
+import { paletteFiles, pullPalette, readAse, buildPalette } from '@optimai/creative-agents/palette';
+
+const palette = output.palette ?? pullPalette(thumbnail.data, thumbnail.width, thumbnail.height, { count: 6, sort: 'hue' });
+for (const file of paletteFiles(palette)) save(new Blob([file.data], { type: file.type }), file.filename);
+// sunset.css  :root { --palette-1: #c0392b; … --palette-bg/-text/-accent } and the same in oklch() under @supports
+// sunset.json { format: 'optimai.palette', version: 1, name, sort, colors, roles }
+// sunset.ase  Adobe Swatch Exchange: one group of global RGB swatches
+// sunset.gpl  GIMP palette, also read by Inkscape, Krita and Aseprite
+const imported = buildPalette(readAse(bytes).colors.map(color => color.hex)); // RGB, gray, CMYK and Lab swatches
+```
+
+`paletteCss(palette, { prefix, selector })` names the variables and the rule they go in; `paletteJson`, `paletteAse` and `paletteGpl` write one format each. `readAse` reads `.ase` files up to 1 MB and 4,096 swatches and counts the swatches it cannot convert in `skipped`.
+
 ##### Tier-0 verification
 
 Before paying a model to judge a draft, an agent can reject the obviously broken ones locally. `@optimai/creative-agents/verify` provides deterministic checks with no model, network or dependency. They run in Node and the browser in milliseconds:
@@ -2601,7 +2679,7 @@ const settings = canvasLabRecipeSettings('poster-lab', {
 const output = await runCanvasLab(settings.operation, [], settings, controller.signal);
 ```
 
-The normalizer merges source defaults, maps legacy poster `format` to `ratio`, letter `text` to `title`, `style` to `treatment`, glitch `intensity` to `amount`, glitch treatment names to `effect` and print style names to `look`. Explicit canonical values win. It validates recipe values and the final engine settings. Do not merge defaults into supplied values before calling it: that would conceal whether a canonical setting was explicitly selected. Raw `runCanvasLab` remains available for applications using direct bounded engine settings.
+The normalizer merges source defaults, maps legacy poster `format` to `ratio`, letter `text` to `title`, `style` to `treatment`, glitch `intensity` to `amount`, glitch treatment names to `effect`, print style names to `look` and palette order names to `sort`. Explicit canonical values win. It validates recipe values and the final engine settings. Do not merge defaults into supplied values before calling it: that would conceal whether a canonical setting was explicitly selected. Raw `runCanvasLab` remains available for applications using direct bounded engine settings.
 
 #### Selected-agent model setup
 
@@ -3018,7 +3096,7 @@ Treat recipe metadata, compiled prompts and model output as untrusted plain text
 
 #### Dispatch a reviewed operation
 
-Use the source catalog's versioned `workspace` descriptor to select an adapter your application already bundles. `getAgentWorkspace(id)` returns its `kind`, reviewed `operation` and optional presentation `headline`; `AGENT_WORKSPACE_CONTRACT_VERSION` is `1.3`; the v1 recipe schema remains unchanged. Template titles, descriptions, fields and artwork remain public presentation data. Legacy `executionKind` and `runtime` exports are retained for older consumers.
+Use the source catalog's versioned `workspace` descriptor to select an adapter your application already bundles. `getAgentWorkspace(id)` returns its `kind`, reviewed `operation` and optional presentation `headline`; `AGENT_WORKSPACE_CONTRACT_VERSION` is `1.4`; the v1 recipe schema remains unchanged. Template titles, descriptions, fields and artwork remain public presentation data. Legacy `executionKind` and `runtime` exports are retained for older consumers.
 
 ##### Input policy
 
@@ -3067,10 +3145,11 @@ A broader host can add these reviewed runtime adapters:
 | Capability | SDK entry and dispatch | Output and host requirements |
 | --- | --- | --- |
 | Original image processing | `browser-runtime` → `runLocalTool` | PNG; selected PNG/JPEG/WebP files and bounded settings |
-| Additional composition | `canvas-lab` → `canvasLabRecipeSettings`, `runCanvasLab` | PNG and the title ink, lines, placement and scrim, transition, glitch seed or print look actually drawn; normalize defaults, canonical settings and saved v1 aliases |
+| Additional composition | `canvas-lab` → `canvasLabRecipeSettings`, `runCanvasLab` | PNG and the title ink, lines, placement and scrim, transition, glitch seed, print look or palette actually drawn; normalize defaults, canonical settings and saved v1 aliases |
 | Color | `color` → `pickLegibleColor`, `analyzeImageColors`, `dominantColors`, `mixColors`; `color-grade` → `gradePixels`, `resolveGrade`, `gradeColor`; `lut` → `parseCubeLut`, `applyLut`, `filmLut`, `lutColor` | OKLab/OKLCH conversions, WCAG contrast, readable ink, deterministic image palettes, a per-pixel OKLab grade and strict `.cube` LUTs; Node and browser |
 | Transitions | `transition` → `composeTransition`, `resolveTransition`, `transitionProgress`, `transitionTimes`, `transitionClipTime`; `canvas-lab` → `createTransitionClip` | Wipe, iris, light-key, push and dissolve frames between two RGBA buffers with eased time and feathered edges; a Transition Lab video clip that holds each shot and draws any frame; Node and browser |
 | Glitch | `glitch` → `glitchPixels`, `planGlitch`, `randomGlitchSeed`, `mulberry32` | Seeded block, colour-trail and echo glitches on an RGBA buffer, identical bytes for the same seed; Node and browser |
+| Color palettes | `palette` → `pullPalette`, `buildPalette`, `paletteFiles`, `paletteCss`, `paletteJson`, `paletteAse`, `paletteGpl`, `readAse`, `colorName` | Named OKLCH swatches with background, text and accent roles from RGBA pixels or any swatch list; CSS custom properties, JSON, Adobe Swatch Exchange and GIMP palette files, and `.ase` import; Node and browser |
 | Print looks | `print` → `printPixels`, `resolvePrint`, `separateDuotone`, `bayerMatrix`, `blueNoiseMatrix` | Riso duotone, halftone dots and Floyd–Steinberg, Bayer and blue-noise dithers on an RGBA buffer, identical bytes for the same settings; Node and browser |
 | Typography | `typeset` → `fitTitle`, `breakLines`, `opticalSize`, `canvasMeasure`; `text-placement` → `placeTextBlock`, `chooseTitleInk`, `fitScrim`, `regionInterest` | Balanced or paragraph line breaks and optical tracking and leading for titles, against any measure function; title placement in the calmest region of a focus map and the lightest scrim that keeps an ink readable; Node and browser |
 | Browser vision | `vision-runtime` → `downloadVisionModel`, `runBrowserVision` | PNG and analysis; selected-agent setup policy, reviewed local worker and WASM assets |
@@ -3096,7 +3175,7 @@ Recipe fields and direct engine settings can differ. Use `canvasLabRecipeSetting
 
 #### Normalize portable interactive recipes
 
-`3d:scene`, `camera:effects` and `camera:avatar` (workspace contract 1.1), `music:reactive` and `frame:sculpture` (contract 1.2), and the `canvas:print` composition (contract 1.3) are source-reviewed bindings. Keep these operations on the host allowlist; an untrusted recipe cannot add another binding. Studio consumes the same public engine modules through thin adapters. Its dialog layout, account state, asset picker, credits and production services remain private host code.
+`3d:scene`, `camera:effects` and `camera:avatar` (workspace contract 1.1), `music:reactive` and `frame:sculpture` (contract 1.2), and the `canvas:print` (contract 1.3) and `canvas:palette` (contract 1.4) compositions are source-reviewed bindings. Keep these operations on the host allowlist; an untrusted recipe cannot add another binding. Studio consumes the same public engine modules through thin adapters. Its dialog layout, account state, asset picker, credits and production services remain private host code.
 
 ```js
 import { getAgentWorkspace, validateAgentManifest } from './src/index.mjs';
@@ -3376,7 +3455,7 @@ Keep stable agent IDs and increment a recipe's `version` when releasing a revisi
 
 Unknown template IDs are rejected. JSON import cannot install a new capability; new source requires maintainer review and a host that bundles it. Follow [CONTRIBUTING.md](CONTRIBUTING.md#new-reviewed-operations) for source changes, including generated schemas, model/dependency licenses and hardware requirements.
 
-The `music/reactive` and `frame/sculpture` adapters are installed with workspace contract 1.2. Contract 1.3 adds the `print` canvas operation (Print Shop); a host that bundles `canvas-lab` runs it through `runCanvasLab` like the other compositions. See [music and motion engines](docs/MUSIC-MOTION.md) for their host lifecycle and export contracts.
+The `music/reactive` and `frame/sculpture` adapters are installed with workspace contract 1.2. Contract 1.3 adds the `print` canvas operation (Print Shop) and contract 1.4 the `palette` operation (Palette Pull); a host that bundles `canvas-lab` runs them through `runCanvasLab` like the other compositions. See [music and motion engines](docs/MUSIC-MOTION.md) for their host lifecycle and export contracts.
 
 <!-- docs/CAMERA.md -->
 
@@ -3437,7 +3516,7 @@ Camera and portrait pixels remain local. Model requests contact only the fixed o
 
 ### Music and motion engines
 
-Two browser engines extend the catalog in SDK 0.4.0 / workspace contract 1.2, and run unchanged on workspace contract 1.3. They use selected local media, have no cloud provider, and require no model download. The portable v1 manifest still carries only a declarative recipe. An application must install the matching reviewed adapter before it can run these workspaces.
+Two browser engines extend the catalog in SDK 0.4.0 / workspace contract 1.2, and run unchanged on workspace contract 1.4. They use selected local media, have no cloud provider, and require no model download. The portable v1 manifest still carries only a declarative recipe. An application must install the matching reviewed adapter before it can run these workspaces.
 
 #### Sound Canvas (`music-reactive`)
 
@@ -3534,7 +3613,7 @@ Three.js is an optional pinned peer. Hosts may supply their reviewed `THREE` and
 
 ### Connect the local MCP adapter
 
-The optional adapter exposes all 39 reviewed templates to an MCP client over local stdio. Calls prepare recipes by default. Five writing templates can also run an explicitly selected model already installed in a local Ollama service. Browser canvas, vision, 3D and camera execution use the browser SDK in a host application.
+The optional adapter exposes all 40 reviewed templates to an MCP client over local stdio. Calls prepare recipes by default. Five writing templates can also run an explicitly selected model already installed in a local Ollama service. Browser canvas, vision, 3D and camera execution use the browser SDK in a host application.
 
 The adapter implements the fixed protocol version **2025-11-25**. It does not provide a remote endpoint or install arbitrary community servers in OptimAI Studio.
 

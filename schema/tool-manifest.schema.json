@@ -575,6 +575,54 @@
           ],
           "properties": {
             "templateId": {
+              "const": "palette-pull"
+            },
+            "brief": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "values": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "count": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 12
+                },
+                "sort": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "by presence",
+                    "by lightness",
+                    "by hue"
+                  ]
+                },
+                "ratio": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "enum": [
+                    "1:1",
+                    "4:5",
+                    "16:9",
+                    "9:16"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "templateId",
+            "values",
+            "brief"
+          ],
+          "properties": {
+            "templateId": {
               "const": "motion-finish"
             },
             "brief": {
@@ -2207,6 +2255,32 @@
             "properties": {
               "templateId": {
                 "const": "print-shop"
+              }
+            },
+            "required": [
+              "templateId"
+            ]
+          }
+        },
+        "required": [
+          "recipe"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "image"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recipe": {
+            "properties": {
+              "templateId": {
+                "const": "palette-pull"
               }
             },
             "required": [

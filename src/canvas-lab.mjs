@@ -1,6 +1,7 @@
 import { getToolOutputSize, LOCAL_IMAGE_LIMITS, runLocalTool } from './browser-runtime.mjs';
 import { AGENT_CATALOG, getAgentTemplate, validateRecipeValues } from './index.mjs';
-import { analyzeImageColors, pickAccentColor } from './color.mjs';
+import { analyzeImageColors, pickAccentColor, pickLegibleColor } from './color.mjs';
+import { PALETTE_LIMITS, PALETTE_ORDERS, PALETTE_SORTS, palettePixelSize, pullPalette } from './palette.mjs';
 import { analyzeImageFocus, focusCoverRect } from './smart-crop.mjs';
 import { chooseTitleInk, placeTextBlock, TEXT_POSITIONS } from './text-placement.mjs';
 import { canvasMeasure, fitTitle } from './typeset.mjs';
@@ -10,7 +11,7 @@ import { PRINT_LOOKS, PRINT_STYLES, printPixels, resolvePrint, RISO_INKS } from 
 import { createProgressReporter } from './progress.mjs';
 import { composeTransition, resolveTransition, TRANSITION_DIRECTIONS, TRANSITION_LIMITS, TRANSITION_PACES, TRANSITION_STYLES, TRANSITION_TECHNIQUES, transitionClipTime, transitionProgress, transitionTimes, TRANSITION_CLIP } from './transition.mjs';
 
-const LAB_OPERATIONS = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition', 'print']);
+const LAB_OPERATIONS = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition', 'print', 'palette']);
 export const CANVAS_LAB_AGENTS = Object.freeze(Object.fromEntries(AGENT_CATALOG.flatMap(agent =>
   agent.workspace.kind === 'canvas' && LAB_OPERATIONS.has(agent.workspace.operation) ? [[agent.id, agent.workspace.operation]] : [],
 )));
@@ -41,6 +42,9 @@ export function canvasLabSettings(operation, values = {}) {
     look: Object.hasOwn(PRINT_STYLES, values.look ?? '') ? PRINT_STYLES[values.look] : option('look', 'riso', PRINT_LOOKS),
     inks: option('inks', 'pink + blue', Object.keys(RISO_INKS)),
     scale: (() => { const value = number('scale', 3, 1, 12); if (!Number.isInteger(value)) throw new Error('scale must be a whole number from 1 to 12.'); return value; })(),
+    // Recipe order names ('by hue') are accepted as aliases of the orders they draw.
+    sort: Object.hasOwn(PALETTE_ORDERS, values.sort ?? '') ? PALETTE_ORDERS[values.sort] : option('sort', 'weight', PALETTE_SORTS),
+    count: (() => { const value = number('count', 6, PALETTE_LIMITS.minColors, PALETTE_LIMITS.colors); if (!Number.isInteger(value)) throw new Error(`count must be a whole number from ${PALETTE_LIMITS.minColors} to ${PALETTE_LIMITS.colors}.`); return value; })(),
     frames: (() => { const value = number('frames', 5, 0, TRANSITION_LIMITS.frames); if (!Number.isInteger(value) || value === 1) throw new Error(`frames must be 0 or a whole number from 2 to ${TRANSITION_LIMITS.frames}.`); return value; })(),
   };
 }
@@ -67,10 +71,11 @@ export function canvasLabRecipeSettings(templateId, values = {}) {
     ...(operation === 'transition' ? { transition: settings.transition, pace: settings.pace } : {}),
     ...(operation === 'glitch' ? { effect: settings.effect, seed: settings.seed } : {}),
     ...(operation === 'print' ? { look: settings.look, inks: settings.inks, scale: settings.scale, seed: settings.seed } : {}),
+    ...(operation === 'palette' ? { count: settings.count, sort: settings.sort } : {}),
   });
 }
 // Engine names back to the recipe names a saved v1 recipe uses ('radial' → 'match cut').
-const RECIPE_NAMES = Object.freeze(Object.fromEntries([['transition', TRANSITION_TECHNIQUES], ['effect', GLITCH_TREATMENTS], ['look', PRINT_STYLES]]
+const RECIPE_NAMES = Object.freeze(Object.fromEntries([['transition', TRANSITION_TECHNIQUES], ['effect', GLITCH_TREATMENTS], ['look', PRINT_STYLES], ['sort', PALETTE_ORDERS]]
   .map(([key, aliases]) => [key, Object.fromEntries(Object.entries(aliases).map(([recipe, engine]) => [engine, recipe]))])));
 /**
  * The inverse of `canvasLabRecipeSettings`: engine settings (say, a run record's) as recipe `values` the
@@ -136,6 +141,36 @@ function inkColor(canvas, area, settings, image) {
   const { ink, scrim } = chooseTitleInk(surfaces, { prefer: [accent, settings.color], minContrast: 3, scrim: settings.scrim === 'auto' });
   return { ink, scrim };
 }
+// Palette Pull's card: the photo on swatch-card paper, then one outlined, labelled swatch per color (so none hides in the paper).
+const PALETTE_PAPER = '#f3f0ea';
+function paletteCard(ctx, image, focus, palette, width, height) {
+  const { colors } = palette, wide = width > height * 1.2, pad = Math.round(width * .04), gap = Math.max(8, Math.round(width * .01));
+  ctx.fillStyle = PALETTE_PAPER; ctx.fillRect(0, 0, width, height);
+  const photo = wide ? { x: pad, y: pad, w: Math.round(width * .5) - pad, h: height - pad * 2 } : { x: pad, y: pad, w: width - pad * 2, h: Math.round((height - pad * 2) * (height > width * 1.5 ? .52 : .56)) };
+  ctx.save(); ctx.beginPath(); ctx.roundRect(photo.x, photo.y, photo.w, photo.h, 18); ctx.clip(); fit(ctx, image, photo.x, photo.y, photo.w, photo.h, false, focus); ctx.restore();
+  const area = wide ? { x: photo.x + photo.w + pad * .75, y: pad, w: width - photo.w - pad * 2.75, h: height - pad * 2 } : { x: pad, y: photo.y + photo.h + pad * .6, w: width - pad * 2, h: height - photo.h - pad * 2.6 };
+  const rows = wide ? colors.length : colors.length > 6 ? 2 : 1, cols = Math.ceil(colors.length / rows);
+  const cw = (area.w - gap * (cols - 1)) / cols, ch = (area.h - gap * (rows - 1)) / rows;
+  ctx.textBaseline = 'alphabetic'; if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+  colors.forEach((color, index) => {
+    const x = area.x + (index % cols) * (cw + gap), y = area.y + Math.floor(index / cols) * (ch + gap);
+    round(ctx, x, y, cw, ch, Math.min(14, ch / 3), color.hex); ctx.strokeStyle = '#1b1d2026'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = pickLegibleColor(color.hex).color;
+    const label = [color.hex.toUpperCase(), color.css, `${Math.round(color.weight * 100)}%`];
+    if (wide) {
+      const size = Math.round(Math.max(11, Math.min(22, ch * .36))), inset = Math.min(18, ch * .4), mid = y + ch / 2 + size * .36;
+      ctx.font = `700 ${size}px system-ui, sans-serif`; ctx.textAlign = 'left'; ctx.fillText(color.name, x + inset, mid, cw * .4);
+      ctx.font = `500 ${size}px ui-monospace, monospace`; ctx.textAlign = 'right'; ctx.fillText(label.slice(0, ch > size * 2.2 ? 2 : 1).join('  '), x + cw - inset, mid, cw * .56);
+    } else {
+      const size = Math.round(Math.max(12, Math.min(28, cw * .13))), inset = Math.min(16, cw * .1), lines = ch > size * 6 ? 4 : ch > size * 3.6 ? 2 : 1;
+      ctx.textAlign = 'left';
+      [color.name, ...label].slice(0, lines).forEach((text, line) => {
+        ctx.font = line ? `500 ${Math.round(size * .78)}px ui-monospace, monospace` : `700 ${size}px system-ui, sans-serif`;
+        ctx.fillText(text, x + inset, y + ch - inset - (lines - 1 - line) * size * 1.3, cw - inset * 2);
+      });
+    }
+  });
+}
 const readable = ctx => typeof ctx.getImageData === 'function' && typeof ctx.putImageData === 'function' && typeof ctx.createImageData === 'function';
 // Draw both shots at one size and read their pixels, or null where pixels cannot be read.
 function shotPixels(ctx, images, focus, width, height) {
@@ -174,7 +209,7 @@ export async function runCanvasLab(operation, files = [], values = {}, options) 
   if (!Array.isArray(files) || files.length > maximum) throw new Error(`Choose up to ${maximum} images.`);
   if (!files.length && !['poster', 'letter'].includes(operation)) throw new Error('Add an image to start.');
   if (['blend', 'transition'].includes(operation) && files.length !== 2) throw new Error('Choose two images for this composition.');
-  const images = []; let canvas, source, thumb, film, ink, lines, placement, scrim, transition, strip, glitch, print;
+  const images = []; let canvas, source, thumb, film, ink, lines, placement, scrim, transition, strip, glitch, print, palette;
   try {
     await openImages(files, images, signal, report);
     // Keep each subject in frame; environments without pixel reads stay centred.
@@ -240,6 +275,16 @@ export async function runCanvasLab(operation, files = [], values = {}, options) 
       if (!frame) throw new Error('This browser cannot read canvas pixels, so the print look cannot be drawn.');
       printPixels(frame.data, width, height, plan, frame.data); ctx.putImageData(frame, 0, 0);
       print = { look: plan.look, scale: plan.scale, amount: plan.amount, seed: plan.seed, ...(plan.look === 'riso' ? { inks: [...plan.inks] } : { ink: plan.ink }), paper: plan.paper };
+    } else if (operation === 'palette') {
+      // Colors come from the whole photo, not the crop the card shows.
+      const size = palettePixelSize(images[0].width, images[0].height);
+      thumb = document.createElement('canvas'); thumb.width = size.width; thumb.height = size.height;
+      const thumbContext = thumb.getContext('2d', { willReadFrequently: true }); let pixels = null;
+      if (thumbContext && readable(thumbContext)) try { thumbContext.drawImage(images[0], 0, 0, size.width, size.height); pixels = thumbContext.getImageData(0, 0, size.width, size.height); } catch { pixels = null; }
+      // A palette is read from pixels; inventing one here would misdescribe the photo.
+      if (!pixels) throw new Error('This browser cannot read canvas pixels, so the palette cannot be pulled.');
+      palette = pullPalette(pixels.data, size.width, size.height, { count: settings.count, sort: settings.sort, name: String(files[0]?.name ?? '').replace(/\.[a-z0-9]{1,5}$/i, '') || 'Palette' });
+      paletteCard(ctx, images[0], focus[0], palette, width, height);
     } else {
       if (images[0]) fit(ctx, images[0], 0, 0, width, height, false, focus[0]);
       const type = lettering(ctx, settings, width, height); lines = type.lines; ctx.textBaseline = 'top';
@@ -269,7 +314,7 @@ export async function runCanvasLab(operation, files = [], values = {}, options) 
     abort(signal);
     if (blob.size > 20 * 1024 * 1024) throw new Error('The exported image is too large. Use a smaller composition.');
     report('ready');
-    return { blob, width, height, filename: `optimai-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}), ...(transition ? { transition, strip: strip ?? null } : {}), ...(glitch ? { glitch } : {}), ...(print ? { print } : {}) };
+    return { blob, width, height, filename: `optimai-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}), ...(transition ? { transition, strip: strip ?? null } : {}), ...(glitch ? { glitch } : {}), ...(print ? { print } : {}), ...(palette ? { palette } : {}) };
   } finally { images.forEach(image => image.close()); for (const value of [source, thumb, film, canvas]) if (value) value.width = value.height = 1; }
 }
 

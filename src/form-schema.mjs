@@ -8,7 +8,7 @@ export const FORM_ROLES = Object.freeze(['engine', 'alias', 'brief', 'unused']);
 export const FORM_GROUPS = Object.freeze([['content', 'Content'], ['look', 'Look'], ['color', 'Color'], ['layout', 'Layout'], ['motion', 'Motion']]
   .map(([id, title]) => Object.freeze({ id, title })));
 const GROUP_OF = Object.freeze({
-  color: 'color', background: 'color', inks: 'color',
+  color: 'color', background: 'color', inks: 'color', count: 'color', sort: 'color',
   ratio: 'layout', width: 'layout', height: 'layout', fit: 'layout', layout: 'layout', columns: 'layout', gap: 'layout', position: 'layout', format: 'layout', view: 'layout', focalLength: 'layout', fontSize: 'layout', scenes: 'content', branches: 'content',
   camera: 'motion', pace: 'motion', transition: 'motion', mix: 'motion', rhythm: 'motion', length: 'motion', energy: 'motion', structure: 'motion', depth: 'motion',
 });
@@ -20,13 +20,14 @@ const ENGINE_FIELDS = Object.freeze({
   'canvas:mockup': [...LAB, 'layout'], 'canvas:poster': [...LAB, 'title', 'color', 'treatment'], 'canvas:letter': [...LAB, 'title', 'color', 'treatment'],
   'canvas:bento': LAB, 'canvas:glitch': [...LAB, 'effect', 'amount', 'seed'], 'canvas:blend': [...LAB, 'mix'],
   'canvas:transition': [...LAB, 'transition', 'pace', 'mix'], 'canvas:print': [...LAB, 'look', 'inks', 'color', 'scale', 'amount', 'seed'],
+  'canvas:palette': [...LAB, 'count', 'sort'],
   'vision:person-cutout': ['background', 'threshold', 'softness', 'edge'],
   '3d:scene': ['demo', 'lighting', 'finish', 'view', 'focalLength', 'exposure', 'color', 'background'],
   'camera:effects': ['effect', 'intensity', 'mirror'], 'camera:avatar': ['look', 'mirror'],
 });
 // Older recipe names each engine still maps (`canvasLabRecipeSettings`, `scene3DRecipeSettings`).
 const LAB_ALIASES = { format: 'ratio', text: 'title', style: 'treatment', intensity: 'amount' };
-const ALIASES = Object.freeze(Object.fromEntries([...['mockup', 'poster', 'letter', 'bento', 'glitch', 'blend', 'transition', 'print'].map(op => [`canvas:${op}`, LAB_ALIASES]), ['3d:scene', { material: 'finish' }]]));
+const ALIASES = Object.freeze(Object.fromEntries([...['mockup', 'poster', 'letter', 'bento', 'glitch', 'blend', 'transition', 'print', 'palette'].map(op => [`canvas:${op}`, LAB_ALIASES]), ['3d:scene', { material: 'finish' }]]));
 const BRIEF_ONLY = new Set(['workflow', 'sketch']);
 
 const template = idOrTemplate => {

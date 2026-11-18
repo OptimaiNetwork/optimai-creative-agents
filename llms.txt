@@ -1,6 +1,6 @@
 # OptimAI Creative Agents
 
-> Local-first browser AI, creative workflows and a community builder SDK. MIT-licensed JavaScript SDK, version 0.5.0, workspace contract 1.3, 39 reviewed agent templates. Node.js >=20 and modern browsers; no runtime dependencies.
+> Local-first browser AI, creative workflows and a community builder SDK. MIT-licensed JavaScript SDK, version 0.5.0, workspace contract 1.4, 40 reviewed agent templates. Node.js >=20 and modern browsers; no runtime dependencies.
 
 How to work with this SDK:
 
@@ -41,6 +41,7 @@ How to work with this SDK:
 - [`@optimai/creative-agents/text-placement`](src/text-placement.d.mts): TEXT_POSITIONS, PLACEMENT_LIMITS, regionInterest, placeTextBlock, fitScrim, chooseTitleInk. Types: TextPosition, Size, Rect, TextPlacement, TitlePlacement, TextScrim, FittedScrim.
 - [`@optimai/creative-agents/glitch`](src/glitch.d.mts): GLITCH_EFFECTS, GLITCH_TREATMENTS, GLITCH_LIMITS, mulberry32, randomGlitchSeed, resolveGlitch, planGlitch, glitchPixels. Types: GlitchEffect, GlitchTreatment, GlitchOptions, GlitchSettings, GlitchBand, GlitchBlock, GlitchEcho, GlitchPlan.
 - [`@optimai/creative-agents/print`](src/print.d.mts): PRINT_LOOKS, PRINT_STYLES, RISO_INKS, PRINT_PAPER, PRINT_INK, PRINT_LIMITS, PRINT_DOT_GAIN, resolvePrint, bayerMatrix, blueNoiseMatrix, separateDuotone, printPixels. Types: PrintLook, PrintStyle, RisoInkPair, PrintOptions, PrintSettings.
+- [`@optimai/creative-agents/palette`](src/palette.d.mts): PALETTE_SORTS, PALETTE_ORDERS, PALETTE_LIMITS, PALETTE_FORMATS, colorName, oklchCss, buildPalette, pullPalette, palettePixelSize, paletteCss, paletteJson, paletteGpl, paletteAse, readAse, paletteFiles. Types: PaletteSort, PaletteOrder, PaletteFormat, PaletteColor, PaletteRoles, Palette, PaletteFile.
 - [`@optimai/creative-agents/form-schema`](src/form-schema.d.mts): AGENT_FORM_SCHEMA_VERSION, FORM_CONTROLS, FORM_ROLES, FORM_GROUPS, getAgentFieldRoles, getAgentFormSchema, listFormFields, plainFormSchema. Types: FormControl, FormRole, FormGroupId, FormFieldHints, FormPropertySchema, AgentFormSchema, FormField.
 - [`@optimai/creative-agents/progress`](src/progress.d.mts): PROGRESS_STAGES, ENGINE_PROGRESS_STAGES, progressStage, normalizeProgress, describeProgress, progressSteps, createProgressReporter. Types: ProgressStage, ProgressEvent, ProgressInput, ProgressEngine, ProgressStep.
 - [`@optimai/creative-agents/capabilities`](src/capabilities.d.mts): CAPABILITY_REPORT_VERSION, CREATIVE_CAPABILITIES, capabilityLabel, detectCreativeCapabilities, probeCreativeCapabilities, assessAgentCapabilities, modelSetupEnvironment. Types: CreativeCapability, CapabilityReport, CapabilityStatus, CapabilityAssessment, CapabilityEnvironment.
@@ -66,13 +67,13 @@ How to work with this SDK:
 - [Runtimes and model setup](docs/runtimes.md): Choose the runtime for the result you need.
 - [Integrate agents into your application](docs/host-integration.md): A host reads a recipe, validates it, resolves a reviewed implementation and supplies the user's selected inputs.
 - [Reusable camera and avatar agents](docs/CAMERA.md): `camera-stage` and `avatar-stage` share portable browser engines.
-- [Music and motion engines](docs/MUSIC-MOTION.md): Two browser engines extend the catalog in SDK 0.4.0 / workspace contract 1.2, and run unchanged on workspace contract 1.3.
-- [Connect the local MCP adapter](docs/mcp.md): The optional adapter exposes all 39 reviewed templates to an MCP client over local stdio.
+- [Music and motion engines](docs/MUSIC-MOTION.md): Two browser engines extend the catalog in SDK 0.4.0 / workspace contract 1.2, and run unchanged on workspace contract 1.4.
+- [Connect the local MCP adapter](docs/mcp.md): The optional adapter exposes all 40 reviewed templates to an MCP client over local stdio.
 - [Share, contribute and prepare for review](docs/release-and-feature.md): The SDK source is public at OptimaiNetwork/optimai-creative-agents.
 
 ## Templates
 
-- Canvas (11): `mockup-maker`, `image-finish`, `reference-blend`, `image-grid`, `print-shop`, `title-frame`, `pixel-layout`, `poster-lab`, `transition-lab`, `glitch-cut`, `letter-pose`
+- Canvas (12): `mockup-maker`, `image-finish`, `reference-blend`, `image-grid`, `print-shop`, `palette-pull`, `title-frame`, `pixel-layout`, `poster-lab`, `transition-lab`, `glitch-cut`, `letter-pose`
 - Browser vision (3): `select-and-replace`, `motion-pose`, `face-performance`
 - Writing (5): `cast-notes`, `style-brief`, `storyboard-builder`, `prompt-branches`, `story-seed`
 - Interactive (6): `music-reactive`, `frame-sculpture`, `camera-stage`, `model-turntable`, `scene-lighting`, `avatar-stage`

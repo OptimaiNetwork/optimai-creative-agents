@@ -12,6 +12,7 @@ import { createPreviewPlayer, renderAgentPreview } from '../../src/card-preview.
 import { assessAgentCapabilities, detectCreativeCapabilities } from '../../src/capabilities.mjs';
 import { describeAgentOutput } from '../../src/accessibility.mjs';
 import { formatBytes } from '../../src/model-setup.mjs';
+import { paletteFiles } from '../../src/palette.mjs';
 
 // The pinned MediaPipe assets the interactive example copies (see its README); vision runs need them.
 const VISION_WASM = new URL('../interactive/vendor/mediapipe/1.1.0', import.meta.url).pathname;
@@ -183,6 +184,7 @@ $('form').addEventListener('submit', async event => {
     $('figure').hidden = false; $('empty').hidden = true;
     Object.assign($('save'), { href: resultUrl, download: next.filename, hidden: false });
     $('export-video').hidden = agent.operation !== 'transition';
+    showPaletteFiles(next.palette);
     say(`Done on this device in ${((performance.now() - started) / 1000).toFixed(2)} s.`);
     await offerCompare(controller.signal).catch(() => hideCompare());
   } catch (error) {
@@ -211,6 +213,16 @@ $('export-video').addEventListener('click', async () => {
   } finally { clip?.close(); controller = undefined; busy(false); $('export-video').disabled = false; }
 });
 
+// Palette Pull's swatches as files other tools open: CSS variables, JSON, Adobe swatches and a GIMP palette.
+let paletteUrls = [];
+function showPaletteFiles(palette) {
+  paletteUrls.forEach(url => URL.revokeObjectURL(url)); paletteUrls = [];
+  const box = $('palette-files'); box.replaceChildren(); box.hidden = !palette;
+  for (const file of palette ? paletteFiles(palette) : []) {
+    const url = URL.createObjectURL(new Blob([file.data], { type: file.type })); paletteUrls.push(url);
+    box.append(Object.assign(document.createElement('a'), { className: 'button', href: url, download: file.filename, textContent: `.${file.format}` }));
+  }
+}
 function hideCompare() { $('compare').hidden = true; $('before').hidden = true; $('divider').hidden = true; }
 function showSplit() { const view = splitView(Number($('split').value) / 100); $('before').style.clipPath = view.clipPath; $('divider').style.left = `${view.position * 100}%`; }
 async function offerCompare(signal) {
@@ -222,7 +234,7 @@ async function offerCompare(signal) {
 }
 $('split').addEventListener('input', showSplit);
 $('search').addEventListener('input', renderList);
-window.addEventListener('pagehide', () => { controller?.abort(); hero?.dispose?.(); for (const url of [resultUrl, previousUrl]) if (url) URL.revokeObjectURL(url); });
+window.addEventListener('pagehide', () => { controller?.abort(); hero?.dispose?.(); for (const url of [resultUrl, previousUrl, ...paletteUrls]) if (url) URL.revokeObjectURL(url); });
 
 const shared = decodePlaygroundState(location.hash);
 select(shared?.agent ?? 'poster-lab', shared);

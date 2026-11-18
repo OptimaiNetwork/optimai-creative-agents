@@ -154,6 +154,11 @@
       "import": "./src/print.mjs",
       "default": "./src/print.mjs"
     },
+    "./palette": {
+      "types": "./src/palette.d.mts",
+      "import": "./src/palette.mjs",
+      "default": "./src/palette.mjs"
+    },
     "./form-schema": {
       "types": "./src/form-schema.d.mts",
       "import": "./src/form-schema.mjs",

@@ -3,7 +3,7 @@ import type { MotionPreferenceLike } from './accessibility.mjs';
 export declare const PREVIEW_SIZE: Readonly<{ width: 480; height: 270 }>;
 /** One loop, in milliseconds; `t = 0` and every multiple of it is the poster frame. */
 export declare const PREVIEW_LOOP_MS: 4800;
-export type PreviewMotif = 'bars' | 'stack' | 'sketch' | 'mockup' | 'grade' | 'blend' | 'grid' | 'halftone' | 'title' | 'bento' | 'poster' | 'iris' | 'glitch' | 'letters' | 'cutout' | 'pose' | 'face' | 'viewfinder' | 'avatar' | 'orbit' | 'light' | 'lines' | 'panels' | 'branches' | 'parallax' | 'track' | 'reframe' | 'strip';
+export type PreviewMotif = 'bars' | 'stack' | 'sketch' | 'mockup' | 'grade' | 'blend' | 'grid' | 'halftone' | 'title' | 'bento' | 'poster' | 'iris' | 'glitch' | 'letters' | 'cutout' | 'pose' | 'face' | 'viewfinder' | 'avatar' | 'orbit' | 'light' | 'lines' | 'panels' | 'branches' | 'parallax' | 'track' | 'reframe' | 'strip' | 'swatches';
 export declare const PREVIEW_MOTIFS: readonly PreviewMotif[];
 
 export type PreviewPalette = Readonly<{ background: string; end: string; accent: string; ink: string; paper: string; sky: string; sun: string; hill: string; hill2: string; soft: string }>;

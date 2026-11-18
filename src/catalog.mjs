@@ -69,6 +69,11 @@ export const catalog = [
     'Prepare a {{look}} print treatment of the selected image. Riso inks: {{inks}}. Keep the subject readable, the dots even and the paper tone warm.',
     [select('look', 'Print look', ['riso duotone', 'halftone dots', 'error diffusion', 'ordered dither', 'blue-noise grain']), select('inks', 'Riso inks', ['pink + blue', 'orange + teal', 'yellow + purple', 'red + black']), text('color', 'Ink color', '#1f2433'), artboard(), number('scale', 'Dot size', 3, 1, 12), number('amount', 'Print strength', 100, 0, 100), number('seed', 'Seed', 1, 0, 999999)],
     { workspace: canvas('print', 'Ink, paper and a little grain.'), tags: ['image', 'print', 'riso', 'halftone', 'dither', 'local'] }),
+  template('palette-pull', 'Palette Pull', 'Image color palette', 'image', 'pipette', '#b9c6e8',
+    'Pull the colors a photo is made of as named OKLCH swatches, then take them anywhere as CSS, JSON, Adobe swatches or a GIMP palette.',
+    'Describe a color palette of {{count}} colors taken from the selected image, ordered {{sort}}. Name each color plainly and suggest a background, a text color and an accent.',
+    [number('count', 'Colors', 6, 3, 12), select('sort', 'Order', ['by presence', 'by lightness', 'by hue']), artboard()],
+    { workspace: canvas('palette', 'Every color your photo is made of.'), tags: ['image', 'color', 'palette', 'oklch', 'swatches', 'local'] }),
 
   template('motion-finish', 'Motion Finish', 'Shader Effects', 'video', 'sparkles', '#a9bfda',
     'Prepare a restrained effect direction for a clip in the editor.',

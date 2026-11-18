@@ -11,9 +11,9 @@ import { mulberry32 } from './glitch.mjs';
 
 export const PREVIEW_SIZE = Object.freeze({ width: 480, height: 270 });
 export const PREVIEW_LOOP_MS = 4800;
-export const PREVIEW_MOTIFS = Object.freeze(['bars', 'stack', 'sketch', 'mockup', 'grade', 'blend', 'grid', 'halftone', 'title', 'bento', 'poster', 'iris', 'glitch', 'letters', 'cutout', 'pose', 'face', 'viewfinder', 'avatar', 'orbit', 'light', 'lines', 'panels', 'branches', 'parallax', 'track', 'reframe', 'strip']);
+export const PREVIEW_MOTIFS = Object.freeze(['bars', 'stack', 'sketch', 'mockup', 'grade', 'blend', 'grid', 'halftone', 'title', 'bento', 'poster', 'iris', 'glitch', 'letters', 'cutout', 'pose', 'face', 'viewfinder', 'avatar', 'orbit', 'light', 'lines', 'panels', 'branches', 'parallax', 'track', 'reframe', 'strip', 'swatches']);
 
-const BY_OPERATION = { reactive: 'bars', sculpture: 'stack', draw: 'sketch', mockup: 'mockup', 'image-filter': 'grade', blend: 'blend', 'image-grid': 'grid', print: 'halftone', 'type-overlay': 'title', bento: 'bento', poster: 'poster', transition: 'iris', glitch: 'glitch', letter: 'letters', 'person-cutout': 'cutout', 'pose-reference': 'pose', 'face-reference': 'face', effects: 'viewfinder', avatar: 'avatar', 'storyboard-builder': 'panels', 'prompt-branches': 'branches' };
+const BY_OPERATION = { reactive: 'bars', sculpture: 'stack', draw: 'sketch', mockup: 'mockup', 'image-filter': 'grade', blend: 'blend', 'image-grid': 'grid', print: 'halftone', palette: 'swatches', 'type-overlay': 'title', bento: 'bento', poster: 'poster', transition: 'iris', glitch: 'glitch', letter: 'letters', 'person-cutout': 'cutout', 'pose-reference': 'pose', 'face-reference': 'face', effects: 'viewfinder', avatar: 'avatar', 'storyboard-builder': 'panels', 'prompt-branches': 'branches' };
 const BY_ID = { 'scene-lighting': 'light', 'depth-motion': 'parallax', 'world-finder': 'parallax', 'scene-scout': 'parallax', 'motion-tracker': 'track', 'frame-study': 'track', 'frame-fit': 'reframe', 'shot-atlas': 'reframe' };
 const DARK = new Set(['music', 'frame', '3d', 'camera']);
 const INK = '#243334', PAPER = '#fff7e7', NIGHT = '#101121', TAU = Math.PI * 2;
@@ -122,6 +122,14 @@ const MOTIF_DRAW = {
     const x = 70 + 340 * swing(p);
     ctx.save(); round(ctx, x, 34, 420 - x, 202, 0); ctx.clip(); scene(ctx, pal, 60, 34, 360, 202, { sky: pal.sun, sun: pal.paper }); ctx.restore();
     box(ctx, pal.paper, x - 2, 26, 4, 218, 2); dot(ctx, pal.paper, x, 135, 11);
+  },
+  swatches(ctx, p, pal) {
+    scene(ctx, pal, 52, 40, 200, 190, { shift: p * .15 });
+    const chips = [pal.sky, pal.hill, pal.hill2, pal.sun, pal.accent];
+    // A dropper reads the photo while the chip it lands on lifts.
+    chips.forEach((color, i) => { const lift = 10 * Math.max(0, wave(p, 1, -i / 5)); box(ctx, color, 280, 44 + i * 38 - lift * .3, 148 + lift, 30, 8); box(ctx, pal.paper, 290 + lift, 55 + i * 38 - lift * .3, 46, 8, 4); });
+    const x = 150 + 60 * wave(p, 1), y = 120 + 40 * wave(p, 1, .25);
+    dot(ctx, pal.paper, x, y, 12); dot(ctx, pal.accent, x, y, 8);
   },
   blend(ctx, p, pal) {
     const s = swing(p);

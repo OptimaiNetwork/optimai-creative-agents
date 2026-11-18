@@ -61,7 +61,7 @@ const output = await runCanvasLab(CANVAS_LAB_AGENTS['poster-lab'], [], {
 }, controller.signal);
 ```
 
-`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`; `transition` draws a real [still transition](#still-transitions) at that time rather than a crossfade. `glitch` draws a [seeded glitch](#seeded-glitch) on one still image with `amount: 0–100`, an `effect` and a `seed`. `print` turns one still image into a [print look](#print-looks) with a `look`, `scale`, `amount`, `seed`, an ink `color` and riso `inks`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. Poster and letter titles use [readable ink](#readable-titles-and-image-palettes) by default; pass `ink: 'exact'` to draw `color` unchanged. Titles are set in [balanced lines](#balanced-titles) with optical tracking and leading. These tools export PNGs, not video or model-generated artwork.
+`mockup` creates a phone, desktop or gallery frame from one image. `bento` fits up to eight images into an asymmetric layout. `blend` and `transition` require exactly two images and use `mix: 0–100`; `transition` draws a real [still transition](#still-transitions) at that time rather than a crossfade. `palette` pulls one image's [color palette](#color-palettes) with `count` and `sort`. `glitch` draws a [seeded glitch](#seeded-glitch) on one still image with `amount: 0–100`, an `effect` and a `seed`. `print` turns one still image into a [print look](#print-looks) with a `look`, `scale`, `amount`, `seed`, an ink `color` and riso `inks`. `poster` and `letter` accept one optional background image and a plain-text title of 1–180 characters. Ratios are 1:1, 4:5, 16:9 and 9:16; output width is 1200 pixels. Each image retains the signature and size checks of the original processor, and retained normalized inputs share a 16-million-pixel budget. Pending decode and export can be cancelled; late bitmaps and temporary canvases are disposed. Every image these compositions cover, crop or frame uses [focus-aware cropping](#focus-aware-cropping); pass `crop: 'center'` for a classic centred fit. Poster and letter titles use [readable ink](#readable-titles-and-image-palettes) by default; pass `ink: 'exact'` to draw `color` unchanged. Titles are set in [balanced lines](#balanced-titles) with optical tracking and leading. These tools export PNGs, not video or model-generated artwork.
 
 ### Focus-aware cropping
 
@@ -278,6 +278,28 @@ const [pink, blue] = separateDuotone([180, 90, 140], '#ff48b0', '#0078bf');     
 
 `bayerMatrix(size)` and `blueNoiseMatrix(size)` return the threshold ranks for your own shaders, and `resolvePrint` validates settings on their own. Every look uses integer math, basic arithmetic and `Math.sqrt` only; the blue-noise tile is built once from integer weights, so it does not depend on the last bit of `Math.exp`.
 
+### Color palettes
+
+Palette Pull reads the colors one photo is made of and draws them as a swatch card on the palette's own background: the photo above (or beside, at 16:9) and one swatch per color, labelled with its name, hex, `oklch()` value and share of the image. `count` (2–12 for the engine, 3–12 in recipes, default 6) is how many colors to find, and `sort` orders them: `weight` (*by presence*, most present first), `lightness` (*by lightness*, light to dark) or `hue` (*by hue*, around the wheel with neutrals last). Colors come from a thumbnail of the whole photo (longest edge 192 px), not the crop the card shows, through the same deterministic OKLab k-means as `dominantColors`, so the same photo always gives the same palette and never a color it lacks. A palette needs pixel reads: on a canvas that cannot read them, Palette Pull fails with a clear message rather than inventing colors. The result adds `output.palette` (`{ name, sort, colors: [{ name, hex, oklch, css, weight }], roles: { background, text, accent } }`), named after the selected file.
+
+`roles.background` is the most present color, `roles.text` reads over it at 4.5:1 or better (a palette color when one does, otherwise one whose lightness was moved) and `roles.accent` is the most vivid color that is also present, or `null` for a grey palette. Names are plain English from OKLCH lightness, chroma and hue (`deep teal`, `light orange`, `warm white`); two colors that share a name become `dark blue` and `dark blue 2`.
+
+The palette module turns any palette into files other tools open, in Node and the browser:
+
+```js
+import { paletteFiles, pullPalette, readAse, buildPalette } from '@optimai/creative-agents/palette';
+
+const palette = output.palette ?? pullPalette(thumbnail.data, thumbnail.width, thumbnail.height, { count: 6, sort: 'hue' });
+for (const file of paletteFiles(palette)) save(new Blob([file.data], { type: file.type }), file.filename);
+// sunset.css  :root { --palette-1: #c0392b; … --palette-bg/-text/-accent } and the same in oklch() under @supports
+// sunset.json { format: 'optimai.palette', version: 1, name, sort, colors, roles }
+// sunset.ase  Adobe Swatch Exchange: one group of global RGB swatches
+// sunset.gpl  GIMP palette, also read by Inkscape, Krita and Aseprite
+const imported = buildPalette(readAse(bytes).colors.map(color => color.hex)); // RGB, gray, CMYK and Lab swatches
+```
+
+`paletteCss(palette, { prefix, selector })` names the variables and the rule they go in; `paletteJson`, `paletteAse` and `paletteGpl` write one format each. `readAse` reads `.ase` files up to 1 MB and 4,096 swatches and counts the swatches it cannot convert in `skipped`.
+
 ### Tier-0 verification
 
 Before paying a model to judge a draft, an agent can reject the obviously broken ones locally. `@optimai/creative-agents/verify` provides deterministic checks with no model, network or dependency. They run in Node and the browser in milliseconds:
@@ -317,7 +339,7 @@ const settings = canvasLabRecipeSettings('poster-lab', {
 const output = await runCanvasLab(settings.operation, [], settings, controller.signal);
 ```
 
-The normalizer merges source defaults, maps legacy poster `format` to `ratio`, letter `text` to `title`, `style` to `treatment`, glitch `intensity` to `amount`, glitch treatment names to `effect` and print style names to `look`. Explicit canonical values win. It validates recipe values and the final engine settings. Do not merge defaults into supplied values before calling it: that would conceal whether a canonical setting was explicitly selected. Raw `runCanvasLab` remains available for applications using direct bounded engine settings.
+The normalizer merges source defaults, maps legacy poster `format` to `ratio`, letter `text` to `title`, `style` to `treatment`, glitch `intensity` to `amount`, glitch treatment names to `effect`, print style names to `look` and palette order names to `sort`. Explicit canonical values win. It validates recipe values and the final engine settings. Do not merge defaults into supplied values before calling it: that would conceal whether a canonical setting was explicitly selected. Raw `runCanvasLab` remains available for applications using direct bounded engine settings.
 
 ## Selected-agent model setup
 

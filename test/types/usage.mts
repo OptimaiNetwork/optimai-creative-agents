@@ -10,7 +10,6 @@ import {
 } from '@optimai/creative-agents';
 import { getAgentFormSchema, listFormFields, plainFormSchema, type FormControl } from '@optimai/creative-agents/form-schema';
 import { contrastRatio, mixColors, pickLegibleColor, toOklch } from '@optimai/creative-agents/color';
-import { runCanvasLab } from '@optimai/creative-agents/canvas-lab';
 import { getToolOutputSize, runLocalTool, validateLocalImageFile } from '@optimai/creative-agents/browser-runtime';
 import { describeProgress, progressSteps, type ProgressEvent } from '@optimai/creative-agents/progress';
 import { createRunRecord, verifyRunRecord, type RunRecord } from '@optimai/creative-agents/run-record';
@@ -23,6 +22,8 @@ import { exportCanvasVideo, probeVideoExport } from '@optimai/creative-agents/vi
 import { createTransitionClip } from '@optimai/creative-agents/canvas-lab';
 import { createMusicReactiveRenderer } from '@optimai/creative-agents/music-reactive';
 import { FRAME_SCULPTURE_TURNTABLE, type FrameSculptureController } from '@optimai/creative-agents/frame-sculpture';
+import { paletteFiles, readAse, buildPalette, type Palette } from '@optimai/creative-agents/palette';
+import { runCanvasLab } from '@optimai/creative-agents/canvas-lab';
 
 // Build and validate a recipe.
 const recipe: AgentManifest = createAgentManifest('poster-lab', { id: 'sunrise-poster', title: 'Sunrise Poster', brief: 'Warm first light.' });
@@ -41,7 +42,7 @@ recipe.schemaVersion = '2.0';
 
 // Read the catalog.
 export const kinds: AgentExecutionKind[] = AGENT_CATALOG.map(agent => agent.executionKind);
-export const contract: '1.3' = AGENT_WORKSPACE_CONTRACT_VERSION;
+export const contract: '1.4' = AGENT_WORKSPACE_CONTRACT_VERSION;
 const workspace: AgentWorkspace | undefined = getAgentWorkspace('poster-lab');
 export const operation: string | undefined = workspace && workspace.kind !== 'workflow' ? workspace.operation : undefined;
 export const maxFiles: number = getAgentInputPolicy('poster-lab')?.maxFiles ?? 0;
@@ -108,4 +109,11 @@ export function orbit(stage: FrameSculptureController): HTMLCanvasElement {
   spin.draw(0, FRAME_SCULPTURE_TURNTABLE.seconds * FRAME_SCULPTURE_TURNTABLE.fps);
   spin.close();
   return spin.canvas;
+}
+export async function swatches(photo: File, bytes: Uint8Array): Promise<Blob[]> {
+  const { palette } = await runCanvasLab('palette', [photo], { count: 6, sort: 'by hue' });
+  const imported: Palette = buildPalette(readAse(bytes).colors.map(color => color.hex), { sort: 'lightness' });
+  // @ts-expect-error a palette exports css, json, ase or gpl only
+  paletteFiles(imported, { formats: ['svg'] });
+  return paletteFiles(palette ?? imported).map(file => new Blob([file.data], { type: file.type }));
 }

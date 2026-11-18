@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { AGENT_CATALOG } from '../src/index.mjs';
-import { CANVAS_LAB_AGENTS, canvasLabRecipeSettings, canvasLabSettings, createTransitionClip, runCanvasLab } from '../src/canvas-lab.mjs';
+import { CANVAS_LAB_AGENTS, canvasLabRecipeSettings, canvasLabRecipeValues, canvasLabSettings, createTransitionClip, runCanvasLab } from '../src/canvas-lab.mjs';
 import { contrastRatio, toOklch } from '../src/color.mjs';
 import { fitTitle } from '../src/typeset.mjs';
 import { planGlitch } from '../src/glitch.mjs';
@@ -28,7 +28,7 @@ async function canvasHarness(run, options = {}) {
     assert.equal(name, 'canvas', 'No HTML or script nodes may be created.');
     const canvas = { width: 0, height: 0 };
     const context = {
-      globalAlpha: 1, save() {}, restore() {}, beginPath() {}, rect() {}, clip() {}, roundRect() {}, fill() {}, fillRect() {}, strokeRect() {},
+      globalAlpha: 1, save() {}, restore() {}, beginPath() {}, rect() {}, clip() {}, roundRect() {}, fill() {}, stroke() {}, fillRect() {}, strokeRect() {},
       createLinearGradient() { return { addColorStop() {} }; },
       drawImage(...args) {
         calls.draw.push({ canvas, alpha: this.globalAlpha, args });
@@ -51,7 +51,7 @@ async function canvasHarness(run, options = {}) {
 
 test('canvas settings accept only bounded operations, colors, titles, mixes and dimensions', () => {
   assert.equal(Object.isFrozen(CANVAS_LAB_AGENTS), true);
-  assert.equal(new Set(Object.values(CANVAS_LAB_AGENTS)).size, 8);
+  assert.equal(new Set(Object.values(CANVAS_LAB_AGENTS)).size, 9);
   for (const operation of Object.values(CANVAS_LAB_AGENTS)) assert.equal(canvasLabSettings(operation).operation, operation);
   for (const [operation, values, pattern] of [
     ['remote-script', {}, /supported canvas operation/], ['poster', { title: ' ' }, /title/],
@@ -63,7 +63,7 @@ test('canvas settings accept only bounded operations, colors, titles, mixes and 
   assert.equal(canvasLabSettings('blend', { mix: '25' }).mix, 25);
 });
 test('composition dispatch follows public catalog descriptors, with supported operations owned by the engine', () => {
-  const operations = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition', 'print']);
+  const operations = new Set(['mockup', 'poster', 'bento', 'glitch', 'letter', 'blend', 'transition', 'print', 'palette']);
   assert.deepEqual(CANVAS_LAB_AGENTS, Object.fromEntries(AGENT_CATALOG.filter(agent => agent.workspace.kind === 'canvas' && operations.has(agent.workspace.operation)).map(agent => [agent.id, agent.workspace.operation])));
   assert.throws(() => canvasLabRecipeSettings('image-finish'), /composition template/);
   assert.throws(() => canvasLabRecipeSettings('unknown'), /composition template/);
@@ -94,18 +94,19 @@ test('saved recipe composition settings reach rendered dimensions and actual let
   assert.equal(h.calls.network, 0);
 }));
 
-test('all eight compositions export actual canvas work with bounded dimensions and release every bitmap', async () => canvasHarness(async h => {
+test('all nine compositions export actual canvas work with bounded dimensions and release every bitmap', async () => canvasHarness(async h => {
   for (const operation of Object.values(CANVAS_LAB_AGENTS)) {
     const files = operation === 'bento' ? Array.from({ length: 8 }, () => image()) : ['blend', 'transition'].includes(operation) ? [image(), image()] : ['poster', 'letter'].includes(operation) ? [] : [image()];
     // A print is made of pixels: without pixel reads it refuses rather than passing the plain image off as a print.
-    if (operation === 'print') { await assert.rejects(runCanvasLab(operation, files, { ratio: '9:16' }), /cannot read canvas pixels/); continue; }
+    // So is a palette: without pixel reads it refuses rather than inventing colors.
+    if (['print', 'palette'].includes(operation)) { await assert.rejects(runCanvasLab(operation, files, { ratio: '9:16' }), /cannot read canvas pixels/); continue; }
     const result = await runCanvasLab(operation, files, { title: 'Local creative work', ratio: '9:16' });
     assert.deepEqual([result.width, result.height], [1200, 2133]);
     assert.equal(result.blob.type, 'image/png');
     assert.equal(result.filename, `optimai-${operation}.png`);
     assert.ok(result.blob.size > 0);
   }
-  assert.equal(h.calls.bitmaps.length, 30);
+  assert.equal(h.calls.bitmaps.length, 32);
   assert.ok(h.calls.bitmaps.every(value => value.closed === 1));
   assert.ok(h.calls.canvases.every(value => value.width <= 1 && value.height <= 1));
   assert.equal(h.calls.network, 0);
@@ -478,6 +479,49 @@ test('Print Shop prints a saved recipe on paper and reproduces its grain from th
   assert.ok(h.calls.canvases.every(value => value.width <= 1 && value.height <= 1));
   assert.equal(h.calls.network, 0);
 }, { context: pixelContext }));
+// A photo that is 70% brick red on the left and 30% blue on the right, at any read size.
+const twoTone = (canvas, context) => Object.assign(context, {
+  getImageData(x, y, width, height) {
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < width * height; i++) data.set((i % width) < Math.round(width * .7) ? [192, 57, 43, 255] : [43, 108, 176, 255], i * 4);
+    return { width, height, data };
+  },
+  createImageData(width, height) { return { width, height, data: new Uint8ClampedArray(width * height * 4) }; },
+  putImageData() {},
+});
+test('Palette Pull reads named swatches from the whole photo and draws a labelled card', async () => canvasHarness(async h => {
+  const defaults = canvasLabRecipeSettings('palette-pull');
+  assert.deepEqual([defaults.operation, defaults.count, defaults.sort, defaults.ratio], ['palette', 6, 'weight', '4:5'], 'the template defaults');
+  assert.equal(canvasLabRecipeSettings('palette-pull', { sort: 'by hue' }).sort, 'hue', 'recipe order names are aliases');
+  assert.equal(canvasLabRecipeValues('palette-pull', { ...defaults, sort: 'lightness', count: 4 }).values.sort, 'by lightness');
+  assert.deepEqual(canvasLabRecipeValues('poster-lab', canvasLabRecipeSettings('poster-lab')).extra, {}, 'other templates do not carry palette settings');
+  for (const [values, pattern] of [[{ count: 1 }, /count/], [{ count: 13 }, /count/], [{ count: 4.5 }, /count/], [{ sort: 'random' }, /sort/], [{ sort: 'constructor' }, /sort/]]) assert.throws(() => canvasLabSettings('palette', values), pattern);
+  assert.throws(() => canvasLabRecipeSettings('palette-pull', { count: 2 }), /between|at least|from/i, 'the recipe keeps 3–12 colors');
+
+  const output = await runCanvasLab('palette', [image('Sunset walk.png')], { ...defaults, count: 2, ratio: '1:1' });
+  assert.equal(output.filename, 'optimai-palette.png');
+  assert.deepEqual([output.width, output.height], [1200, 1200]);
+  const { palette } = output;
+  assert.equal(palette.name, 'Sunset walk');
+  assert.deepEqual(palette.colors.map(color => [color.hex, Math.round(color.weight * 100)]), [['#c0392b', 70], ['#2b6cb0', 30]]);
+  assert.deepEqual(palette.colors.map(color => color.name), ['dark red', 'dark blue']);
+  assert.equal(palette.roles.background, '#c0392b');
+  assert.equal(palette.roles.accent, '#c0392b');
+  assert.ok(contrastRatio(palette.roles.text, palette.roles.background) >= 4.5);
+  // The palette is read from a small thumbnail of the whole photo, not the card's crop.
+  const read = h.calls.draw.find(call => call.args.length === 5 && call.args[3] <= 192);
+  assert.deepEqual(read.args.slice(1), [0, 0, 192, 96]);
+  const labels = h.calls.text.map(call => call.args[0]);
+  for (const text of ['dark red', '#C0392B', 'oklch(52.4% 0.126 252.3)', '30%']) assert.ok(labels.includes(text), text);
+  assert.ok(h.calls.bitmaps.every(value => value.closed === 1));
+  assert.ok(h.calls.canvases.every(value => value.width <= 1 && value.height <= 1));
+  assert.equal(h.calls.network, 0);
+
+  const wide = await runCanvasLab('palette', [image()], { count: 12, sort: 'hue', ratio: '16:9' });
+  assert.equal(wide.palette.sort, 'hue');
+  assert.equal(wide.palette.name, 'local');
+  assert.ok(wide.palette.colors.length >= 2 && wide.palette.colors.length <= 12, 'k-means never invents colors the photo lacks');
+}, { context: twoTone }));
 test('canvas runs report prepare → render → frame → export → ready and take `{ signal, onProgress }` or a bare signal', async () => canvasHarness(async () => {
   const events = [];
   await runCanvasLab('transition', [image('first.png'), image('second.png')], canvasLabRecipeSettings('transition-lab', { ratio: '1:1', mix: 50 }), { onProgress: event => events.push(event) });
