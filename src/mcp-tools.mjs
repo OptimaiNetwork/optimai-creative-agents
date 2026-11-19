@@ -50,6 +50,7 @@ function recipeSchema(tool) {
 }
 const WRITTEN = freeze({ type: 'object', additionalProperties: false, required: ['title', 'summary', 'sections', 'studioPrompt', 'model', 'provider', 'templateId', 'attempts'], properties: {
   title: { type: 'string' }, summary: { type: 'string' }, studioPrompt: { type: 'string' }, model: { type: 'string' }, provider: { type: 'string', enum: ['ollama', 'webllm'] }, templateId: { type: 'string' }, attempts: { type: 'integer', minimum: 1, maximum: 2 },
+  decoding: { type: 'string', enum: ['schema', 'json'], description: 'schema: the writing schema constrained decoding; json: JSON mode on an older Ollama.' },
   sections: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['heading', 'body'], properties: { heading: { type: 'string' }, body: { type: 'string' } } } } } });
 /** JSON Schema of `structuredContent` for a successful call. Writing agents return a prepared recipe or, with execution run, a written result; `run: false` keeps it to the recipe. */
 export function mcpOutputSchema(toolOrId, { run = true } = {}) {

@@ -1,4 +1,5 @@
 import { compileAgentPrompt, getAgentTemplate, MAX_PROMPT_LENGTH } from './index.mjs';
+import { writingFormat } from './writing-schema.mjs';
 
 /** Reviewed writing agents execute through installed local Ollama models only. */
 export const LOCAL_AGENT_LIMITS = Object.freeze({
@@ -108,9 +109,12 @@ async function requestJson(baseUrl, path, { fetchImpl, signal, timeoutMs, body }
         }), controller.signal);
         if (response.redirected) failure('unsafe-endpoint', 'Ollama redirects are not allowed. Use a direct loopback endpoint.');
         if (!response.ok) {
-            await response.body?.cancel?.().catch(() => {});
+            const detail = path === '/api/chat' ? await raced(readJson(response, controller.signal), controller.signal).then(body => String(body?.error ?? '').slice(0, 300), () => '') : '';
+            if (!detail) await response.body?.cancel?.().catch(() => {});
             if (response.status === 404 && path === '/api/show') failure('model-missing', 'That model is no longer installed. Refresh the model list and choose an installed model.');
-            failure('unavailable', 'The local Ollama server could not complete this request. Check that it is running and up to date.');
+            const error = new AgentRuntimeError('unavailable', 'The local Ollama server could not complete this request. Check that it is running and up to date.');
+            error.detail = detail;
+            throw error;
         }
         return await raced(readJson(response, controller.signal), controller.signal);
     } catch (error) {
@@ -215,25 +219,55 @@ function bodyPattern(contract) {
     return `^${contract.bodyLabels.map(label => `${label}: ${['Visual', 'Prompt'].includes(label) && contract.stylePrefix ? `${contract.stylePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\. ` : ''}[^\\r\\n]{8,}`).join('\\n')}$`;
 }
 
-function outputSchema(contract) {
+// Longest normalized artifact (the JSON the budget check measures) for these text maxima,
+// one character per character: headings, labels, style prefixes and JSON punctuation included.
+function artifactBound(contract, lengths) {
+    const prefix = contract.stylePrefix ? contract.stylePrefix.length + 2 : 0;
+    const heading = contract.headings ? Math.max(...contract.headings.map(text => text.length)) : 120;
+    const body = contract.bodyFields
+        ? contract.bodyFields.reduce((sum, field) => sum + field.label.length + 2 + (['visual', 'prompt'].includes(field.id) ? prefix : 0) + lengths[field.id], 0) + (contract.bodyFields.length - 1) * 2
+        : lengths.body;
+    return 41 + 120 + lengths.summary + (contract.bodyFields ? prefix : 0) + contract.count * (25 + heading + body) - 1;
+}
+
+/** Text maxima scaled so the longest output the schema admits fits the artifact budget (5% kept for JSON escapes). */
+function fitLengths(contract, budget) {
+    const base = { summary: 600 - (contract.bodyFields && contract.stylePrefix ? contract.stylePrefix.length + 2 : 0),
+        ...(contract.bodyFields ? Object.fromEntries(contract.bodyFields.map(field => [field.id, field.max])) : { body: 1800 }) };
+    const target = Math.floor(budget * .95), fixed = artifactBound(contract, Object.fromEntries(Object.keys(base).map(key => [key, 0])));
+    const scale = Math.min(1, (target - fixed) / (artifactBound(contract, base) - fixed));
+    const floor = key => key === 'summary' ? 120 : key === 'body' ? 160 : 40;
+    const lengths = Object.fromEntries(Object.entries(base).map(([key, max]) => [key, Math.min(max, Math.max(floor(key), Math.floor(max * scale)))]));
+    return { lengths, fits: artifactBound(contract, lengths) <= target };
+}
+
+function outputSchema(contract, lengths) {
     const properties = {
         heading: { type: 'string', minLength: 3, maxLength: 120, ...(contract.headings ? { enum: contract.headings } : {}) },
-        ...(contract.bodyFields ? Object.fromEntries(contract.bodyFields.map(field => [field.id, { type: 'string', minLength: 8, maxLength: field.max,
-            ...(field.id === 'sharedPremise' && contract.sharedPremise ? { enum: [contract.sharedPremise] } : {}) }]))
-            : { body: { type: 'string', minLength: 40, maxLength: 1800 } }),
+        ...(contract.bodyFields ? Object.fromEntries(contract.bodyFields.map(field => [field.id, field.id === 'sharedPremise' && contract.sharedPremise
+            ? { type: 'string', enum: [contract.sharedPremise] } : { type: 'string', minLength: 8, maxLength: lengths[field.id] }]))
+            : { body: { type: 'string', minLength: 40, maxLength: lengths.body } }),
         ...(contract.bodyFields && contract.stylePrefix ? { artDirection: { type: 'string', enum: [contract.stylePrefix] } } : {}),
     };
     return {
         type: 'object', additionalProperties: false, required: ['title', 'summary', 'sections'],
         properties: {
             title: { type: 'string', minLength: 3, maxLength: 120 },
-            summary: { type: 'string', minLength: 20, maxLength: 600 - (contract.bodyFields && contract.stylePrefix ? contract.stylePrefix.length + 2 : 0) },
+            summary: { type: 'string', minLength: 20, maxLength: lengths.summary },
             sections: {
                 type: 'array', minItems: contract.count, maxItems: contract.count,
                 items: { type: 'object', additionalProperties: false, required: Object.keys(properties), properties },
             },
         },
     };
+}
+
+/** Decoder-facing schema: fixed headings become one tuple slot each, so order is enforced while writing, not repaired after. */
+function decodingSchema(contract, schema) {
+    if (!contract.headings) return schema;
+    const { items, ...sections } = schema.properties.sections;
+    return { ...schema, properties: { ...schema.properties, sections: { ...sections,
+        prefixItems: contract.headings.map(heading => ({ ...items, properties: { ...items.properties, heading: { type: 'string', enum: [heading] } } })) } } };
 }
 
 function textValue(value, min, max) {
@@ -331,11 +365,6 @@ function progress(callback, stage, message, attempt) {
     callback?.({ stage, message, attempt });
 }
 
-function supportsSchema(version) {
-    const [major, minor] = (version || '0.0.0').split('.').map(Number);
-    return major > 0 || minor >= 5;
-}
-
 const preparedTasks = new WeakMap();
 
 /** Pure reviewed writing contract; usable by a browser model without Ollama. */
@@ -350,9 +379,10 @@ export function prepareCreativeAgentTask(options) {
     const contract = taskContract(templateId, values, template, brief);
     const budget = Math.min(18000, MAX_PROMPT_LENGTH - compiled.length - HANDOFF_LABEL.length);
     if (budget < 1200) failure('invalid-input', 'Shorten your brief and settings to leave room for the generated writing.');
-    const schema = outputSchema(contract);
+    const fitted = fitLengths(contract, budget);
+    const schema = outputSchema(contract, fitted.lengths);
     const instructions = `You are a creative writing agent. Perform the requested writing now; do not merely repeat instructions or describe how to request it. Preserve the user's characters, subject, requested language, audience and art direction. No tools, browsing, shell commands or publishing. Return ONLY a JSON object matching the schema below, with finished useful writing. ${contract.direction} Keep bodies concise, concrete and distinct; total JSON must fit ${budget} characters. Do not add markdown fences or thinking.\nSchema: ${JSON.stringify(schema)}`;
-    const task = Object.freeze({ templateId, title: template.title, sectionCount: contract.count, budget, schema, instructions,
+    const task = Object.freeze({ templateId, title: template.title, sectionCount: contract.count, budget, schema, decodingSchema: decodingSchema(contract, schema), fitsBudget: fitted.fits, instructions,
         messages: [{ role: 'system', content: instructions }, { role: 'user', content: compiled }],
         maxOutputTokens: Math.min(LOCAL_AGENT_LIMITS.outputTokens, Math.max(1200, contract.count * 240 + 900), Math.ceil(budget / 3)) });
     preparedTasks.set(task, { contract, compiled });
@@ -397,15 +427,26 @@ export async function runCreativeAgent(options) {
         failure('invalid-model', 'Local model weights could not be verified. Choose an installed local completion model and update Ollama if needed.');
     }
     const messages = [...task.messages];
-    let lastErrors = [];
+    let lastErrors = [], fallback = false;
     for (let attempt = 1; attempt <= 2; attempt++) {
         checkAbort(signal);
         progress(onProgress, 'generate', attempt === 1 ? `Writing with ${model} on this computer.` : 'Writing a corrected version on this computer.', attempt);
-        const response = await requestJson(baseUrl, '/api/chat', {
-            fetchImpl, signal, timeoutMs: LOCAL_AGENT_LIMITS.generationTimeoutMs,
-            body: { model, stream: false, think: false, keep_alive: '2m', format: supportsSchema(status.version) ? task.schema : 'json', messages,
-                options: { num_ctx: LOCAL_AGENT_LIMITS.contextTokens, num_predict: task.maxOutputTokens, temperature: .65 } },
-        });
+        let response, format;
+        for (;;) {
+            format = writingFormat(task, { provider: 'ollama', version: status.version, fallback });
+            try {
+                response = await requestJson(baseUrl, '/api/chat', {
+                    fetchImpl, signal, timeoutMs: LOCAL_AGENT_LIMITS.generationTimeoutMs,
+                    body: { model, stream: false, think: false, keep_alive: '2m', format: format.format, messages,
+                        options: { num_ctx: LOCAL_AGENT_LIMITS.contextTokens, num_predict: task.maxOutputTokens, temperature: .65 } },
+                });
+                break;
+            } catch (error) {
+                // A server whose grammar compiler refuses the per-position schema gets the plain one once; nothing else is retried.
+                if (fallback || format.decoding !== 'schema' || task.decodingSchema === task.schema || !/schema|grammar|format/i.test(error?.detail || '')) throw error;
+                fallback = true;
+            }
+        }
         checkAbort(signal);
         progress(onProgress, 'validate', 'Checking structure, section count and usable writing.', attempt);
         const content = response?.message?.content;
@@ -417,7 +458,7 @@ export async function runCreativeAgent(options) {
             if (!validated.success) lastErrors.push(...validated.errors);
         }
         if (!lastErrors.length) {
-            return { ...validated.artifact, model, provider: 'ollama', templateId, attempts: attempt };
+            return { ...validated.artifact, model, provider: 'ollama', templateId, attempts: attempt, decoding: format.decoding };
         }
         if (attempt === 1) {
             progress(onProgress, 'repair', 'The first draft needs a correction. Repairing it once.', 2);

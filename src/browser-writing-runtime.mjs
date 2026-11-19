@@ -34,6 +34,7 @@ export const BROWSER_AGENT_APP_CONFIG = {
         }],
 };
 import { prepareCreativeAgentTask, validateCreativeAgentOutput } from './agent-runtime.mjs';
+import { singleSectionSchema } from './writing-schema.mjs';
 export class BrowserAgentError extends Error {
     code;
     constructor(code, message) {
@@ -210,7 +211,7 @@ export function createBrowserWritingRuntime(dependencies) {
             }[axis];
             messages[0].content += `\nMake the ${task.sectionCount} directions clearly different along ${axis}. Use these approaches in order: ${variations.slice(0,task.sectionCount).join('; ')}. Keep the same cast, central action, goal and requested art medium in every prompt.`;
         }
-        let errors = [];
+        let errors = [], fallback = false;
         const deadline = Date.now() + (dependencies.generationTimeoutMs ?? (task.sectionCount > 3 && task.templateId === 'storyboard-builder' ? Math.min(600_000, task.sectionCount * 45_000 + 120_000) : 180_000));
         try {
             emit(options.onProgress, { stage: 'plan', message: `Planning ${task.sectionCount} sections for ${task.title}.`, attempt: 1 });
@@ -218,13 +219,20 @@ export function createBrowserWritingRuntime(dependencies) {
                 checkAbort(options.signal);
                 emit(options.onProgress, { stage: 'generate', message: attempt === 1 ? 'Writing on this device with the browser model.' : 'Correcting the draft on this device.', attempt });
                 const generate = (messagesForCall, schemaForCall, outputTokens, sceneLabel = '') => bounded(async () => {
-                    await Promise.race([current.engine.resetChat(), current.failure]);
-                    const stream = await Promise.race([current.engine.chat.completions.create({
+                    const create = schema => Promise.race([current.engine.resetChat(), current.failure]).then(() => Promise.race([current.engine.chat.completions.create({
                             messages: messagesForCall, model: BROWSER_AGENT_MODEL.id, stream: true,
-                            response_format: { type: 'json_object', schema: JSON.stringify(schemaForCall) },
+                            response_format: { type: 'json_object', schema: JSON.stringify(schema) },
                             max_tokens: outputTokens, temperature: .65, top_p: .8,
                             extra_body: { enable_thinking: false },
-                        }), current.failure]);
+                        }), current.failure]));
+                    let stream;
+                    try { stream = await create(fallback ? schemaForCall.fallback : schemaForCall.schema); }
+                    catch (error) {
+                        // An engine whose grammar compiler refuses the per-position schema gets the plain one once.
+                        if (fallback || schemaForCall.schema === schemaForCall.fallback || options.signal?.aborted || session !== current || error instanceof BrowserAgentError) throw error;
+                        fallback = true;
+                        stream = await create(schemaForCall.fallback);
+                    }
                     let content = '', finished = false, lastUpdate = 0;
                     for await (const chunk of stream) {
                         checkAbort(options.signal);
@@ -252,8 +260,6 @@ export function createBrowserWritingRuntime(dependencies) {
                     // A compact model repeats long schema-constrained scene arrays.
                     // Write bounded scenes sequentially, with preceding actions as
                     // continuity context. These are model outputs, never filler.
-                    const singleSchema = structuredClone(task.schema);
-                    singleSchema.properties.sections.minItems = singleSchema.properties.sections.maxItems = 1;
                     const sections = []; let title = '', summary = '', complete = true;
                     const beats = ['Introduce the cast, world and shared goal.', 'Discover a clue toward the shared goal.', 'Encounter a concrete obstacle.', 'Make a choice and agree a plan.', 'Act on the plan together.', 'Resolve the original goal and end with the requested feeling.'];
                     for (let scene = 0; scene < task.sectionCount; scene++) {
@@ -261,10 +267,9 @@ export function createBrowserWritingRuntime(dependencies) {
                         const label = `Scene ${scene + 1} of ${task.sectionCount}`;
                         const beat = beats[Math.round(scene * (beats.length - 1) / (task.sectionCount - 1))];
                         const continuity = sections.slice(-2).map((section, index) => `Previous action ${index + 1}: ${String(section.action).slice(0, 220)}`).join('\n');
-                        const sceneSchema = structuredClone(singleSchema);
-                        sceneSchema.properties.sections.items.properties.purpose = {type:'string',enum:[beat]};
+                        const sceneSchema = singleSectionSchema(task.schema, { purpose: { type: 'string', enum: [beat] } });
                         const sceneMessages = [{role: 'system', content: `You are writing one scene for a complete ${task.sectionCount}-scene story. Return the JSON artifact, with exactly one section. Keep the same characters, language, art medium and shared goal as the brief. Each production field is one concrete sentence of at most 20 words. Make the action develop the story rather than repeating the previous action. Title and summary describe the whole story.`}, {role:'user',content:`Original creative brief: ${options.brief || task.messages[1].content}\nStory form: ${options.values?.form || 'short film'}\nContinuity notes:\n${continuity || 'This is the opening; introduce the cast and shared goal.'}\nNow write only ${label}. Scene purpose: ${beat}\n${attempt === 2 ? 'Corrections: ' + errors.slice(0, 3).join(' ') : ''}`}];
-                        const part = await generate(sceneMessages, sceneSchema, 1000, label);
+                        const part = await generate(sceneMessages, { schema: sceneSchema, fallback: sceneSchema }, 1000, label);
                         try {
                             const parsed = JSON.parse(part.content.replace(/^\s*<think>\s*<\/think>\s*/, ''));
                             if (!part.complete || !Array.isArray(parsed.sections) || parsed.sections.length !== 1 || !parsed.sections[0] || typeof parsed.title !== 'string' || typeof parsed.summary !== 'string') throw new Error('Incomplete scene.');
@@ -273,7 +278,7 @@ export function createBrowserWritingRuntime(dependencies) {
                         } catch {complete = false;break;}
                     }
                     completion = {content: JSON.stringify({title,summary,sections}),complete};
-                } else completion = await generate(messages, task.schema, Math.min(2048, task.maxOutputTokens));
+                } else completion = await generate(messages, { schema: task.decodingSchema, fallback: task.schema }, Math.min(2048, task.maxOutputTokens));
                 checkAbort(options.signal);
                 if (session !== current)
                     throw aborted();
@@ -286,7 +291,7 @@ export function createBrowserWritingRuntime(dependencies) {
                 if (!completion.complete)
                     errors.unshift('Finish the complete JSON artifact within the output limit.');
                 if (checked.success && !errors.length)
-                    return { ...checked.artifact, model: BROWSER_AGENT_MODEL.id, provider: 'webllm', templateId: task.templateId, attempts: attempt };
+                    return { ...checked.artifact, model: BROWSER_AGENT_MODEL.id, provider: 'webllm', templateId: task.templateId, attempts: attempt, decoding: 'schema' };
                 if (attempt === 1) {
                     emit(options.onProgress, { stage: 'repair', message: 'The first draft needs a correction. Repairing it once on this device.', attempt: 2 });
                     // Fresh context avoids carrying a long failed draft beyond the model's window.

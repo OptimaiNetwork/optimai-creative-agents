@@ -17,10 +17,18 @@ export type LocalAgentOptions = { signal?: AbortSignal; fetchImpl?: typeof fetch
 export type CreativeAgentResult = {
     title: string; summary: string; sections: { heading: string; body: string }[]; studioPrompt: string;
     model: string; provider: 'ollama' | 'webllm'; templateId: WritingAgentId; attempts: 1 | 2;
+    /** `schema`: decoding followed the writing schema; `json`: JSON mode on an Ollama older than 0.5. */
+    decoding?: 'schema' | 'json';
 };
 export type PreparedCreativeAgentTask = Readonly<{
     templateId: WritingAgentId; title: string; sectionCount: number; budget: number;
-    schema: Record<string, unknown>; instructions: string; maxOutputTokens: number;
+    /** Prompt-facing schema (the plain list form, text maxima fitted to the budget). */
+    schema: Record<string, unknown>;
+    /** Decoder-facing schema: fixed headings as one `prefixItems` slot each; the same object as `schema` otherwise. */
+    decodingSchema: Record<string, unknown>;
+    /** True when the longest output the schema admits fits `budget` (5% kept for JSON escapes). */
+    fitsBudget: boolean;
+    instructions: string; maxOutputTokens: number;
     messages: { role: 'system' | 'user'; content: string }[];
 }>;
 export type CreativeAgentArtifact = Pick<CreativeAgentResult, 'title' | 'summary' | 'sections' | 'studioPrompt'>;

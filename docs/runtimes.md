@@ -594,7 +594,7 @@ const smoothed = pose.filter(flatLandmarks, performance.now());
 
 ## Local Ollama writing
 
-Import `@optimai/creative-agents/agent-runtime` in a bundler or `./src/agent-runtime.mjs` directly. The runtime uses native fetch and accepts only a literal loopback HTTP Ollama endpoint (`127.0.0.1` or `[::1]`), defaulting to `http://127.0.0.1:11434`. It rejects remote URLs, DNS hostnames including `localhost`, credentials, query strings, redirects and cloud model identifiers. It first checks the installed model list and model metadata, then requests structured generation. It validates the returned document and allows one bounded repair attempt for malformed model output. There is no automatic model download, fallback to a paid remote provider or proprietary Studio dependency.
+Import `@optimai/creative-agents/agent-runtime` in a bundler or `./src/agent-runtime.mjs` directly. The runtime uses native fetch and accepts only a literal loopback HTTP Ollama endpoint (`127.0.0.1` or `[::1]`), defaulting to `http://127.0.0.1:11434`. It rejects remote URLs, DNS hostnames including `localhost`, credentials, query strings, redirects and cloud model identifiers. It first checks the installed model list and model metadata, then requests [schema-constrained generation](#constrained-writing-output). It validates the returned document and allows one bounded repair attempt for malformed model output. There is no automatic model download, fallback to a paid remote provider or proprietary Studio dependency.
 
 ```js
 import { getLocalModelStatus, runCreativeAgent } from './src/agent-runtime.mjs';
@@ -623,6 +623,26 @@ The result contains a title, summary, sections with headings and body text, a re
 Eligible installed models must support local completion and have a reported size of at most 8 GiB. Cloud and embedding-only models are excluded. The runtime checks eligibility before sending a generation request.
 
 Storyboard Builder generates a purpose, action, visual treatment, framing, dialogue and sound direction for every scene. Prompt Branches generates a shared premise, complete prompt and explanation of the difference for every alternative. The model writes these as separate structured fields; the SDK validates them and formats their public body text as labeled lines. Explicit art direction must remain in every scene or prompt, and branches retain a supported paired-cast premise. Scene and direction numbers are supplied by the SDK. These structural checks help preserve the brief; users should still review the creative result before production.
+
+### Constrained writing output
+
+Both writing runtimes decode against the writing contract's JSON Schema, so a model can only emit what the schema admits: Ollama 0.5 and later receive it as `format` (llama.cpp grammar), WebLLM as `response_format.schema` (XGrammar). Ollama older than 0.5 falls back to JSON mode, with the schema kept in the prompt, and the result says which happened in `decoding` (`'schema'` or `'json'`).
+
+`prepareCreativeAgentTask` returns two schemas. `task.schema` is the prompt-facing form (a plain `items` list, unchanged in shape). `task.decodingSchema` is what the decoder gets: Cast Notes, Style Brief and Story Seed have one `prefixItems` slot per fixed heading, so headings cannot be reordered, repeated or skipped. Every text maximum in both is fitted to the artifact budget, so the longest draft the schema admits still fits it (`task.fitsBudget`; 5% is kept for JSON escapes). A 12-scene storyboard now admits about 10,800 characters instead of about 20,000, with action lines of up to 165 characters instead of 350; short contracts keep their full lengths. Content checks the decoder cannot express, such as repeated sentences, the requested art direction and named subjects, still run in the validator, with the one repair.
+
+If a runtime refuses to compile the per-position schema (Ollama answers with a schema or grammar error; WebLLM throws before streaming), the run retries once with `task.schema`. Other failures are not retried. The `writing-schema` subpath exposes the same pieces for your own backend:
+
+```js
+import { prepareCreativeAgentTask } from '@optimai/creative-agents/agent-runtime';
+import { checkConstrainedSchema, maxJsonLength, writingFormat } from '@optimai/creative-agents/writing-schema';
+
+const task = prepareCreativeAgentTask({ templateId: 'style-brief', brief: 'A lighthouse keeper befriends a storm.' });
+checkConstrainedSchema(task.decodingSchema);   // [] — portable subset, every text and list bounded
+maxJsonLength(task.decodingSchema);            // longest JSON the decoder can emit
+const { format } = writingFormat(task, { provider: 'ollama', version: '0.12.3' }); // POST /api/chat { format, … }
+```
+
+`checkConstrainedSchema` names anything a grammar engine may ignore or refuse (keywords outside `CONSTRAINED_SCHEMA_KEYWORDS` such as `pattern`, text without `maxLength`, lists without `maxItems`, open objects, optional properties, `items` next to `prefixItems`). `singleSectionSchema(schema, overrides)` reduces a writing schema to one section, which is how long storyboards are written scene by scene in the browser.
 
 The recipe's `network: "none"` and `execution: "declarative"` describe the **recipe's privileges**: it cannot supply code, choose remote endpoints or grant itself access. The trusted host may explicitly download the fixed browser model assets or perform validated loopback inference. A host that supplies a `baseUrl` must still use a validated local endpoint. `fetchImpl` exists for controlled tests and dependency injection, not to enable an untrusted recipe to choose its own transport.
 

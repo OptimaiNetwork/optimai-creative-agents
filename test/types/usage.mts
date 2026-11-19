@@ -24,6 +24,8 @@ import { createMusicReactiveRenderer } from '@optimai/creative-agents/music-reac
 import { FRAME_SCULPTURE_TURNTABLE, type FrameSculptureController } from '@optimai/creative-agents/frame-sculpture';
 import { paletteFiles, readAse, buildPalette, type Palette } from '@optimai/creative-agents/palette';
 import { runCanvasLab } from '@optimai/creative-agents/canvas-lab';
+import { prepareCreativeAgentTask } from '@optimai/creative-agents/agent-runtime';
+import { checkConstrainedSchema, maxJsonLength, writingFormat } from '@optimai/creative-agents/writing-schema';
 
 // Build and validate a recipe.
 const recipe: AgentManifest = createAgentManifest('poster-lab', { id: 'sunrise-poster', title: 'Sunrise Poster', brief: 'Warm first light.' });
@@ -116,4 +118,12 @@ export async function swatches(photo: File, bytes: Uint8Array): Promise<Blob[]> 
   // @ts-expect-error a palette exports css, json, ase or gpl only
   paletteFiles(imported, { formats: ['svg'] });
   return paletteFiles(palette ?? imported).map(file => new Blob([file.data], { type: file.type }));
+}
+export function ollamaRequest(brief: string): { format: Record<string, unknown> | 'json'; fits: boolean } {
+  const task = prepareCreativeAgentTask({ templateId: 'storyboard-builder', values: { scenes: 6 }, brief });
+  const { format } = writingFormat(task, { provider: 'ollama', version: '0.12.3' });
+  const web: string = writingFormat(task, { provider: 'webllm' }).response_format.schema;
+  // @ts-expect-error writing formats exist for ollama and webllm only
+  writingFormat(task, { provider: 'cloud' });
+  return { format, fits: task.fitsBudget && !checkConstrainedSchema(task.decodingSchema).length && maxJsonLength(JSON.parse(web)) < Infinity };
 }

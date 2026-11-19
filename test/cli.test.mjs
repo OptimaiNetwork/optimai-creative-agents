@@ -38,7 +38,8 @@ async function mockOllama(work) {
       const listed = system.match(/Use these section headings exactly and in order: ([^.]+)\./)?.[1];
       const count = input.format.properties.sections.minItems;
       const headings = listed ? listed.split('; ') : Array.from({ length: count }, (_, index) => `${system.includes('complete scenes') ? 'Scene' : 'Direction'} ${index + 1} — A warm discovery`);
-      const properties = input.format.properties.sections.items.properties;
+      const list = input.format.properties.sections; // fixed headings arrive as one prefixItems slot per section
+      const properties = (list.items ?? list.prefixItems[0]).properties;
       const sections = headings.map((heading, index) => {
         const artDirection = properties.artDirection ? { artDirection: properties.artDirection.enum[0] } : {};
         if (properties.purpose) return {

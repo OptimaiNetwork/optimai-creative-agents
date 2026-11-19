@@ -353,10 +353,18 @@ export type LocalAgentOptions = { signal?: AbortSignal; fetchImpl?: typeof fetch
 export type CreativeAgentResult = {
     title: string; summary: string; sections: { heading: string; body: string }[]; studioPrompt: string;
     model: string; provider: 'ollama' | 'webllm'; templateId: WritingAgentId; attempts: 1 | 2;
+    /** `schema`: decoding followed the writing schema; `json`: JSON mode on an Ollama older than 0.5. */
+    decoding?: 'schema' | 'json';
 };
 export type PreparedCreativeAgentTask = Readonly<{
     templateId: WritingAgentId; title: string; sectionCount: number; budget: number;
-    schema: Record<string, unknown>; instructions: string; maxOutputTokens: number;
+    /** Prompt-facing schema (the plain list form, text maxima fitted to the budget). */
+    schema: Record<string, unknown>;
+    /** Decoder-facing schema: fixed headings as one `prefixItems` slot each; the same object as `schema` otherwise. */
+    decodingSchema: Record<string, unknown>;
+    /** True when the longest output the schema admits fits `budget` (5% kept for JSON escapes). */
+    fitsBudget: boolean;
+    instructions: string; maxOutputTokens: number;
     messages: { role: 'system' | 'user'; content: string }[];
 }>;
 export type CreativeAgentArtifact = Pick<CreativeAgentResult, 'title' | 'summary' | 'sections' | 'studioPrompt'>;
@@ -1203,6 +1211,30 @@ export declare function paletteAse(palette: Palette): Uint8Array<ArrayBuffer>;
 export declare function readAse(bytes: Uint8Array | ArrayBuffer): { name: string | null; colors: Array<{ name: string; hex: string }>; skipped: number };
 /** Every requested export as `{ format, filename, type, data }`; ASE data is bytes, the rest text. */
 export declare function paletteFiles(palette: Palette, options?: { formats?: readonly PaletteFormat[]; basename?: string; prefix?: string }): PaletteFile[];
+```
+
+### `@optimai/creative-agents/writing-schema`
+
+Declared in `src/writing-schema.d.mts`, implemented in `src/writing-schema.mjs`.
+
+```ts
+import type { PreparedCreativeAgentTask } from './agent-runtime.mjs';
+
+export type ConstrainedSchemaKeyword = 'type' | 'properties' | 'required' | 'additionalProperties' | 'items' | 'prefixItems' | 'minItems' | 'maxItems' | 'minLength' | 'maxLength' | 'enum' | 'const';
+/** Keywords both llama.cpp (Ollama) and XGrammar (WebLLM) compile into a decoder. */
+export declare const CONSTRAINED_SCHEMA_KEYWORDS: readonly ConstrainedSchemaKeyword[];
+/** Issues that would let a decoder wander (unbounded text or lists, open objects, optional properties) or fail to compile; `[]` when safe. */
+export declare function checkConstrainedSchema(schema: unknown, path?: string): string[];
+/** Longest `JSON.stringify` output the schema admits, one character per text character; `Infinity` when unbounded. */
+export declare function maxJsonLength(schema: unknown): number;
+/** The writing schema reduced to exactly one section, from either the `items` or `prefixItems` form, with optional section property overrides. */
+export declare function singleSectionSchema<T extends Record<string, unknown>>(schema: T, properties?: Record<string, Record<string, unknown>>): T;
+export type WritingDecoding = 'schema' | 'json';
+export type OllamaWritingFormat = { format: Record<string, unknown> | 'json'; decoding: WritingDecoding };
+export type WebLLMWritingFormat = { response_format: { type: 'json_object'; schema: string }; decoding: 'schema' };
+/** The request field that constrains decoding: Ollama 0.5+ `format` (older: JSON mode), WebLLM `response_format`. `fallback` uses the plain prompt schema. */
+export declare function writingFormat(task: PreparedCreativeAgentTask, options: { provider: 'ollama'; version?: string | null; fallback?: boolean }): OllamaWritingFormat;
+export declare function writingFormat(task: PreparedCreativeAgentTask, options: { provider: 'webllm'; fallback?: boolean }): WebLLMWritingFormat;
 ```
 
 ### `@optimai/creative-agents/form-schema`
@@ -2934,7 +2966,7 @@ const smoothed = pose.filter(flatLandmarks, performance.now());
 
 #### Local Ollama writing
 
-Import `@optimai/creative-agents/agent-runtime` in a bundler or `./src/agent-runtime.mjs` directly. The runtime uses native fetch and accepts only a literal loopback HTTP Ollama endpoint (`127.0.0.1` or `[::1]`), defaulting to `http://127.0.0.1:11434`. It rejects remote URLs, DNS hostnames including `localhost`, credentials, query strings, redirects and cloud model identifiers. It first checks the installed model list and model metadata, then requests structured generation. It validates the returned document and allows one bounded repair attempt for malformed model output. There is no automatic model download, fallback to a paid remote provider or proprietary Studio dependency.
+Import `@optimai/creative-agents/agent-runtime` in a bundler or `./src/agent-runtime.mjs` directly. The runtime uses native fetch and accepts only a literal loopback HTTP Ollama endpoint (`127.0.0.1` or `[::1]`), defaulting to `http://127.0.0.1:11434`. It rejects remote URLs, DNS hostnames including `localhost`, credentials, query strings, redirects and cloud model identifiers. It first checks the installed model list and model metadata, then requests [schema-constrained generation](docs/runtimes.md#constrained-writing-output). It validates the returned document and allows one bounded repair attempt for malformed model output. There is no automatic model download, fallback to a paid remote provider or proprietary Studio dependency.
 
 ```js
 import { getLocalModelStatus, runCreativeAgent } from './src/agent-runtime.mjs';
@@ -2963,6 +2995,26 @@ The result contains a title, summary, sections with headings and body text, a re
 Eligible installed models must support local completion and have a reported size of at most 8 GiB. Cloud and embedding-only models are excluded. The runtime checks eligibility before sending a generation request.
 
 Storyboard Builder generates a purpose, action, visual treatment, framing, dialogue and sound direction for every scene. Prompt Branches generates a shared premise, complete prompt and explanation of the difference for every alternative. The model writes these as separate structured fields; the SDK validates them and formats their public body text as labeled lines. Explicit art direction must remain in every scene or prompt, and branches retain a supported paired-cast premise. Scene and direction numbers are supplied by the SDK. These structural checks help preserve the brief; users should still review the creative result before production.
+
+##### Constrained writing output
+
+Both writing runtimes decode against the writing contract's JSON Schema, so a model can only emit what the schema admits: Ollama 0.5 and later receive it as `format` (llama.cpp grammar), WebLLM as `response_format.schema` (XGrammar). Ollama older than 0.5 falls back to JSON mode, with the schema kept in the prompt, and the result says which happened in `decoding` (`'schema'` or `'json'`).
+
+`prepareCreativeAgentTask` returns two schemas. `task.schema` is the prompt-facing form (a plain `items` list, unchanged in shape). `task.decodingSchema` is what the decoder gets: Cast Notes, Style Brief and Story Seed have one `prefixItems` slot per fixed heading, so headings cannot be reordered, repeated or skipped. Every text maximum in both is fitted to the artifact budget, so the longest draft the schema admits still fits it (`task.fitsBudget`; 5% is kept for JSON escapes). A 12-scene storyboard now admits about 10,800 characters instead of about 20,000, with action lines of up to 165 characters instead of 350; short contracts keep their full lengths. Content checks the decoder cannot express, such as repeated sentences, the requested art direction and named subjects, still run in the validator, with the one repair.
+
+If a runtime refuses to compile the per-position schema (Ollama answers with a schema or grammar error; WebLLM throws before streaming), the run retries once with `task.schema`. Other failures are not retried. The `writing-schema` subpath exposes the same pieces for your own backend:
+
+```js
+import { prepareCreativeAgentTask } from '@optimai/creative-agents/agent-runtime';
+import { checkConstrainedSchema, maxJsonLength, writingFormat } from '@optimai/creative-agents/writing-schema';
+
+const task = prepareCreativeAgentTask({ templateId: 'style-brief', brief: 'A lighthouse keeper befriends a storm.' });
+checkConstrainedSchema(task.decodingSchema);   // [] — portable subset, every text and list bounded
+maxJsonLength(task.decodingSchema);            // longest JSON the decoder can emit
+const { format } = writingFormat(task, { provider: 'ollama', version: '0.12.3' }); // POST /api/chat { format, … }
+```
+
+`checkConstrainedSchema` names anything a grammar engine may ignore or refuse (keywords outside `CONSTRAINED_SCHEMA_KEYWORDS` such as `pattern`, text without `maxLength`, lists without `maxItems`, open objects, optional properties, `items` next to `prefixItems`). `singleSectionSchema(schema, overrides)` reduces a writing schema to one section, which is how long storyboards are written scene by scene in the browser.
 
 The recipe's `network: "none"` and `execution: "declarative"` describe the **recipe's privileges**: it cannot supply code, choose remote endpoints or grant itself access. The trusted host may explicitly download the fixed browser model assets or perform validated loopback inference. A host that supplies a `baseUrl` must still use a validated local endpoint. `fetchImpl` exists for controlled tests and dependency injection, not to enable an untrusted recipe to choose its own transport.
 
@@ -3167,6 +3219,7 @@ A broader host can add these reviewed runtime adapters:
 | Progress | `progress` → `normalizeProgress`, `describeProgress`, `progressSteps`, `createProgressReporter`, `ENGINE_PROGRESS_STAGES` | One `{ stage, message, loaded, total, frame, frames, progress }` event from vision, writing, frame sampling and canvas runs, staged words for it and a stepper; Node and browser |
 | Model preparation | `model-setup` → `getModelSetupPolicy`, `createModelSetupController`, `describeModelSetup`, `formatBytes` | Automatic/manual/unsupported decision, one abortable setup state machine with byte progress, and readable sizes; host supplies the reviewed load and check calls |
 | Local Ollama writing | `agent-runtime` → `runCreativeAgent` | Validated written artifact; explicitly selected eligible installed model and loopback service |
+| Constrained writing output | `writing-schema` → `writingFormat`, `checkConstrainedSchema`, `maxJsonLength`, `singleSectionSchema` | The decoder-facing schema for Ollama `format` or WebLLM `response_format`, a portable-subset check and the longest JSON a schema admits; Node and browser ([guide](docs/runtimes.md#constrained-writing-output)) |
 | Guided production | `compileAgentPrompt` and a host handoff | Prepared direction; the destination host runs Image, Video, Story, Character or Editor production |
 
 Vision workspace descriptors identify `person-cutout`, `pose-reference` or `face-reference`. `CANVAS_LAB_AGENTS` derives its composition map from the same catalog. Writing descriptors use the five implemented output-contract IDs; declaring an unknown writer does not implement its output validation. Sketch descriptors identify a browser drawing workspace followed by a separate Studio production step.

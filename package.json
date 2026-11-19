@@ -159,6 +159,11 @@
       "import": "./src/palette.mjs",
       "default": "./src/palette.mjs"
     },
+    "./writing-schema": {
+      "types": "./src/writing-schema.d.mts",
+      "import": "./src/writing-schema.mjs",
+      "default": "./src/writing-schema.mjs"
+    },
     "./form-schema": {
       "types": "./src/form-schema.d.mts",
       "import": "./src/form-schema.mjs",
