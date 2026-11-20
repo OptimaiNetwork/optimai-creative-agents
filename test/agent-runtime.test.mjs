@@ -351,7 +351,14 @@ test('cancellation interrupts pending inference promptly with no repair request'
 });
 
 test('timeouts are bounded even if a provider never resolves its fetch promise', async t => {
-    t.mock.timers.enable({ apis: ['setTimeout'] });
+    // Node 20 accepts the timer list directly, while later supported Node
+    // releases accept the options object. Keep this test runnable across CI.
+    try {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+    } catch (error) {
+        if (error?.code !== 'ERR_INVALID_ARG_TYPE') throw error;
+        t.mock.timers.enable(['setTimeout']);
+    }
     const pending = getLocalModelStatus({ fetchImpl: () => new Promise(() => {}) });
     t.mock.timers.tick(LOCAL_AGENT_LIMITS.statusTimeoutMs);
     const result = await pending;
