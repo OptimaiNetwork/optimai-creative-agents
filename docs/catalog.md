@@ -47,7 +47,7 @@ Select & Replace's local implementation segments people rather than performing a
 
 ## Writing agents
 
-These five templates generate validated written artifacts through either the [browser writing runtime](./runtimes.md#browser-writing) or [local Ollama writing](./runtimes.md#local-ollama-writing). Browser writing needs supported WebGPU hardware, a locally bundled worker and reviewed fixed-model setup; the host may start preparation when the selected-agent policy permits. Ollama writing needs a running loopback service and an explicitly selected eligible installed model.
+These five templates generate validated written artifacts through the [browser writing runtime](./runtimes.md#browser-writing), the browser's own [built-in model](./runtimes.md#built-in-browser-writing) or [local Ollama writing](./runtimes.md#local-ollama-writing). Browser writing needs supported WebGPU hardware, a locally bundled worker and reviewed fixed-model setup; the host may start preparation when the selected-agent policy permits. Ollama writing needs a running loopback service and an explicitly selected eligible installed model.
 
 | Agent | Template ID | Actual written result |
 | --- | --- | --- |

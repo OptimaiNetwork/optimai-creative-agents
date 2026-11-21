@@ -12,6 +12,8 @@ export declare function singleSectionSchema<T extends Record<string, unknown>>(s
 export type WritingDecoding = 'schema' | 'json';
 export type OllamaWritingFormat = { format: Record<string, unknown> | 'json'; decoding: WritingDecoding };
 export type WebLLMWritingFormat = { response_format: { type: 'json_object'; schema: string }; decoding: 'schema' };
-/** The request field that constrains decoding: Ollama 0.5+ `format` (older: JSON mode), WebLLM `response_format`. `fallback` uses the plain prompt schema. */
+export type BuiltinWritingFormat = { responseConstraint: Record<string, unknown>; omitResponseConstraintInput: true; decoding: 'schema' };
+/** The request field that constrains decoding: Ollama 0.5+ `format` (older: JSON mode), WebLLM `response_format`, the browser Prompt API's `responseConstraint`. `fallback` uses the plain prompt schema. */
 export declare function writingFormat(task: PreparedCreativeAgentTask, options: { provider: 'ollama'; version?: string | null; fallback?: boolean }): OllamaWritingFormat;
 export declare function writingFormat(task: PreparedCreativeAgentTask, options: { provider: 'webllm'; fallback?: boolean }): WebLLMWritingFormat;
+export declare function writingFormat(task: Pick<PreparedCreativeAgentTask, 'schema'> & { decodingSchema?: Record<string, unknown> }, options: { provider: 'builtin'; fallback?: boolean }): BuiltinWritingFormat;

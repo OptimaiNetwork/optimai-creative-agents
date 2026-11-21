@@ -42,6 +42,11 @@
       "import": "./src/browser-writing-runtime.mjs",
       "default": "./src/browser-writing-runtime.mjs"
     },
+    "./builtin-writing-runtime": {
+      "types": "./src/builtin-writing-runtime.d.mts",
+      "import": "./src/builtin-writing-runtime.mjs",
+      "default": "./src/builtin-writing-runtime.mjs"
+    },
     "./browser-writing-worker": {
       "types": "./src/browser-writing-worker.d.mts",
       "import": "./src/browser-writing-worker.mjs",

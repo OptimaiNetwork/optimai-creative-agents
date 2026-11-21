@@ -16,7 +16,7 @@ export type LocalModelStatus = {
 export type LocalAgentOptions = { signal?: AbortSignal; fetchImpl?: typeof fetch; baseUrl?: string };
 export type CreativeAgentResult = {
     title: string; summary: string; sections: { heading: string; body: string }[]; studioPrompt: string;
-    model: string; provider: 'ollama' | 'webllm'; templateId: WritingAgentId; attempts: 1 | 2;
+    model: string; provider: 'ollama' | 'webllm' | 'builtin'; templateId: WritingAgentId; attempts: 1 | 2;
     /** `schema`: decoding followed the writing schema; `json`: JSON mode on an Ollama older than 0.5. */
     decoding?: 'schema' | 'json';
 };

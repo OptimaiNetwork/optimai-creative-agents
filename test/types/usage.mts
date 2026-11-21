@@ -123,7 +123,9 @@ export function ollamaRequest(brief: string): { format: Record<string, unknown> 
   const task = prepareCreativeAgentTask({ templateId: 'storyboard-builder', values: { scenes: 6 }, brief });
   const { format } = writingFormat(task, { provider: 'ollama', version: '0.12.3' });
   const web: string = writingFormat(task, { provider: 'webllm' }).response_format.schema;
-  // @ts-expect-error writing formats exist for ollama and webllm only
+  const constraint: Record<string, unknown> = writingFormat(task, { provider: 'builtin' }).responseConstraint;
+  void constraint;
+  // @ts-expect-error writing formats exist for ollama, webllm and builtin only
   writingFormat(task, { provider: 'cloud' });
   return { format, fits: task.fitsBudget && !checkConstrainedSchema(task.decodingSchema).length && maxJsonLength(JSON.parse(web)) < Infinity };
 }

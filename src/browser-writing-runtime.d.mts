@@ -1,5 +1,5 @@
 import type { AppConfig, MLCEngineInterface, MLCEngineConfig } from '@mlc-ai/web-llm';
-import type { CreativeAgentResult, WritingAgentId } from './agent-runtime.mjs';
+import type { CreativeAgentResult, PreparedCreativeAgentTask, WritingAgentId } from './agent-runtime.mjs';
 
 export declare const BROWSER_AGENT_MODEL: Readonly<{
   id: 'Qwen3.5-0.8B-q4f16_1-MLC'; title: 'Qwen 3.5 · 0.8B'; license: 'Apache-2.0';
@@ -36,6 +36,13 @@ export declare function createBrowserWritingRuntime(dependencies: {
   createSession(onProgress: (progress: BrowserAgentProgress) => void): Promise<BrowserWritingEngineSession>;
   downloadTimeoutMs?: number; generationTimeoutMs?: number;
 }): BrowserWritingRuntime;
+type WritingTaskInput = { values?: Record<string, string | number>; brief?: string };
+/** The short system + user prompt compact on-device models follow; the schema constrains decoding separately. */
+export declare function compactWritingMessages(task: PreparedCreativeAgentTask, options?: WritingTaskInput): { role: 'system' | 'user'; content: string }[];
+/** One scene of a long storyboard: label, story beat, one-section schema and prompt, with the last two actions as continuity. */
+export declare function sceneWritingStep(task: PreparedCreativeAgentTask, options: WritingTaskInput, scene: number, sections: Record<string, unknown>[], corrections?: string[]): {
+  label: string; beat: string; schema: Record<string, unknown>; messages: { role: 'system' | 'user'; content: string }[];
+};
 /** No model is downloaded during capability checks. */
 export declare function browserSupport(): Promise<Omit<BrowserAgentStatus, 'ready' | 'loading'>>;
 /** Factories refer only to locally bundled engine and worker code in the embedding app. */

@@ -352,7 +352,7 @@ export type LocalModelStatus = {
 export type LocalAgentOptions = { signal?: AbortSignal; fetchImpl?: typeof fetch; baseUrl?: string };
 export type CreativeAgentResult = {
     title: string; summary: string; sections: { heading: string; body: string }[]; studioPrompt: string;
-    model: string; provider: 'ollama' | 'webllm'; templateId: WritingAgentId; attempts: 1 | 2;
+    model: string; provider: 'ollama' | 'webllm' | 'builtin'; templateId: WritingAgentId; attempts: 1 | 2;
     /** `schema`: decoding followed the writing schema; `json`: JSON mode on an Ollama older than 0.5. */
     decoding?: 'schema' | 'json';
 };
@@ -384,7 +384,7 @@ Declared in `src/browser-writing-runtime.d.mts`, implemented in `src/browser-wri
 
 ```ts
 import type { AppConfig, MLCEngineInterface, MLCEngineConfig } from '@mlc-ai/web-llm';
-import type { CreativeAgentResult, WritingAgentId } from './agent-runtime.mjs';
+import type { CreativeAgentResult, PreparedCreativeAgentTask, WritingAgentId } from './agent-runtime.mjs';
 
 export declare const BROWSER_AGENT_MODEL: Readonly<{
   id: 'Qwen3.5-0.8B-q4f16_1-MLC'; title: 'Qwen 3.5 · 0.8B'; license: 'Apache-2.0';
@@ -421,6 +421,13 @@ export declare function createBrowserWritingRuntime(dependencies: {
   createSession(onProgress: (progress: BrowserAgentProgress) => void): Promise<BrowserWritingEngineSession>;
   downloadTimeoutMs?: number; generationTimeoutMs?: number;
 }): BrowserWritingRuntime;
+type WritingTaskInput = { values?: Record<string, string | number>; brief?: string };
+/** The short system + user prompt compact on-device models follow; the schema constrains decoding separately. */
+export declare function compactWritingMessages(task: PreparedCreativeAgentTask, options?: WritingTaskInput): { role: 'system' | 'user'; content: string }[];
+/** One scene of a long storyboard: label, story beat, one-section schema and prompt, with the last two actions as continuity. */
+export declare function sceneWritingStep(task: PreparedCreativeAgentTask, options: WritingTaskInput, scene: number, sections: Record<string, unknown>[], corrections?: string[]): {
+  label: string; beat: string; schema: Record<string, unknown>; messages: { role: 'system' | 'user'; content: string }[];
+};
 /** No model is downloaded during capability checks. */
 export declare function browserSupport(): Promise<Omit<BrowserAgentStatus, 'ready' | 'loading'>>;
 /** Factories refer only to locally bundled engine and worker code in the embedding app. */
@@ -428,6 +435,57 @@ export declare function createBrowserAgentRuntime(options: {
   createWorker: () => Worker;
   loadEngine: () => Promise<{ WebWorkerMLCEngine: new (worker: Worker, config: MLCEngineConfig) => MLCEngineInterface }>;
 }): BrowserWritingRuntime;
+```
+
+### `@optimai/creative-agents/builtin-writing-runtime`
+
+Declared in `src/builtin-writing-runtime.d.mts`, implemented in `src/builtin-writing-runtime.mjs`.
+
+```ts
+import type { CreativeAgentResult, WritingAgentId } from './agent-runtime.mjs';
+import type { BrowserAgentProgress } from './browser-writing-runtime.mjs';
+
+/** The browser chooses the actual model; a host or recipe cannot. */
+export declare const BUILTIN_AGENT_MODEL: Readonly<{ id: 'browser-built-in'; title: 'Browser built-in AI'; api: 'LanguageModel' }>;
+/** The part of the Prompt API's `LanguageModel` this runtime calls. */
+export type BuiltinLanguageModel = {
+  availability(options?: Record<string, unknown>): Promise<string>;
+  create(options?: Record<string, unknown>): Promise<{
+    promptStreaming(input: string, options?: Record<string, unknown>): ReadableStream<string> | AsyncIterable<string>;
+    destroy?(): void;
+  }>;
+};
+export type BuiltinAgentSupport = {
+  provider: 'builtin'; available: boolean; model: typeof BUILTIN_AGENT_MODEL;
+  /** What the browser reports: `available` writes at once, `downloadable`/`downloading` need `load()` first. */
+  state: 'unavailable' | 'downloadable' | 'downloading' | 'available';
+  /** Base language tag the check was made for (`en` by default). */ language: string;
+  reason?: 'api-unavailable' | 'device-unsupported' | 'language-unsupported' | 'timeout'; message?: string;
+};
+export type BuiltinAgentStatus = BuiltinAgentSupport & { ready: boolean; loading: boolean };
+export type BuiltinAgentOptions = {
+  signal?: AbortSignal; onProgress?: (progress: BrowserAgentProgress) => void;
+  /** Language of the brief and the writing, as a BCP 47 tag; only its base (`ja` of `ja-JP`) is used. Default `en`. */
+  language?: string;
+};
+export type BuiltinWritingRuntime = {
+  /** Asks the browser only; never starts a download. */
+  status(options?: { language?: string }): Promise<BuiltinAgentStatus>;
+  /** Resolves at once when the browser has its model; otherwise the browser downloads it. Call from a click. */
+  load(options?: BuiltinAgentOptions): Promise<void>;
+  /** Rejects with the same `BrowserAgentError` codes as the WebLLM runtime. */
+  run(options: BuiltinAgentOptions & { templateId: WritingAgentId; values?: Record<string, string | number>; brief?: string }): Promise<CreativeAgentResult>;
+  cancel(): void; unload(): void;
+};
+/** Capability check: no session is created, so no model download can start. */
+export declare function builtinSupport(options?: { languageModel?: BuiltinLanguageModel; language?: string; /** How long to wait for the browser's answer; 4000 ms by default. */ timeoutMs?: number }): Promise<BuiltinAgentSupport>;
+/** Tests and embedders may inject the language model or the support check; task and validation contracts stay fixed. */
+export declare function createBuiltinWritingRuntime(dependencies?: {
+  languageModel?: BuiltinLanguageModel; support?(language: string): Promise<BuiltinAgentSupport>;
+  statusTimeoutMs?: number; downloadTimeoutMs?: number; generationTimeoutMs?: number;
+}): BuiltinWritingRuntime;
+/** Bound to this browser's own `LanguageModel`: nothing to install, bundle or host. */
+export declare function createBuiltinAgentRuntime(): BuiltinWritingRuntime;
 ```
 
 ### `@optimai/creative-agents/browser-writing-worker`
@@ -1232,9 +1290,11 @@ export declare function singleSectionSchema<T extends Record<string, unknown>>(s
 export type WritingDecoding = 'schema' | 'json';
 export type OllamaWritingFormat = { format: Record<string, unknown> | 'json'; decoding: WritingDecoding };
 export type WebLLMWritingFormat = { response_format: { type: 'json_object'; schema: string }; decoding: 'schema' };
-/** The request field that constrains decoding: Ollama 0.5+ `format` (older: JSON mode), WebLLM `response_format`. `fallback` uses the plain prompt schema. */
+export type BuiltinWritingFormat = { responseConstraint: Record<string, unknown>; omitResponseConstraintInput: true; decoding: 'schema' };
+/** The request field that constrains decoding: Ollama 0.5+ `format` (older: JSON mode), WebLLM `response_format`, the browser Prompt API's `responseConstraint`. `fallback` uses the plain prompt schema. */
 export declare function writingFormat(task: PreparedCreativeAgentTask, options: { provider: 'ollama'; version?: string | null; fallback?: boolean }): OllamaWritingFormat;
 export declare function writingFormat(task: PreparedCreativeAgentTask, options: { provider: 'webllm'; fallback?: boolean }): WebLLMWritingFormat;
+export declare function writingFormat(task: Pick<PreparedCreativeAgentTask, 'schema'> & { decodingSchema?: Record<string, unknown> }, options: { provider: 'builtin'; fallback?: boolean }): BuiltinWritingFormat;
 ```
 
 ### `@optimai/creative-agents/form-schema`
@@ -2302,7 +2362,7 @@ Select & Replace's local implementation segments people rather than performing a
 
 #### Writing agents
 
-These five templates generate validated written artifacts through either the [browser writing runtime](docs/runtimes.md#browser-writing) or [local Ollama writing](docs/runtimes.md#local-ollama-writing). Browser writing needs supported WebGPU hardware, a locally bundled worker and reviewed fixed-model setup; the host may start preparation when the selected-agent policy permits. Ollama writing needs a running loopback service and an explicitly selected eligible installed model.
+These five templates generate validated written artifacts through the [browser writing runtime](docs/runtimes.md#browser-writing), the browser's own [built-in model](docs/runtimes.md#built-in-browser-writing) or [local Ollama writing](docs/runtimes.md#local-ollama-writing). Browser writing needs supported WebGPU hardware, a locally bundled worker and reviewed fixed-model setup; the host may start preparation when the selected-agent policy permits. Ollama writing needs a running loopback service and an explicitly selected eligible installed model.
 
 | Agent | Template ID | Actual written result |
 | --- | --- | --- |
@@ -2372,7 +2432,7 @@ The [MCP adapter](docs/mcp.md) exposes all 40 template names. It prepares recipe
 
 ### Runtimes and model setup
 
-Choose the runtime for the result you need. The canvas SDK runs without a model or external dependency. Vision, tracking and browser writing use reviewed optional model runtimes. Interactive scenes and avatars use the shared Three.js engine. Node writing uses your own installed Ollama service. Guided recipes prepare direction for a separate host workflow.
+Choose the runtime for the result you need. The canvas SDK runs without a model or external dependency. Vision, tracking and browser writing use reviewed optional model runtimes; built-in browser writing uses the model a desktop browser already ships. Interactive scenes and avatars use the shared Three.js engine. Node writing uses your own installed Ollama service. Guided recipes prepare direction for a separate host workflow.
 
 The examples below use relative imports from an entry file at the cloned repository root. An application can bundle these source modules or use the exported package entry points through a local source dependency; the package is not distributed on npm yet. For a working model-free browser workspace, see [examples/browser](examples/browser/README.md).
 
@@ -2380,6 +2440,7 @@ The examples below use relative imports from an entry file at the cloned reposit
 | --- | --- | --- |
 | [Canvas](docs/runtimes.md#canvas-processing) | Local browser; no model or dependency install | PNG images and design artboards |
 | [Browser writing](docs/runtimes.md#browser-writing) | WebGPU, pinned WebLLM dependency, local worker and selected-agent model setup | Validated written documents |
+| [Built-in browser writing](docs/runtimes.md#built-in-browser-writing) | A desktop Chrome or Edge with a built-in language model; no dependency, worker or SDK download | Validated written documents |
 | [Browser vision](docs/runtimes.md#browser-vision) | Pinned MediaPipe dependency, local WASM/worker and selected-agent model setup | Person cutout PNGs, pose or face landmarks |
 | [Interactive 3D](docs/runtimes.md#interactive-3d-scenes) | Optional pinned Three.js; browser WebGL | Real scene preview, PNG and scene recipe |
 | [Camera and avatar](docs/runtimes.md#camera-effects-and-face-driven-avatars) | Explicit camera permission; optional pinned face tracking worker | Canvas filters and original avatar rendering |
@@ -2806,6 +2867,28 @@ The five writing contracts are Cast Notes, Style Brief, Storyboard Builder, Prom
 
 The model weights are pinned to Hugging Face commit `0ec138972555613c1d7812a821778ad0398c8790`; the compiled library is pinned to commit `025bcaf3780fa8254f5e5efd3bfea0a5397248f4`. Config, tokenizer files and compiled library use fixed integrity checks. WebLLM does not provide a per-shard integrity check for all weights, so the kit does not claim that guarantee. The WebLLM library and Qwen weights retain their upstream Apache-2.0 licenses; the kit's MIT license does not replace them.
 
+#### Built-in browser writing
+
+Desktop Chrome and Edge ship a language model with the browser and expose it to pages as the Prompt API (`LanguageModel`). The `builtin-writing-runtime` subpath runs the same five writing contracts on it, with the same validator, one repair and `BrowserAgentError` codes as the WebLLM runtime. There is nothing to install or bundle and no worker: the browser owns, downloads, shares between sites and updates the model, so a creator whose browser already has it writes at once.
+
+```js
+import { createBuiltinAgentRuntime } from './src/builtin-writing-runtime.mjs';
+
+const writer = createBuiltinAgentRuntime();
+const status = await writer.status({ language: 'en' }); // Asks the browser only; never starts a download.
+// status.state: 'available' (ready now), 'downloadable' or 'downloading' (call load), 'unavailable' (see status.reason)
+if (!status.available) throw new Error(status.message);
+downloadButton.onclick = () => writer.load({ onProgress: ({ progress }) => render(progress) }); // Only needed until status.ready.
+const draft = await writer.run({
+  templateId: 'style-brief', brief: 'A lighthouse keeper befriends a storm.', language: 'en', signal: controller.signal
+});
+console.log(draft.provider, draft.sections); // 'builtin'; plain untrusted text, never raw HTML.
+```
+
+`status()` reports `reason: 'api-unavailable'` (no built-in model in this browser, including every phone today), `'device-unsupported'` (the browser has the API but this machine cannot run the model) `'language-unsupported'`, or `'timeout'` when the browser does not answer within four seconds (seen in headless Chrome). Offer the WebLLM or Ollama backend in those cases; this runtime never falls back to a server. When the model still has to be downloaded, call `load()` from a click or key press: browsers refuse to start that download without a user gesture, and the runtime reports the refusal as `download-failed` with a message that says so. The download is several gigabytes, is handled by the browser and may continue after `cancel()`.
+
+`language` is the language of the brief and the writing as a BCP 47 tag; only its base is used (`ja` of `ja-JP`) and the default is `en`. Built-in models accept a short list of output languages that grows with browser releases, so the runtime asks the browser instead of keeping a list. Every draft runs in a fresh session whose system prompt is the task, with the writing schema as the Prompt API's `responseConstraint`, and the session is destroyed afterwards, so no earlier draft stays in the model's small context. Briefs are limited to 2,000 characters, and storyboards longer than three scenes are written scene by scene, as in the WebLLM runtime. `model` in the result is `browser-built-in`: the browser chooses the actual model and a host or recipe cannot. The SDK has not measured writing quality across browsers; treat it as a fast first backend and keep another one available.
+
 #### Browser vision
 
 Install the reviewed optional dependency in your isolated browser host:
@@ -2998,11 +3081,11 @@ Storyboard Builder generates a purpose, action, visual treatment, framing, dialo
 
 ##### Constrained writing output
 
-Both writing runtimes decode against the writing contract's JSON Schema, so a model can only emit what the schema admits: Ollama 0.5 and later receive it as `format` (llama.cpp grammar), WebLLM as `response_format.schema` (XGrammar). Ollama older than 0.5 falls back to JSON mode, with the schema kept in the prompt, and the result says which happened in `decoding` (`'schema'` or `'json'`).
+Every writing runtime decodes against the writing contract's JSON Schema, so a model can only emit what the schema admits: Ollama 0.5 and later receive it as `format` (llama.cpp grammar), WebLLM as `response_format.schema` (XGrammar) and the browser's built-in model as `responseConstraint`. Ollama older than 0.5 falls back to JSON mode, with the schema kept in the prompt, and the result says which happened in `decoding` (`'schema'` or `'json'`).
 
 `prepareCreativeAgentTask` returns two schemas. `task.schema` is the prompt-facing form (a plain `items` list, unchanged in shape). `task.decodingSchema` is what the decoder gets: Cast Notes, Style Brief and Story Seed have one `prefixItems` slot per fixed heading, so headings cannot be reordered, repeated or skipped. Every text maximum in both is fitted to the artifact budget, so the longest draft the schema admits still fits it (`task.fitsBudget`; 5% is kept for JSON escapes). A 12-scene storyboard now admits about 10,800 characters instead of about 20,000, with action lines of up to 165 characters instead of 350; short contracts keep their full lengths. Content checks the decoder cannot express, such as repeated sentences, the requested art direction and named subjects, still run in the validator, with the one repair.
 
-If a runtime refuses to compile the per-position schema (Ollama answers with a schema or grammar error; WebLLM throws before streaming), the run retries once with `task.schema`. Other failures are not retried. The `writing-schema` subpath exposes the same pieces for your own backend:
+If a runtime refuses to compile the per-position schema (Ollama answers with a schema or grammar error; WebLLM or the built-in model throws before writing anything), the run retries once with `task.schema`. Other failures are not retried. The `writing-schema` subpath exposes the same pieces for your own backend:
 
 ```js
 import { prepareCreativeAgentTask } from '@optimai/creative-agents/agent-runtime';
@@ -3218,8 +3301,9 @@ A broader host can add these reviewed runtime adapters:
 | A/B compare | `compare` → `compareOutputs`, `compareImages`, `describeComparison`, `splitView`, `stepSplit` | How two results differ (share changed, PSNR, SSIM-lite structure, OKLab colour shift, changed region, optional diff heatmap) in numbers and plain words, plus the clip and keyboard steps for a before/after slider; Node and browser |
 | Progress | `progress` → `normalizeProgress`, `describeProgress`, `progressSteps`, `createProgressReporter`, `ENGINE_PROGRESS_STAGES` | One `{ stage, message, loaded, total, frame, frames, progress }` event from vision, writing, frame sampling and canvas runs, staged words for it and a stepper; Node and browser |
 | Model preparation | `model-setup` → `getModelSetupPolicy`, `createModelSetupController`, `describeModelSetup`, `formatBytes` | Automatic/manual/unsupported decision, one abortable setup state machine with byte progress, and readable sizes; host supplies the reviewed load and check calls |
+| Built-in browser writing | `builtin-writing-runtime` → `createBuiltinAgentRuntime`, `builtinSupport` | Validated written artifact from the browser's own language model (desktop Chrome or Edge); no dependency, worker or SDK download, and `status()` says whether it is ready, downloadable or unavailable ([guide](docs/runtimes.md#built-in-browser-writing)) |
 | Local Ollama writing | `agent-runtime` → `runCreativeAgent` | Validated written artifact; explicitly selected eligible installed model and loopback service |
-| Constrained writing output | `writing-schema` → `writingFormat`, `checkConstrainedSchema`, `maxJsonLength`, `singleSectionSchema` | The decoder-facing schema for Ollama `format` or WebLLM `response_format`, a portable-subset check and the longest JSON a schema admits; Node and browser ([guide](docs/runtimes.md#constrained-writing-output)) |
+| Constrained writing output | `writing-schema` → `writingFormat`, `checkConstrainedSchema`, `maxJsonLength`, `singleSectionSchema` | The decoder-facing schema for Ollama `format`, WebLLM `response_format` or the Prompt API's `responseConstraint`, a portable-subset check and the longest JSON a schema admits; Node and browser ([guide](docs/runtimes.md#constrained-writing-output)) |
 | Guided production | `compileAgentPrompt` and a host handoff | Prepared direction; the destination host runs Image, Video, Story, Character or Editor production |
 
 Vision workspace descriptors identify `person-cutout`, `pose-reference` or `face-reference`. `CANVAS_LAB_AGENTS` derives its composition map from the same catalog. Writing descriptors use the five implemented output-contract IDs; declaring an unknown writer does not implement its output validation. Sketch descriptors identify a browser drawing workspace followed by a separate Studio production step.

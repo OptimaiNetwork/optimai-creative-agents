@@ -27,7 +27,7 @@ Version `0.5.0` contains **40 agent templates**. They expose different kinds of 
 | --- | ---: | --- | --- |
 | Canvas processing | 12 | PNG filters, grids, mockups, typography, print looks, color palettes and composition, with focus-aware cropping | Browser; no model or dependency install |
 | Browser vision | 3 | Person cutout, pose landmarks or face landmarks | MediaPipe worker and selected-agent model setup |
-| Local writing | 5 | Treatments, cast notes, style briefs, storyboards and prompt alternatives | WebGPU + WebLLM, or an installed local Ollama model |
+| Local writing | 5 | Treatments, cast notes, style briefs, storyboards and prompt alternatives | WebGPU + WebLLM, the browser's built-in model, or an installed local Ollama model |
 | Interactive 3D, camera, music and frames | 6 | Real scene previews, live filters, tracked original avatars, music-reactive visuals and 2.5D frame sculptures | Optional Three.js; MediaPipe for face tracking |
 | Guided Studio workflows | 14 | Validated production direction for a separate host workflow | Your host's generation or editing integration |
 

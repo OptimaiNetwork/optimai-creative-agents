@@ -1,6 +1,6 @@
 # Runtimes and model setup
 
-Choose the runtime for the result you need. The canvas SDK runs without a model or external dependency. Vision, tracking and browser writing use reviewed optional model runtimes. Interactive scenes and avatars use the shared Three.js engine. Node writing uses your own installed Ollama service. Guided recipes prepare direction for a separate host workflow.
+Choose the runtime for the result you need. The canvas SDK runs without a model or external dependency. Vision, tracking and browser writing use reviewed optional model runtimes; built-in browser writing uses the model a desktop browser already ships. Interactive scenes and avatars use the shared Three.js engine. Node writing uses your own installed Ollama service. Guided recipes prepare direction for a separate host workflow.
 
 The examples below use relative imports from an entry file at the cloned repository root. An application can bundle these source modules or use the exported package entry points through a local source dependency; the package is not distributed on npm yet. For a working model-free browser workspace, see [examples/browser](../examples/browser/README.md).
 
@@ -8,6 +8,7 @@ The examples below use relative imports from an entry file at the cloned reposit
 | --- | --- | --- |
 | [Canvas](#canvas-processing) | Local browser; no model or dependency install | PNG images and design artboards |
 | [Browser writing](#browser-writing) | WebGPU, pinned WebLLM dependency, local worker and selected-agent model setup | Validated written documents |
+| [Built-in browser writing](#built-in-browser-writing) | A desktop Chrome or Edge with a built-in language model; no dependency, worker or SDK download | Validated written documents |
 | [Browser vision](#browser-vision) | Pinned MediaPipe dependency, local WASM/worker and selected-agent model setup | Person cutout PNGs, pose or face landmarks |
 | [Interactive 3D](#interactive-3d-scenes) | Optional pinned Three.js; browser WebGL | Real scene preview, PNG and scene recipe |
 | [Camera and avatar](#camera-effects-and-face-driven-avatars) | Explicit camera permission; optional pinned face tracking worker | Canvas filters and original avatar rendering |
@@ -434,6 +435,28 @@ The five writing contracts are Cast Notes, Style Brief, Storyboard Builder, Prom
 
 The model weights are pinned to Hugging Face commit `0ec138972555613c1d7812a821778ad0398c8790`; the compiled library is pinned to commit `025bcaf3780fa8254f5e5efd3bfea0a5397248f4`. Config, tokenizer files and compiled library use fixed integrity checks. WebLLM does not provide a per-shard integrity check for all weights, so the kit does not claim that guarantee. The WebLLM library and Qwen weights retain their upstream Apache-2.0 licenses; the kit's MIT license does not replace them.
 
+## Built-in browser writing
+
+Desktop Chrome and Edge ship a language model with the browser and expose it to pages as the Prompt API (`LanguageModel`). The `builtin-writing-runtime` subpath runs the same five writing contracts on it, with the same validator, one repair and `BrowserAgentError` codes as the WebLLM runtime. There is nothing to install or bundle and no worker: the browser owns, downloads, shares between sites and updates the model, so a creator whose browser already has it writes at once.
+
+```js
+import { createBuiltinAgentRuntime } from './src/builtin-writing-runtime.mjs';
+
+const writer = createBuiltinAgentRuntime();
+const status = await writer.status({ language: 'en' }); // Asks the browser only; never starts a download.
+// status.state: 'available' (ready now), 'downloadable' or 'downloading' (call load), 'unavailable' (see status.reason)
+if (!status.available) throw new Error(status.message);
+downloadButton.onclick = () => writer.load({ onProgress: ({ progress }) => render(progress) }); // Only needed until status.ready.
+const draft = await writer.run({
+  templateId: 'style-brief', brief: 'A lighthouse keeper befriends a storm.', language: 'en', signal: controller.signal
+});
+console.log(draft.provider, draft.sections); // 'builtin'; plain untrusted text, never raw HTML.
+```
+
+`status()` reports `reason: 'api-unavailable'` (no built-in model in this browser, including every phone today), `'device-unsupported'` (the browser has the API but this machine cannot run the model) `'language-unsupported'`, or `'timeout'` when the browser does not answer within four seconds (seen in headless Chrome). Offer the WebLLM or Ollama backend in those cases; this runtime never falls back to a server. When the model still has to be downloaded, call `load()` from a click or key press: browsers refuse to start that download without a user gesture, and the runtime reports the refusal as `download-failed` with a message that says so. The download is several gigabytes, is handled by the browser and may continue after `cancel()`.
+
+`language` is the language of the brief and the writing as a BCP 47 tag; only its base is used (`ja` of `ja-JP`) and the default is `en`. Built-in models accept a short list of output languages that grows with browser releases, so the runtime asks the browser instead of keeping a list. Every draft runs in a fresh session whose system prompt is the task, with the writing schema as the Prompt API's `responseConstraint`, and the session is destroyed afterwards, so no earlier draft stays in the model's small context. Briefs are limited to 2,000 characters, and storyboards longer than three scenes are written scene by scene, as in the WebLLM runtime. `model` in the result is `browser-built-in`: the browser chooses the actual model and a host or recipe cannot. The SDK has not measured writing quality across browsers; treat it as a fast first backend and keep another one available.
+
 ## Browser vision
 
 Install the reviewed optional dependency in your isolated browser host:
@@ -626,11 +649,11 @@ Storyboard Builder generates a purpose, action, visual treatment, framing, dialo
 
 ### Constrained writing output
 
-Both writing runtimes decode against the writing contract's JSON Schema, so a model can only emit what the schema admits: Ollama 0.5 and later receive it as `format` (llama.cpp grammar), WebLLM as `response_format.schema` (XGrammar). Ollama older than 0.5 falls back to JSON mode, with the schema kept in the prompt, and the result says which happened in `decoding` (`'schema'` or `'json'`).
+Every writing runtime decodes against the writing contract's JSON Schema, so a model can only emit what the schema admits: Ollama 0.5 and later receive it as `format` (llama.cpp grammar), WebLLM as `response_format.schema` (XGrammar) and the browser's built-in model as `responseConstraint`. Ollama older than 0.5 falls back to JSON mode, with the schema kept in the prompt, and the result says which happened in `decoding` (`'schema'` or `'json'`).
 
 `prepareCreativeAgentTask` returns two schemas. `task.schema` is the prompt-facing form (a plain `items` list, unchanged in shape). `task.decodingSchema` is what the decoder gets: Cast Notes, Style Brief and Story Seed have one `prefixItems` slot per fixed heading, so headings cannot be reordered, repeated or skipped. Every text maximum in both is fitted to the artifact budget, so the longest draft the schema admits still fits it (`task.fitsBudget`; 5% is kept for JSON escapes). A 12-scene storyboard now admits about 10,800 characters instead of about 20,000, with action lines of up to 165 characters instead of 350; short contracts keep their full lengths. Content checks the decoder cannot express, such as repeated sentences, the requested art direction and named subjects, still run in the validator, with the one repair.
 
-If a runtime refuses to compile the per-position schema (Ollama answers with a schema or grammar error; WebLLM throws before streaming), the run retries once with `task.schema`. Other failures are not retried. The `writing-schema` subpath exposes the same pieces for your own backend:
+If a runtime refuses to compile the per-position schema (Ollama answers with a schema or grammar error; WebLLM or the built-in model throws before writing anything), the run retries once with `task.schema`. Other failures are not retried. The `writing-schema` subpath exposes the same pieces for your own backend:
 
 ```js
 import { prepareCreativeAgentTask } from '@optimai/creative-agents/agent-runtime';

@@ -47,6 +47,37 @@ const aborted = () => new DOMException('Browser AI operation cancelled.', 'Abort
 const checkAbort = (signal) => { if (signal?.aborted)
     throw aborted(); };
 const emit = (callback, progress) => { callback?.(progress); };
+const SCENE_BEATS = ['Introduce the cast, world and shared goal.', 'Discover a clue toward the shared goal.', 'Encounter a concrete obstacle.', 'Make a choice and agree a plan.', 'Act on the plan together.', 'Resolve the original goal and end with the requested feeling.'];
+/** The short system + user prompt compact on-device models follow; the schema constrains decoding separately. */
+export function compactWritingMessages(task, options = {}) {
+    const sectionProperties = task.schema.properties.sections.items.properties;
+    const headings = sectionProperties.heading.enum;
+    const contentFields = Object.keys(sectionProperties).filter(key => key !== 'heading');
+    // Small models follow a short task prompt more reliably than duplicated
+    // schema prose. The full reviewed schema still constrains decoding and
+    // the shared validator checks the actual artifact afterwards.
+    const messages = [{role: 'system', content: `Write finished creative content for ${task.title}. Return a JSON object with title, summary and exactly ${task.sectionCount} sections. ${headings ? `Use these headings in this order: ${headings.join('; ')}.` : 'Give each section a short scene or direction heading.'} Each section has these content fields: ${contentFields.join(', ')}. Write one concrete sentence per production field or two short sentences per body. Describe actual characters, actions, colors, light and material; do not write instructions about sections or schemas. Preserve the user’s cast, goal, language and art medium. Never repeat a sentence. Keep the entire artifact concise and within 2,048 tokens.`}, {...task.messages[1]}];
+    if (task.templateId === 'prompt-branches') {
+        const axis = options.values?.axis || 'visual style';
+        const variations = {
+            setting: ['a coastal town', 'a forest canopy', 'cloud islands', 'a desert oasis', 'a snowy village', 'a riverside market'],
+            tone: ['warm humor', 'quiet wonder', 'hopeful adventure', 'gentle mystery', 'festive energy', 'reflective calm'],
+            'camera framing': ['a wide environmental view', 'an intimate close-up', 'an overhead composition', 'a low-angle hero view', 'an over-the-shoulder view', 'a medium two-shot'],
+            'visual style': ['delicate linework', 'bold graphic contrast', 'soft painterly textures', 'cinematic lighting', 'editorial shapes', 'handcrafted materials'],
+        }[axis];
+        messages[0].content += `\nMake the ${task.sectionCount} directions clearly different along ${axis}. Use these approaches in order: ${variations.slice(0,task.sectionCount).join('; ')}. Keep the same cast, central action, goal and requested art medium in every prompt.`;
+    }
+    return messages;
+}
+/** One scene of a long storyboard: its label, story beat, one-section schema and prompt, with the last two actions as continuity. */
+export function sceneWritingStep(task, options, scene, sections, corrections = []) {
+    const label = `Scene ${scene + 1} of ${task.sectionCount}`;
+    const beat = SCENE_BEATS[Math.round(scene * (SCENE_BEATS.length - 1) / (task.sectionCount - 1))];
+    const continuity = sections.slice(-2).map((section, index) => `Previous action ${index + 1}: ${String(section.action).slice(0, 220)}`).join('\n');
+    const sceneSchema = singleSectionSchema(task.schema, { purpose: { type: 'string', enum: [beat] } });
+    const sceneMessages = [{role: 'system', content: `You are writing one scene for a complete ${task.sectionCount}-scene story. Return the JSON artifact, with exactly one section. Keep the same characters, language, art medium and shared goal as the brief. Each production field is one concrete sentence of at most 20 words. Make the action develop the story rather than repeating the previous action. Title and summary describe the whole story.`}, {role:'user',content:`Original creative brief: ${options.brief || task.messages[1].content}\nStory form: ${options.values?.form || 'short film'}\nContinuity notes:\n${continuity || 'This is the opening; introduce the cast and shared goal.'}\nNow write only ${label}. Scene purpose: ${beat}\n${corrections.length ? 'Corrections: ' + corrections.slice(0, 3).join(' ') : ''}`}];
+    return { label, beat, schema: sceneSchema, messages: sceneMessages };
+}
 /** Capability checks do not import the model engine or download any model assets. */
 export async function browserSupport() {
     const base = { provider: 'webllm', available: false, model: BROWSER_AGENT_MODEL };
@@ -194,23 +225,7 @@ export function createBrowserWritingRuntime(dependencies) {
         if (!ready || !current)
             throw new BrowserAgentError('not-ready', 'Download the browser model first. Your brief will stay on this device.');
         busy = true;
-        const sectionProperties = task.schema.properties.sections.items.properties;
-        const headings = sectionProperties.heading.enum;
-        const contentFields = Object.keys(sectionProperties).filter(key => key !== 'heading');
-        // Small models follow a short task prompt more reliably than duplicated
-        // schema prose. The full reviewed schema still constrains decoding and
-        // the shared validator checks the actual artifact afterwards.
-        const messages = [{role: 'system', content: `Write finished creative content for ${task.title}. Return a JSON object with title, summary and exactly ${task.sectionCount} sections. ${headings ? `Use these headings in this order: ${headings.join('; ')}.` : 'Give each section a short scene or direction heading.'} Each section has these content fields: ${contentFields.join(', ')}. Write one concrete sentence per production field or two short sentences per body. Describe actual characters, actions, colors, light and material; do not write instructions about sections or schemas. Preserve the user’s cast, goal, language and art medium. Never repeat a sentence. Keep the entire artifact concise and within 2,048 tokens.`}, {...task.messages[1]}];
-        if (task.templateId === 'prompt-branches') {
-            const axis = options.values?.axis || 'visual style';
-            const variations = {
-                setting: ['a coastal town', 'a forest canopy', 'cloud islands', 'a desert oasis', 'a snowy village', 'a riverside market'],
-                tone: ['warm humor', 'quiet wonder', 'hopeful adventure', 'gentle mystery', 'festive energy', 'reflective calm'],
-                'camera framing': ['a wide environmental view', 'an intimate close-up', 'an overhead composition', 'a low-angle hero view', 'an over-the-shoulder view', 'a medium two-shot'],
-                'visual style': ['delicate linework', 'bold graphic contrast', 'soft painterly textures', 'cinematic lighting', 'editorial shapes', 'handcrafted materials'],
-            }[axis];
-            messages[0].content += `\nMake the ${task.sectionCount} directions clearly different along ${axis}. Use these approaches in order: ${variations.slice(0,task.sectionCount).join('; ')}. Keep the same cast, central action, goal and requested art medium in every prompt.`;
-        }
+        const messages = compactWritingMessages(task, options);
         let errors = [], fallback = false;
         const deadline = Date.now() + (dependencies.generationTimeoutMs ?? (task.sectionCount > 3 && task.templateId === 'storyboard-builder' ? Math.min(600_000, task.sectionCount * 45_000 + 120_000) : 180_000));
         try {
@@ -261,14 +276,9 @@ export function createBrowserWritingRuntime(dependencies) {
                     // Write bounded scenes sequentially, with preceding actions as
                     // continuity context. These are model outputs, never filler.
                     const sections = []; let title = '', summary = '', complete = true;
-                    const beats = ['Introduce the cast, world and shared goal.', 'Discover a clue toward the shared goal.', 'Encounter a concrete obstacle.', 'Make a choice and agree a plan.', 'Act on the plan together.', 'Resolve the original goal and end with the requested feeling.'];
                     for (let scene = 0; scene < task.sectionCount; scene++) {
                         checkAbort(options.signal);
-                        const label = `Scene ${scene + 1} of ${task.sectionCount}`;
-                        const beat = beats[Math.round(scene * (beats.length - 1) / (task.sectionCount - 1))];
-                        const continuity = sections.slice(-2).map((section, index) => `Previous action ${index + 1}: ${String(section.action).slice(0, 220)}`).join('\n');
-                        const sceneSchema = singleSectionSchema(task.schema, { purpose: { type: 'string', enum: [beat] } });
-                        const sceneMessages = [{role: 'system', content: `You are writing one scene for a complete ${task.sectionCount}-scene story. Return the JSON artifact, with exactly one section. Keep the same characters, language, art medium and shared goal as the brief. Each production field is one concrete sentence of at most 20 words. Make the action develop the story rather than repeating the previous action. Title and summary describe the whole story.`}, {role:'user',content:`Original creative brief: ${options.brief || task.messages[1].content}\nStory form: ${options.values?.form || 'short film'}\nContinuity notes:\n${continuity || 'This is the opening; introduce the cast and shared goal.'}\nNow write only ${label}. Scene purpose: ${beat}\n${attempt === 2 ? 'Corrections: ' + errors.slice(0, 3).join(' ') : ''}`}];
+                        const { label, schema: sceneSchema, messages: sceneMessages } = sceneWritingStep(task, options, scene, sections, attempt === 2 ? errors : []);
                         const part = await generate(sceneMessages, { schema: sceneSchema, fallback: sceneSchema }, 1000, label);
                         try {
                             const parsed = JSON.parse(part.content.replace(/^\s*<think>\s*<\/think>\s*/, ''));

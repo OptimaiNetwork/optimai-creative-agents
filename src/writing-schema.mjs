@@ -1,5 +1,5 @@
 // Constrained writing output: the portable JSON Schema subset that local grammar engines
-// (llama.cpp behind Ollama, XGrammar behind WebLLM) compile into a decoder, a bound on the
+// (llama.cpp behind Ollama, XGrammar behind WebLLM, the browser's built-in model) compile into a decoder, a bound on the
 // longest JSON a schema admits, and the per-runtime request field that carries it.
 
 /** Keywords both engines compile; anything else is ignored or rejected by one of them. */
@@ -75,7 +75,8 @@ const versionAtLeast = (version, [major, minor]) => {
 
 /**
  * The request field that constrains decoding for a prepared writing task. `ollama` 0.5+ takes the schema as `format`
- * (older servers get JSON mode and the schema stays in the prompt); `webllm` takes `response_format`. `fallback: true`
+ * (older servers get JSON mode and the schema stays in the prompt); `webllm` takes `response_format`; `builtin` (the
+ * browser Prompt API) takes `responseConstraint`, kept out of the prompt because the task prompt already says it. `fallback: true`
  * uses the plain prompt schema, for a runtime that refused to compile the per-position one.
  */
 export function writingFormat(task, { provider, version, fallback = false } = {}) {
@@ -83,5 +84,6 @@ export function writingFormat(task, { provider, version, fallback = false } = {}
     const schema = fallback || !isObject(task.decodingSchema) ? task.schema : task.decodingSchema;
     if (provider === 'ollama') return versionAtLeast(version, [0, 5]) ? { format: schema, decoding: 'schema' } : { format: 'json', decoding: 'json' };
     if (provider === 'webllm') return { response_format: { type: 'json_object', schema: JSON.stringify(schema) }, decoding: 'schema' };
-    throw new TypeError('provider must be ollama or webllm.');
+    if (provider === 'builtin') return { responseConstraint: schema, omitResponseConstraintInput: true, decoding: 'schema' };
+    throw new TypeError('provider must be ollama, webllm or builtin.');
 }
