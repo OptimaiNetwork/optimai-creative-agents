@@ -675,6 +675,42 @@ Install the optional reviewed peer in the host: `npm install --save-exact mediab
 
 WebCodecs needs a secure context and `VideoEncoder`, `VideoFrame` and, for sound, `AudioEncoder`. Encoder support differs by browser and platform (some builds lack H.264 or AAC), which is why the probe tries several codecs and containers and always reports the recorder fallback. See [export video](./host-integration.md#export-video-with-webcodecs-or-the-recorder) for the host flow.
 
+## Depth to 2.5D parallax
+
+`@optimai/creative-agents/depth` turns one photo into a slow camera move through its own layers, entirely on the device. It is the local engine behind the `depth-motion` recipe: its `camera` (locked, slow push, orbit, tracking, handheld) and `depth` (subtle, medium) fields drive the move.
+
+| Step | Export | What it does |
+| --- | --- | --- |
+| Depth from a model | `createDepthEstimator({ ort })` or `({ transformers })` | Depth Anything V2 Small on the optional peer `onnxruntime-web@1.31.1` (the SDK does the resize and normalize itself: `depthInputSize`, `depthInputTensor`) or on `@huggingface/transformers@4.3.2`; WebGPU with fp16 weights (49.6 MB) when available, otherwise WebAssembly with q8 weights (27.3 MB) (`depthModelPlan`). `isDepthModelCached` says whether the planned weights are already stored |
+| Depth without a model | `guessDepth(pixels)` | A stand-in for a preview before the download: lower and busier reads as nearer. `source: 'guess'` |
+| The move | `depthMotionSettings(values)`, `depthCameraAt(settings, t)`, `depthOverscan` | The recipe's camera as a view per moment, and the scale-up that keeps borders out of frame |
+| The frame | `createParallaxRenderer(pixels, depth).render(view)` | Warps the photo by its depth: near layers move and grow more than far ones, foreground edges stay whole, uncovered areas stretch from their neighbours |
+| The clip | `createDepthMotionClip({ image, depth, values })` | `draw(index, frames)` onto a canvas, ready for [`exportCanvasVideo`](#video-export-with-webcodecs) |
+
+```js
+import * as ort from 'onnxruntime-web';
+import { createDepthEstimator, createDepthMotionClip, guessDepth } from '@optimai/creative-agents/depth';
+import { exportCanvasVideo, probeVideoExport } from '@optimai/creative-agents/video-export';
+
+const pixels = ctx.getImageData(0, 0, width, height);
+const estimator = await createDepthEstimator({ ort, onProgress: event => show(event) }).catch(() => null);
+const depth = estimator ? await estimator.estimate(pixels) : guessDepth(pixels);
+const clip = createDepthMotionClip({ image: pixels, depth, values: { camera: 'orbit', depth: 'subtle' } });
+const plan = await probeVideoExport({ width: clip.width, height: clip.height });
+const video = await exportCanvasVideo({ plan, canvas: clip.canvas, frames: 120, fps: 30, render: frame => clip.draw(frame, 120) });
+clip.close();
+```
+
+Depth maps are `{ width, height, data: Float32Array }` with 0 = far and 1 = near. They are relative (the model predicts disparity), not distances. `normalizeDepth` stretches any map to that range and `depthToPixels` draws it in grey.
+
+**The model is pinned and verified.** `DEPTH_MODEL` names one commit of `onnx-community/depth-anything-v2-small` with the byte size and SHA-256 of every weight file and the Git blob id of both config files. With `{ ort }`, the SDK downloads the weights itself through `createVerifiedModelCache`, checks them and hands the bytes to `ort.InferenceSession.create`; if WebGPU fails to start (for example a browser that has `navigator.gpu` but no adapter) it falls back once to WebAssembly with the q8 weights, unless you asked for `device: 'webgpu'`. Set `ort.env.wasm.wasmPaths` to where you serve ONNX Runtime's WASM files; bundlers cannot follow its dynamic WASM imports. With `{ transformers }`, `createDepthEstimator` installs `createVerifiedModelCache` as transformers.js's custom cache, so the SDK fetches the pinned files itself (no credentials, byte-capped), checks them before transformers.js sees a byte, and keeps verified copies in Cache Storage by hash. Weights from any other revision, or ONNX files that are not on the list, throw `unverified-model` instead of downloading. Other URLs go to the cache the host had set, so a host's other transformers.js models are unaffected. The estimator also turns off transformers.js's local-model lookup and its own browser cache. A host that builds its own pipeline can pass it as `{ pipeline }` instead; its results report `source: 'host'`.
+
+**Licenses and peers.** Depth Anything V2 Small is Apache-2.0. The Base, Large and Giant sizes are CC-BY-NC-4.0 (non-commercial) and are deliberately not offered. Prefer `npm install --save-exact onnxruntime-web@1.31.1` (MIT, no install script, no native packages; the browser needs one 29.5 MB WASM file). `@huggingface/transformers@4.3.2` (Apache-2.0) also works, but it installs `onnxruntime-node` (about 300 MB, with an install script) and `sharp` for its Node.js side. The SDK never imports either peer.
+
+**Measured.** In headless Chrome on a 10-core Mac with WebAssembly on one thread (no cross-origin isolation): the q8 weights downloaded and verified in 5.8 s, a stored copy was re-verified and loaded in 0.7 s, and one 1280×720 photo took 7.8 s to read (a 924×518 depth map). WebGPU was not available in that run.
+
+**Limits.** The model sees at most 1024 px on the long side (`DEPTH_LIMITS.inputSide`) and the renderer works at the photo's own size up to 16 megapixels; in headless Chrome on a 10-core Mac a frame took about 20 ms at 640×384 and 50 ms at 1280×768 of CPU work, so preview at a smaller size and leave full size to export. A depth warp cannot see behind things: large camera moves smear the edges of uncovered areas, which is why the recipe strengths stay small.
+
 ## Run a standalone agent from the command line
 
 Choose an eligible model already installed in your Ollama service. These commands perform real local inference and print the validated artifact as JSON. `--agent` and `--manifest` are mutually exclusive; `--model` is always explicit. A manifest supplies its own approved settings and creative brief, with optional additional direction from `--brief`.

@@ -95,7 +95,7 @@ These 14 templates prepare a bounded prompt and a named Studio destination. The 
 | Rhythm Cut | `rhythm-cut` | Rhythm and fragment-length direction for an edit | Editor Studio |
 | Frame Study | `frame-study` | Instructions for studying composition, lighting, depth and framing | Image Studio |
 | Motion Tracker | `motion-tracker` | Subject and overlay instructions for a tracking workflow | Editor Studio |
-| Depth Motion | `depth-motion` | Layered-depth movement and camera direction for a still | Video Studio |
+| Depth Motion | `depth-motion` | Layered-depth movement and camera direction for a still; the move can also be previewed on the device with the [`depth`](./runtimes.md#depth-to-25d-parallax) subpath | Video Studio |
 | Scene Scout | `scene-scout` | Location and time-of-day direction for exploring scene angles | Image Studio |
 | Scene Remix | `scene-remix` | Setting and visual direction for recomposing a selected subject | Image Studio |
 

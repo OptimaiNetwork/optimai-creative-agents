@@ -106,6 +106,17 @@ test('saveBlob clicks a download link and revokes its URL later', () => {
   assert.deepEqual(revoked, []); clock.fire(30_000); assert.deepEqual(revoked, ['blob:1']);
 });
 
+test('saveBlob calls the browser timer unbound, as browsers require', () => {
+  // Browsers throw "Illegal invocation" when setTimeout runs with any `this` but the global object or undefined.
+  const real = globalThis.setTimeout, calls = [];
+  globalThis.setTimeout = function (fn, ms) { if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation'); calls.push(ms); return 0; };
+  try {
+    const link = { click() {} };
+    saveBlob(new Blob(['v']), 'Clip.mp4', { document: { createElement: () => link }, URL: { createObjectURL: () => 'blob:2', revokeObjectURL() {} } });
+    assert.deepEqual(calls, [30_000]);
+  } finally { globalThis.setTimeout = real; }
+});
+
 test('the probe prefers WebCodecs MP4, falls back by codec, container and peer, and always names the recorder fallback', async () => {
   const supported = ['video/webm;codecs=vp9,opus', 'video/mp4'];
   let plan = await probeVideoExport({ width: 1280, height: 720, mediabunny: fakeMediabunny(), env: { ...webCodecs(), ...recorder(supported) } });

@@ -164,6 +164,11 @@
       "import": "./src/palette.mjs",
       "default": "./src/palette.mjs"
     },
+    "./depth": {
+      "types": "./src/depth.d.mts",
+      "import": "./src/depth.mjs",
+      "default": "./src/depth.mjs"
+    },
     "./writing-schema": {
       "types": "./src/writing-schema.d.mts",
       "import": "./src/writing-schema.mjs",
@@ -273,7 +278,9 @@
     "@mlc-ai/web-llm": "0.2.85",
     "@mediapipe/tasks-vision": "1.1.0",
     "three": "0.186.1",
-    "mediabunny": "1.62.1"
+    "mediabunny": "1.62.1",
+    "@huggingface/transformers": "4.3.2",
+    "onnxruntime-web": "1.31.1"
   },
   "peerDependenciesMeta": {
     "@mlc-ai/web-llm": {
@@ -286,6 +293,12 @@
       "optional": true
     },
     "mediabunny": {
+      "optional": true
+    },
+    "@huggingface/transformers": {
+      "optional": true
+    },
+    "onnxruntime-web": {
       "optional": true
     }
   },

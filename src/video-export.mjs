@@ -29,7 +29,8 @@ export class VideoExportError extends Error {
 const fail = (code, message) => new VideoExportError(code, message);
 const aborted = () => new DOMException('Export canceled.', 'AbortError');
 const fn = value => typeof value === 'function';
-const clock = timers => ({ set: timers?.setTimeout ?? globalThis.setTimeout, clear: timers?.clearTimeout ?? globalThis.clearTimeout });
+// Always call the timer functions on their owner: `clock().set(...)` with a bare browser setTimeout throws "Illegal invocation".
+const clock = timers => ({ set: (fn, ms) => timers?.setTimeout ? timers.setTimeout(fn, ms) : globalThis.setTimeout(fn, ms), clear: id => timers?.clearTimeout ? timers.clearTimeout(id) : globalThis.clearTimeout(id) });
 
 /** The first recorder type the browser supports (`supports` is usually `MediaRecorder.isTypeSupported`), or null. */
 export function chooseRecorderType(supports, { audio = true, container } = {}) {
