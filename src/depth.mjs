@@ -123,11 +123,15 @@ const CACHE_NAME = 'optimai-depth-models-v1';
 const cacheKey = spec => new URL(`/__optimai_depth_models__/${spec.sha256 || spec.gitSha1}`, globalThis.location?.origin || 'http://localhost').href;
 /** Whether the weights `depthModelPlan` would pick are already stored in this browser (checked again when they load). */
 export async function isDepthModelCached({ device, dtype, gpu, caches = globalThis.caches } = {}) {
-  const spec = DEPTH_MODEL.weights[depthModelPlan({ device, dtype, gpu }).dtype];
+  return isModelFileCached(DEPTH_MODEL.weights[depthModelPlan({ device, dtype, gpu }).dtype], { caches });
+}
+/** Whether `createVerifiedModelCache` already stored a pinned file (`{ sha256 }` or `{ gitSha1 }`) in this browser; checked again when it loads. */
+export async function isModelFileCached(spec, { caches = globalThis.caches } = {}) {
+  if (!spec?.sha256 && !spec?.gitSha1) return false;
   try { return Boolean(await (await caches?.open(CACHE_NAME))?.match(cacheKey(spec))); } catch { return false; }
 }
 
-export function createVerifiedModelCache({ model = DEPTH_MODEL, fetch = globalThis.fetch, caches = globalThis.caches, subtle = globalThis.crypto?.subtle, fallback = null, signal, onProgress } = {}) {
+export function createVerifiedModelCache({ model = DEPTH_MODEL, label = model === DEPTH_MODEL ? 'depth model' : 'model', fetch = globalThis.fetch, caches = globalThis.caches, subtle = globalThis.crypto?.subtle, fallback = null, signal, onProgress } = {}) {
   const pending = new Map(), name = CACHE_NAME;
   const total = Object.values(model.config).reduce((sum, spec) => sum + spec.bytes, 0);
   async function load(path, spec) {
@@ -140,11 +144,11 @@ export function createVerifiedModelCache({ model = DEPTH_MODEL, fetch = globalTh
       if (await verifyDepthFile(bytes, spec, { subtle })) { onProgress?.({ stage: 'verify', file: path, loaded: spec.bytes, total: spec.bytes, cached: true }); return bytes; }
       await store.delete(key).catch(() => {});
     }
-    if (typeof fetch !== 'function') throw new DepthError('download-failed', 'This browser cannot download the depth model.');
+    if (typeof fetch !== 'function') throw new DepthError('download-failed', `This browser cannot download the ${label}.`);
     let response;
     try { response = await fetch(depthModelUrl(path, model), { signal, credentials: 'omit', redirect: 'follow' }); }
-    catch (error) { if (error?.name === 'AbortError') throw error; throw new DepthError('download-failed', 'The depth model could not be downloaded. Check your connection and try again.', { cause: error }); }
-    if (!response?.ok) throw new DepthError('download-failed', `The depth model could not be downloaded (${response?.status ?? 'no response'}).`);
+    catch (error) { if (error?.name === 'AbortError') throw error; throw new DepthError('download-failed', `The ${label} could not be downloaded. Check your connection and try again.`, { cause: error }); }
+    if (!response?.ok) throw new DepthError('download-failed', `The ${label} could not be downloaded (${response?.status ?? 'no response'}).`);
     const bytes = await readCapped(response, spec.bytes, signal, loaded => onProgress?.({ stage: 'download', file: path, loaded, total: spec.bytes }));
     onProgress?.({ stage: 'verify', file: path, loaded: spec.bytes, total: spec.bytes });
     if (!(await verifyDepthFile(bytes, spec, { subtle }))) throw new DepthError('unverified-model', `${path} does not match its reviewed checksum, so it will not run.`);
@@ -156,7 +160,7 @@ export function createVerifiedModelCache({ model = DEPTH_MODEL, fetch = globalTh
     async match(request) {
       const url = typeof request === 'string' ? request : request?.url, file = depthModelFile(url, model);
       if (!file) return fallback?.match ? fallback.match(request) : undefined;
-      if (file.kind === 'weights' && (!file.pinned || !file.spec)) throw new DepthError('unverified-model', `${file.path} is not a reviewed depth model file, so it will not run.`);
+      if (file.kind === 'weights' && (!file.pinned || !file.spec)) throw new DepthError('unverified-model', `${file.path} is not a reviewed ${label} file, so it will not run.`);
       if (!file.spec || !file.pinned) return fallback?.match ? fallback.match(request) : undefined;
       if (!pending.has(file.path)) pending.set(file.path, load(file.path, file.spec).catch(error => { pending.delete(file.path); throw error; }));
       const bytes = await pending.get(file.path);

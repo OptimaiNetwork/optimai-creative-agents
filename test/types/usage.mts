@@ -23,6 +23,8 @@ import { createTransitionClip } from '@optimai/creative-agents/canvas-lab';
 import { createMusicReactiveRenderer } from '@optimai/creative-agents/music-reactive';
 import { FRAME_SCULPTURE_TURNTABLE, type FrameSculptureController } from '@optimai/creative-agents/frame-sculpture';
 import { paletteFiles, readAse, buildPalette, type Palette } from '@optimai/creative-agents/palette';
+import { createAssetIndex, loadAssetIndex, readImageFeatures, type AssetSearchResult } from '@optimai/creative-agents/asset-search';
+import { createAssetEmbedder, siglipMatchChance, assetEmbedderPlan, type AssetEmbedderOrt } from '@optimai/creative-agents/asset-embedder';
 import { runCanvasLab } from '@optimai/creative-agents/canvas-lab';
 import { prepareCreativeAgentTask } from '@optimai/creative-agents/agent-runtime';
 import { checkConstrainedSchema, maxJsonLength, writingFormat } from '@optimai/creative-agents/writing-schema';
@@ -128,4 +130,24 @@ export function ollamaRequest(brief: string): { format: Record<string, unknown> 
   // @ts-expect-error writing formats exist for ollama, webllm and builtin only
   writingFormat(task, { provider: 'cloud' });
   return { format, fits: task.fitsBudget && !checkConstrainedSchema(task.decodingSchema).length && maxJsonLength(JSON.parse(web)) < Infinity };
+}
+
+export function findShot(bitmap: ImageBitmap, saved: string): readonly AssetSearchResult[] {
+  const { index } = loadAssetIndex(saved, { model: 'demo-clip@1' });
+  index.add({ id: 'new', name: 'red-car.jpg', features: readImageFeatures(bitmap, bitmap.width, bitmap.height), vector: new Float32Array(512) });
+  // @ts-expect-error asset ids are strings
+  createAssetIndex().add({ id: 7 });
+  const { results, unmatched } = index.search('the red car', { vector: [0.1, 0.2], limit: 5 });
+  return unmatched.length ? results.filter(result => result.matches.includes('red')) : results;
+}
+
+export async function searchByMeaning(ort: AssetEmbedderOrt, pixels: ImageData, words: string): Promise<readonly AssetSearchResult[]> {
+  const embedder = createAssetEmbedder({ ort, onProgress: event => void event.part });
+  const index = createAssetIndex({ model: embedder.index });
+  index.add({ id: 'a', vector: await embedder.embedImage(pixels) });
+  // @ts-expect-error q8 is a precision, not a device
+  assetEmbedderPlan({ vision: { device: 'q8' } });
+  const { bytes } = assetEmbedderPlan({ gpu: true });
+  void bytes;
+  return index.search(words, { vector: await embedder.embedText(words), calibrate: siglipMatchChance }).results;
 }

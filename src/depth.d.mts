@@ -4,6 +4,8 @@ export type DepthPixels = { width: number; height: number; data: Uint8ClampedArr
 export type DepthMap = { width: number; height: number; data: Float32Array; source?: 'model' | 'guess' | 'host' };
 export type DepthWeightFile = Readonly<{ file: string; bytes: number; sha256: string }>;
 export type DepthConfigFile = Readonly<{ bytes: number; gitSha1: string }>;
+/** Any model pinned to one Hub commit, with every weight file's SHA-256 and every config file's Git blob id (`DEPTH_MODEL`, `SIGLIP_MODEL`). */
+export type PinnedModelFiles = Readonly<{ repo: string; revision: string; host: string; config: Readonly<Record<string, DepthConfigFile>>; weights: Readonly<Record<string, DepthWeightFile>> }>;
 export type DepthDtype = 'fp32' | 'fp16' | 'q8' | 'int8' | 'uint8' | 'q4' | 'q4f16' | 'bnb4';
 export type DepthDevice = 'webgpu' | 'wasm';
 export type DepthCamera = 'locked' | 'slow push' | 'orbit' | 'tracking' | 'handheld';
@@ -37,9 +39,9 @@ export declare class DepthError extends Error {
 
 export type DepthModelFileMatch = { kind: 'weights' | 'config' | 'other'; path: string; spec: DepthWeightFile | DepthConfigFile | null; pinned: boolean };
 /** Which pinned file a Hub URL names, or `null` for any other URL. */
-export function depthModelFile(url: string, model?: typeof DEPTH_MODEL): DepthModelFileMatch | null;
+export function depthModelFile(url: string, model?: PinnedModelFiles): DepthModelFileMatch | null;
 /** The pinned URL of a model file. */
-export function depthModelUrl(path: string, model?: typeof DEPTH_MODEL): string;
+export function depthModelUrl(path: string, model?: PinnedModelFiles): string;
 /** Check bytes against a pinned file: SHA-256 for weights, the Git blob id for config. */
 export function verifyDepthFile(bytes: ArrayBuffer | ArrayBufferView, spec: DepthWeightFile | DepthConfigFile, options?: { subtle?: SubtleCrypto }): Promise<boolean>;
 
@@ -48,13 +50,18 @@ export type DepthProgressEvent = { stage: 'download' | 'verify'; file: string; l
 export type DepthModelCache = { match(request: string | Request): Promise<Response | undefined>; put(request: string | Request, response: Response): Promise<void> };
 /** A transformers.js custom cache that serves only verified bytes for the pinned model and refuses other weights. */
 export function createVerifiedModelCache(options?: {
-  model?: typeof DEPTH_MODEL; fetch?: typeof fetch; caches?: CacheStorage; subtle?: SubtleCrypto;
+  model?: PinnedModelFiles;
+  /** Names the model in error messages; defaults to "depth model" for `DEPTH_MODEL`, otherwise "model". */
+  label?: string;
+  fetch?: typeof fetch; caches?: CacheStorage; subtle?: SubtleCrypto;
   /** The host's own cache for every other URL. */
   fallback?: DepthModelCache | null;
   signal?: AbortSignal; onProgress?: (event: DepthProgressEvent) => void;
-}): Readonly<DepthModelCache & { model: typeof DEPTH_MODEL; configBytes: number }>;
+}): Readonly<DepthModelCache & { model: PinnedModelFiles; configBytes: number }>;
 /** Whether the weights `depthModelPlan` would pick are already stored in this browser (they are checked again on load). */
 export function isDepthModelCached(options?: { device?: DepthDevice; dtype?: DepthDtype; gpu?: boolean; caches?: CacheStorage }): Promise<boolean>;
+/** Whether `createVerifiedModelCache` already stored this pinned file in this browser (it is checked again on load). */
+export function isModelFileCached(spec: DepthWeightFile | DepthConfigFile, options?: { caches?: CacheStorage }): Promise<boolean>;
 /** WebGPU with fp16 when available, otherwise WebAssembly with q8; `bytes` is the download. */
 export function depthModelPlan(options?: { device?: DepthDevice; dtype?: DepthDtype; gpu?: boolean }): Readonly<{ device: DepthDevice; dtype: DepthDtype; file: string; bytes: number }>;
 

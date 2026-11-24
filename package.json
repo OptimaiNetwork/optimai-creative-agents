@@ -164,6 +164,16 @@
       "import": "./src/palette.mjs",
       "default": "./src/palette.mjs"
     },
+    "./asset-search": {
+      "types": "./src/asset-search.d.mts",
+      "import": "./src/asset-search.mjs",
+      "default": "./src/asset-search.mjs"
+    },
+    "./asset-embedder": {
+      "types": "./src/asset-embedder.d.mts",
+      "import": "./src/asset-embedder.mjs",
+      "default": "./src/asset-embedder.mjs"
+    },
     "./depth": {
       "types": "./src/depth.d.mts",
       "import": "./src/depth.mjs",

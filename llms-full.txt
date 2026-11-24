@@ -1271,6 +1271,184 @@ export declare function readAse(bytes: Uint8Array | ArrayBuffer): { name: string
 export declare function paletteFiles(palette: Palette, options?: { formats?: readonly PaletteFormat[]; basename?: string; prefix?: string }): PaletteFile[];
 ```
 
+### `@optimai/creative-agents/asset-search`
+
+Declared in `src/asset-search.d.mts`, implemented in `src/asset-search.mjs`.
+
+```ts
+export type AssetColorFamily = 'red' | 'orange' | 'yellow' | 'green' | 'cyan' | 'blue' | 'purple' | 'pink' | 'brown' | 'black' | 'white' | 'grey';
+export type AssetTone = 'dark' | 'bright' | 'mono' | 'colorful' | 'muted' | 'warm' | 'cool' | 'contrast';
+export type AssetShape = 'portrait' | 'landscape' | 'square' | 'panorama';
+export declare const ASSET_INDEX_VERSION: 1;
+export declare const ASSET_INDEX_KIND: 'optimai.asset-index';
+export declare const ASSET_SEARCH_LIMITS: Readonly<{ assets: 5000; id: 128; name: 256; text: 512; tags: 32; tag: 64; query: 200; terms: 16; dims: 2048; results: 200; analysisEdge: 64; maxPixels: 262144 }>;
+export declare const ASSET_SEARCH_COLORS: readonly AssetColorFamily[];
+export declare const ASSET_SEARCH_TONES: readonly AssetTone[];
+export declare const ASSET_SEARCH_SHAPES: readonly AssetShape[];
+
+/** A storable visual signature: each color family's share of the image and how light it is there, plus overall tone and shape (width ÷ height). */
+export type AssetFeatures = {
+    readonly version: 1;
+    readonly aspect: number;
+    readonly lightness: number;
+    readonly contrast: number;
+    readonly chroma: number;
+    readonly chromatic: number;
+    readonly warmth: number;
+    readonly colors: Readonly<Partial<Record<AssetColorFamily, { readonly weight: number; readonly lightness: number }>>>;
+};
+export type AssetHint =
+    | { readonly kind: 'color'; readonly value: AssetColorFamily; readonly shade?: 'light' | 'dark'; readonly negate: boolean; readonly label: string }
+    | { readonly kind: 'tone'; readonly value: AssetTone; readonly negate: boolean; readonly label: string }
+    | { readonly kind: 'shape'; readonly value: AssetShape; readonly negate: boolean; readonly label: string };
+export type AssetQuery = { readonly text: string; readonly hints: readonly AssetHint[]; readonly terms: readonly { readonly word: string; readonly negate: boolean }[] };
+export type AssetVector = Float32Array | Float64Array | readonly number[];
+export type AssetInput = { id: string; name?: string; tags?: readonly string[]; text?: string; features?: AssetFeatures | null; vector?: AssetVector | null };
+export type AssetEntry = { readonly id: string; readonly name: string; readonly tags: readonly string[]; readonly text: string; readonly features: AssetFeatures | null; readonly hasVector: boolean };
+/** `matches` are labels of the hints and words this asset fits; `similarity` is the embedding cosine (null without a vector) when a query vector was given. */
+export type AssetSearchResult = { readonly id: string; readonly name: string; readonly score: number; readonly matches: readonly string[]; readonly similarity?: number | null };
+export type AssetSearch = { readonly query: AssetQuery; readonly results: readonly AssetSearchResult[]; readonly unmatched: readonly string[]; readonly total: number };
+export type SavedAssetIndex = {
+    kind: 'optimai.asset-index';
+    version: 1;
+    model: string | null;
+    dims: number | null;
+    entries: Array<{ id: string; name?: string; tags?: string[]; text?: string; features?: AssetFeatures; vector?: string }>;
+};
+export type AssetIndex = {
+    readonly model: string | null;
+    readonly dims: number | null;
+    readonly size: number;
+    has(id: string): boolean;
+    get(id: string): AssetEntry | null;
+    ids(): string[];
+    /** Add or replace an asset. Vectors need a named `model` and one length per index. */
+    add(asset: AssetInput): AssetEntry;
+    remove(id: string): boolean;
+    clear(): void;
+    /**
+     * `calibrate` maps a cosine to a 0–1 match chance (SigLIP: `siglipMatchChance`); meaning then counts relative to the best match.
+     * `vectorWeight` defaults to 0.7, or 0.4 when every word is a color, tone or shape word.
+     */
+    search(query: string | AssetQuery, options?: { vector?: AssetVector | null; vectorWeight?: number; calibrate?: ((cosine: number) => number) | null; limit?: number; minScore?: number }): AssetSearch;
+    toJSON(): SavedAssetIndex;
+};
+
+/** The plain color family a searcher would give one sRGB pixel. */
+export declare function colorFamily(r: number, g: number, b: number): AssetColorFamily;
+/** Signature of RGBA thumbnail pixels (≤ 262,144); `aspect` is the original width ÷ height. */
+export declare function describeImage(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number, options?: { aspect?: number }): AssetFeatures;
+/** Signature of a decoded image, video frame or canvas from a ≤ 64 px thumbnail, or null when pixels can't be read. */
+export declare function readImageFeatures(source: CanvasImageSource, sourceWidth: number, sourceHeight: number): AssetFeatures | null;
+/** Plain words → color, shade, tone and shape hints plus words to match names, tags and captions. */
+export declare function parseAssetQuery(text: string): AssetQuery;
+/** How well a signature fits one hint, 0–1, before negation. */
+export declare function hintScore(features: AssetFeatures | null, hint: AssetHint): number;
+/** A unit-length Float32Array copy; throws on a zero or non-finite vector. */
+export declare function normalizeVector(vector: AssetVector): Float32Array;
+export declare function cosineSimilarity(a: ArrayLike<number>, b: ArrayLike<number>): number;
+/** An in-memory index; `model` names the embedding model its vectors come from. */
+export declare function createAssetIndex(options?: { model?: string | null; dims?: number | null }): AssetIndex;
+/** Rebuild a saved index; vectors from another model (or none) are dropped, entries stay searchable by look and name. */
+export declare function loadAssetIndex(saved: SavedAssetIndex | string, options?: { model?: string | null }): { index: AssetIndex; dropped: { entries: number; vectors: number } };
+```
+
+### `@optimai/creative-agents/asset-embedder`
+
+Declared in `src/asset-embedder.d.mts`, implemented in `src/asset-embedder.mjs`.
+
+```ts
+import type { DepthConfigFile, DepthProgressEvent, DepthWeightFile } from './depth.mjs';
+
+export type AssetEmbedderDevice = 'webgpu' | 'wasm';
+export type AssetEmbedderDtype = 'q8' | 'q4f16' | 'fp16';
+export type AssetEmbedderPart = 'vision' | 'text';
+export type AssetEmbedderErrorCode = 'runtime-missing' | 'unverified-model' | 'download-failed' | 'load-failed' | 'unsupported-browser' | 'image-too-large' | 'bad-output' | 'closed';
+
+/** The optional peer that runs the encoders: ONNX Runtime Web, pinned (shared with depth). */
+export declare const ASSET_EMBEDDER_RUNTIME: Readonly<{ package: 'onnxruntime-web'; version: '1.31.1'; license: 'MIT' }>;
+/** Google SigLIP base, patch 16, 224 px (Apache-2.0) as one pinned ONNX export, with every file hashed. */
+export declare const SIGLIP_MODEL: Readonly<{
+    id: 'siglip-base-patch16-224'; name: string; license: 'Apache-2.0'; author: 'Google'; source: 'google/siglip-base-patch16-224';
+    repo: string; revision: string; host: string;
+    /** The `model` name for `createAssetIndex`, so vectors from any other model are never compared with these. */
+    index: string;
+    dims: 768; textLength: 64; template: string;
+    preprocess: Readonly<{ size: 224; mean: readonly [number, number, number]; std: readonly [number, number, number] }>;
+    /** SigLIP's match calibration: chance = sigmoid(scale × cosine + bias). */
+    logit: Readonly<{ scale: number; bias: number }>;
+    tokens: Readonly<{ pad: 1; eos: 1; unk: 2 }>;
+    config: Readonly<{ 'tokenizer.json': DepthConfigFile }>;
+    weights: Readonly<Record<`${AssetEmbedderPart}-${AssetEmbedderDtype}`, DepthWeightFile>>;
+}>;
+export declare const ASSET_EMBEDDER_DTYPES: readonly AssetEmbedderDtype[];
+export declare const ASSET_EMBEDDER_LIMITS: Readonly<{ pixels: number; text: number; vocab: number; piece: number }>;
+export declare class AssetEmbedderError extends Error {
+    constructor(code: AssetEmbedderErrorCode, message: string, options?: { cause?: unknown });
+    name: 'AssetEmbedderError';
+    code: AssetEmbedderErrorCode;
+}
+
+/** Lowercase, no ASCII punctuation, single spaces, NFKC: how SigLIP's text was prepared. */
+export declare function canonicalSiglipText(text: unknown): string;
+export type SiglipTokenizer = Readonly<{
+    size: number;
+    length: number;
+    /** Piece ids for already-canonical text. */
+    split(text: string): number[];
+    /** Canonicalized, split, `</s>`-terminated and padded to `length` ids; `count` includes `</s>`. */
+    encode(text: string): { ids: number[]; count: number };
+}>;
+/** A SentencePiece Unigram tokenizer over a `tokenizer.json` (Viterbi split, UTF-8 byte fallback, fixed length). */
+export declare function createSiglipTokenizer(json: string | object, options?: { length?: number }): SiglipTokenizer;
+/** RGBA pixels → float32 NCHW `[1, 3, 224, 224]` in −1…1, squashed to the square. */
+export declare function siglipImageTensor(image: { width: number; height: number; data: Uint8ClampedArray | Uint8Array }, options?: { preprocess?: typeof SIGLIP_MODEL.preprocess }): { data: Float32Array; dims: [1, 3, number, number] };
+/** SigLIP's own match probability for a cosine, 0–1. Pass it as `calibrate` to `AssetIndex.search`. */
+export declare function siglipMatchChance(cosine: number): number;
+
+export type AssetEmbedderPartPlan = Readonly<{ device: AssetEmbedderDevice; dtype: AssetEmbedderDtype; file: string; bytes: number }>;
+export type AssetEmbedderPlan = Readonly<{ vision: AssetEmbedderPartPlan; text: AssetEmbedderPartPlan; bytes: number }>;
+export type AssetEmbedderPartChoice = { device?: AssetEmbedderDevice; dtype?: AssetEmbedderDtype };
+/** Pictures on WebGPU (q4f16) when available, else WebAssembly (q8); searches on WebAssembly (q8). q8 on WebGPU is refused. */
+export declare function assetEmbedderPlan(options?: { vision?: AssetEmbedderPartChoice; text?: AssetEmbedderPartChoice; gpu?: boolean }): AssetEmbedderPlan;
+/** Which halves of the planned model are already stored in this browser (checked again when they load). */
+export declare function isAssetEmbedderCached(options?: { vision?: AssetEmbedderPartChoice; text?: AssetEmbedderPartChoice; gpu?: boolean; caches?: CacheStorage }): Promise<{ vision: boolean; text: boolean }>;
+
+export type AssetEmbedderProgressEvent = DepthProgressEvent & { part: AssetEmbedderPart; model: 'siglip-base-patch16-224' };
+export type AssetEmbedder = Readonly<{
+    model: 'siglip-base-patch16-224';
+    index: string;
+    dims: 768;
+    /** Where each half runs now (a WebGPU half that failed to start shows its WebAssembly fallback). */
+    readonly plan: AssetEmbedderPlan;
+    ready(part: AssetEmbedderPart): boolean;
+    prepare(part?: AssetEmbedderPart): Promise<void>;
+    embedImage(image: { width: number; height: number; data: Uint8ClampedArray | Uint8Array }, options?: { signal?: AbortSignal }): Promise<Float32Array>;
+    embedText(text: string, options?: { signal?: AbortSignal }): Promise<Float32Array>;
+    matchChance(cosine: number): number;
+    dispose(): Promise<void>;
+}>;
+/** Minimal shape of the `onnxruntime-web` module the embedder needs. */
+export type AssetEmbedderOrt = {
+    Tensor: new (type: 'float32' | 'int64', data: Float32Array | BigInt64Array, dims: number[]) => unknown;
+    InferenceSession: { create(model: Uint8Array, options?: object): Promise<{ inputNames: readonly string[]; outputNames: readonly string[]; run(feeds: Record<string, unknown>): Promise<Record<string, { data: ArrayLike<number | bigint>; dispose?(): void }>>; release?(): Promise<void> }> };
+};
+/** Lazy SigLIP embeddings on the host's ONNX Runtime Web: nothing downloads until `prepare` or the first embed. */
+export declare function createAssetEmbedder(options: {
+    ort: AssetEmbedderOrt;
+    vision?: AssetEmbedderPartChoice;
+    text?: AssetEmbedderPartChoice;
+    gpu?: boolean;
+    fetch?: typeof fetch;
+    caches?: CacheStorage | null;
+    subtle?: SubtleCrypto | { digest(algorithm: string, data: BufferSource): Promise<ArrayBuffer> };
+    signal?: AbortSignal;
+    onProgress?: (event: AssetEmbedderProgressEvent) => void;
+    /** Where the search goes, default "a photo of {}". */
+    template?: string;
+}): AssetEmbedder;
+```
+
 ### `@optimai/creative-agents/depth`
 
 Declared in `src/depth.d.mts`, implemented in `src/depth.mjs`.
@@ -1282,6 +1460,8 @@ export type DepthPixels = { width: number; height: number; data: Uint8ClampedArr
 export type DepthMap = { width: number; height: number; data: Float32Array; source?: 'model' | 'guess' | 'host' };
 export type DepthWeightFile = Readonly<{ file: string; bytes: number; sha256: string }>;
 export type DepthConfigFile = Readonly<{ bytes: number; gitSha1: string }>;
+/** Any model pinned to one Hub commit, with every weight file's SHA-256 and every config file's Git blob id (`DEPTH_MODEL`, `SIGLIP_MODEL`). */
+export type PinnedModelFiles = Readonly<{ repo: string; revision: string; host: string; config: Readonly<Record<string, DepthConfigFile>>; weights: Readonly<Record<string, DepthWeightFile>> }>;
 export type DepthDtype = 'fp32' | 'fp16' | 'q8' | 'int8' | 'uint8' | 'q4' | 'q4f16' | 'bnb4';
 export type DepthDevice = 'webgpu' | 'wasm';
 export type DepthCamera = 'locked' | 'slow push' | 'orbit' | 'tracking' | 'handheld';
@@ -1315,9 +1495,9 @@ export declare class DepthError extends Error {
 
 export type DepthModelFileMatch = { kind: 'weights' | 'config' | 'other'; path: string; spec: DepthWeightFile | DepthConfigFile | null; pinned: boolean };
 /** Which pinned file a Hub URL names, or `null` for any other URL. */
-export function depthModelFile(url: string, model?: typeof DEPTH_MODEL): DepthModelFileMatch | null;
+export function depthModelFile(url: string, model?: PinnedModelFiles): DepthModelFileMatch | null;
 /** The pinned URL of a model file. */
-export function depthModelUrl(path: string, model?: typeof DEPTH_MODEL): string;
+export function depthModelUrl(path: string, model?: PinnedModelFiles): string;
 /** Check bytes against a pinned file: SHA-256 for weights, the Git blob id for config. */
 export function verifyDepthFile(bytes: ArrayBuffer | ArrayBufferView, spec: DepthWeightFile | DepthConfigFile, options?: { subtle?: SubtleCrypto }): Promise<boolean>;
 
@@ -1326,13 +1506,18 @@ export type DepthProgressEvent = { stage: 'download' | 'verify'; file: string; l
 export type DepthModelCache = { match(request: string | Request): Promise<Response | undefined>; put(request: string | Request, response: Response): Promise<void> };
 /** A transformers.js custom cache that serves only verified bytes for the pinned model and refuses other weights. */
 export function createVerifiedModelCache(options?: {
-  model?: typeof DEPTH_MODEL; fetch?: typeof fetch; caches?: CacheStorage; subtle?: SubtleCrypto;
+  model?: PinnedModelFiles;
+  /** Names the model in error messages; defaults to "depth model" for `DEPTH_MODEL`, otherwise "model". */
+  label?: string;
+  fetch?: typeof fetch; caches?: CacheStorage; subtle?: SubtleCrypto;
   /** The host's own cache for every other URL. */
   fallback?: DepthModelCache | null;
   signal?: AbortSignal; onProgress?: (event: DepthProgressEvent) => void;
-}): Readonly<DepthModelCache & { model: typeof DEPTH_MODEL; configBytes: number }>;
+}): Readonly<DepthModelCache & { model: PinnedModelFiles; configBytes: number }>;
 /** Whether the weights `depthModelPlan` would pick are already stored in this browser (they are checked again on load). */
 export function isDepthModelCached(options?: { device?: DepthDevice; dtype?: DepthDtype; gpu?: boolean; caches?: CacheStorage }): Promise<boolean>;
+/** Whether `createVerifiedModelCache` already stored this pinned file in this browser (it is checked again on load). */
+export function isModelFileCached(spec: DepthWeightFile | DepthConfigFile, options?: { caches?: CacheStorage }): Promise<boolean>;
 /** WebGPU with fp16 when available, otherwise WebAssembly with q8; `bytes` is the download. */
 export function depthModelPlan(options?: { device?: DepthDevice; dtype?: DepthDtype; gpu?: boolean }): Readonly<{ device: DepthDevice; dtype: DepthDtype; file: string; bytes: number }>;
 
@@ -3272,6 +3457,68 @@ Depth maps are `{ width, height, data: Float32Array }` with 0 = far and 1 = near
 
 **Limits.** The model sees at most 1024 px on the long side (`DEPTH_LIMITS.inputSide`) and the renderer works at the photo's own size up to 16 megapixels; in headless Chrome on a 10-core Mac a frame took about 20 ms at 640×384 and 50 ms at 1280×768 of CPU work, so preview at a smaller size and leave full size to export. A depth warp cannot see behind things: large camera moves smear the edges of uncovered areas, which is why the recipe strengths stay small.
 
+#### Local asset search
+
+`@optimai/creative-agents/asset-search` finds a shot among a creator's own images by how it looks and what it is called, on the device, with no model and no upload: *the red car*, *dark and moody portrait*, *black and white, without sky*.
+
+| Step | Call | What it does |
+| --- | --- | --- |
+| Read a picture once | `readImageFeatures(image, width, height)` or `describeImage(rgba, w, h, { aspect })` | A small, storable signature from a ≤ 64 px thumbnail: each of 12 plain color families' share of the picture (per pixel in OKLab) and how light it is there, plus lightness, contrast, colorfulness, warmth and shape. `null` when pixels can't be read (a cross-origin image), so the asset is still found by name |
+| Understand the words | `parseAssetQuery(text)` | Color words and their synonyms (*crimson*, *navy*, *golden*), *light*/*dark* before a color, tones (*dark*, *bright*, *black and white*, *vibrant*, *muted*, *warm*, *cool*, *high contrast*) and shapes (*portrait*, *landscape*, *square*, *panorama*); everything else is a word to match in names, tags and captions |
+| Keep and rank | `createAssetIndex()` → `add`, `search`, `remove`, `toJSON`; `loadAssetIndex(saved)` | Ranked results with the labels each asset matched (`['red', 'car']`) and the words nothing matched (`unmatched`), so a UI can say what it could not use instead of pretending |
+
+```js
+import { createAssetIndex, readImageFeatures } from '@optimai/creative-agents/asset-search';
+
+const index = createAssetIndex();
+for (const file of files) {
+  const bitmap = await createImageBitmap(file);
+  index.add({ id: file.name, name: file.name, features: readImageFeatures(bitmap, bitmap.width, bitmap.height) });
+  bitmap.close();
+}
+const { results, unmatched } = index.search('the red car');
+// results: [{ id, name, score, matches: ['red'] }, …]; unmatched: ['car'] unless a name or tag says "car"
+```
+
+**How it ranks.** Each color, tone and shape hint and each matched word scores 0–1 and the asset's score is their mean, so an asset that fits everything asked ranks first. A color counts from 1% of the picture and is full strength at 20%, so a small red car still counts. *no red* scores pictures with little or no red; *-garden* and *without garden* leave out every asset whose name, tags or caption has the word. A word that no asset has is reported in `unmatched` and does not lower anyone's score. An empty query lists every asset in the order added.
+
+**Embeddings.** The same index takes vectors from any image–text embedding model (CLIP-style: one vector per image, one per query). Name the model (`createAssetIndex({ model: 'name@revision' })`), add each image's `vector`, and search with the query's: `index.search('a cat asleep', { vector })`. Cosine similarity is blended with the hints (`vectorWeight`, default 0.7, or 0.4 for searches made only of look words), results gain `similarity`, and nothing is `unmatched`. Vectors are normalized and must all have one length. `toJSON()` stores them as base64 float32; `loadAssetIndex(saved, { model })` drops vectors made by any other model, so they are never compared with new ones, and those assets stay searchable by look and name.
+
+**Limits.** At most 5,000 assets per index, 2,048-number vectors, 200-character queries and 16 hints and words. Signatures are about 0.5 KB each as JSON. Look search understands color, tone and shape only; it cannot tell a car from a tomato. For that, add meaning.
+
+##### Search by meaning
+
+`@optimai/creative-agents/asset-embedder` adds what look search cannot do: *a fox carrying a lantern*, *a train station platform in summer*, *a sneaker*. It runs Google's SigLIP base model (patch 16, 224 px, Apache-2.0) on the device through the same optional `onnxruntime-web@1.31.1` peer as depth.
+
+```js
+import * as ort from 'onnxruntime-web';
+import { createAssetIndex } from '@optimai/creative-agents/asset-search';
+import { createAssetEmbedder, siglipMatchChance } from '@optimai/creative-agents/asset-embedder';
+
+const embedder = createAssetEmbedder({ ort, onProgress: ({ part, loaded, total }) => show(part, loaded / total) });
+const index = createAssetIndex({ model: embedder.index });
+index.add({ id: 'p1', name: file.name, features, vector: await embedder.embedImage(pixels) });   // pixels: { width, height, data }
+const query = 'the shot with the red car';
+const { results } = index.search(query, { vector: await embedder.embedText(query), calibrate: siglipMatchChance });
+```
+
+| Piece | Call | What it does |
+| --- | --- | --- |
+| Pinned model | `SIGLIP_MODEL` | One commit of the ONNX export `Xenova/siglip-base-patch16-224`, with the size and SHA-256 of each encoder file and the Git blob id of `tokenizer.json`; `index` names its vectors in an asset index |
+| Download plan | `assetEmbedderPlan()`, `isAssetEmbedderCached()` | Pictures on WebGPU with q4f16 weights when the browser has it (54.6 MB), otherwise WebAssembly with q8 (99.5 MB); searches on WebAssembly with q8 (111.5 MB + 2.4 MB tokenizer). 168 MB in all with WebGPU, 213 MB without |
+| The embedder | `createAssetEmbedder({ ort })` → `prepare`, `embedImage`, `embedText`, `ready`, `plan`, `dispose` | Lazy: nothing downloads until `prepare('vision' \| 'text')` or the first embed, and each half downloads on its own, so indexing pictures never fetches the text half. Unit-length 768-number vectors |
+| Text | `createSiglipTokenizer`, `canonicalSiglipText` | SentencePiece Unigram (Viterbi) with UTF-8 byte fallback, SigLIP's lowercase/no-punctuation canonicalization and fixed 64-token padding; searches are written into `a photo of {}` |
+| Pictures | `siglipImageTensor` | Squashes to 224 × 224 and scales to −1…1 |
+| Scores | `siglipMatchChance` | SigLIP's own sigmoid match probability for a cosine, `sigmoid(117.33 × cosine − 12.93)` |
+
+**How meaning and looks combine.** Pass `calibrate: siglipMatchChance` to `search`. Each picture's match chance counts relative to the best one in the index, blended with the look and name hints (`vectorWeight`: 0.7 by default, 0.4 when every word is a color, tone or shape word, because those are measured exactly from the pixels). So the best match by meaning leads even when no picture is a strong match, and a hint such as *night* (dark) only reorders pictures that mean about the same. `similarity` on each result is the raw cosine; `siglipMatchChance(similarity)` is a 0–1 chance a UI can show.
+
+**The weights are pinned and verified** by `createVerifiedModelCache`, exactly as for depth: other revisions or unlisted ONNX files never run, and verified copies are stored by hash in Cache Storage. If a half fails to start on WebGPU it moves once to WebAssembly with q8 weights, unless you asked for that half's `device: 'webgpu'`. `assetEmbedderPlan` refuses q8 on WebGPU: in ONNX Runtime Web 1.31.1 it returned the same vector for every picture. Calls queue one at a time across both halves, so a search typed while pictures are still being read waits a moment instead of failing: ONNX Runtime Web's WebGPU backend refuses overlapping runs of different sessions ("Session mismatch"). Errors are `AssetEmbedderError` with a stable `code`.
+
+**Measured.** In headless Chrome on a 10-core Mac, 20 illustrated scenes indexed with their names hidden and 12 plain searches. The right picture came first for 12 of 12 with the default plan (pictures on WebGPU, 108 ms each; searches on one-thread WebAssembly, about 0.3 s each) and 12 of 12 on WebAssembly only (0.9 s per picture). First downloads: 13 s for the WebGPU image encoder, 32 s for the WebAssembly one and 21 s for the text encoder on that connection; stored copies were re-verified and started in about 0.4 s. The q4f16 text encoder found the right picture first only 8 of 12 times, which is why searches use q8. The tokenizer matched SentencePiece's own output on 514 of 514 test phrases.
+
+**License.** SigLIP's weights are Apache-2.0 (Google). The ONNX export repository states no licence of its own; credit Google's Apache-2.0 notice wherever you list third-party models.
+
 #### Run a standalone agent from the command line
 
 Choose an eligible model already installed in your Ollama service. These commands perform real local inference and print the validated artifact as JSON. `--agent` and `--manifest` are mutually exclusive; `--model` is always explicit. A manifest supplies its own approved settings and creative brief, with optional additional direction from `--brief`.
@@ -3458,6 +3705,8 @@ A broader host can add these reviewed runtime adapters:
 | Camera effects/avatar | `camera-runtime`, `camera-renderer`, `camera-tracking`, `camera-worker`, `landmark-filter` | Canvas effects and original face-driven avatar; explicit permission and local verified tracking worker |
 | Music visuals | `music-reactive` → `createMusicReactiveRenderer`, `beat-tracker`; `offline-analyser` → `createOfflineAnalyser` | Measured spectrum looks with an optional flash-limited beat pulse; the host owns the audio graph, playback and recording. The offline analyser reads a decoded song at any time with live `AnalyserNode` bytes, for frame-by-frame export; Node and browser |
 | Depth parallax | `depth` → `createDepthEstimator`, `guessDepth`, `createParallaxRenderer`, `depthCameraAt`, `createDepthMotionClip`, `createVerifiedModelCache`, `DEPTH_MODEL` | A relative depth map from pinned, verified Depth Anything V2 Small weights (optional `onnxruntime-web@1.31.1` peer, or `@huggingface/transformers@4.3.2`) or a model-free guess, and the Depth Motion camera move as frames for video export |
+| Asset search | `asset-search` → `createAssetIndex`, `readImageFeatures`, `describeImage`, `parseAssetQuery`, `loadAssetIndex` | Find a creator's own images by color, shade, tone, shape and name with reasons and the words it could not use; takes any embedding model's vectors, tied to that model; storable JSON; Node and browser, no model |
+| Search by meaning | `asset-embedder` → `createAssetEmbedder`, `assetEmbedderPlan`, `isAssetEmbedderCached`, `siglipMatchChance`, `SIGLIP_MODEL` | SigLIP base (Apache-2.0) image and text embeddings on the optional `onnxruntime-web@1.31.1` peer, pinned and verified, downloaded per half only when asked (168 MB with WebGPU, 213 MB without), for `createAssetIndex` |
 | Video export | `video-export` → `probeVideoExport`, `exportCanvasVideo`, `encodeCanvasVideo`, `recordCanvasVideo`, `chooseRecorderType`, `readMediaForExport`, `waitMediaReady`, `rewindMedia`, `waitForExportSetup`, `videoExportFilename`, `saveBlob` | MP4 or WebM from a canvas: frame by frame through WebCodecs with the optional `mediabunny` peer, or a real-time MediaRecorder fallback with bounded input, a real rewind and cancellable setup; errors carry a stable `code` |
 | Run records | `run-record` → `createRunRecord`, `digestInputs`, `parseRunRecord`, `createRunHistory`, `runRecipeValues`; `canvas-lab` → `canvasLabRecipeValues` | A stable hash per result over template, settings, seed, SDK version and an input digest; tamper-checked JSON; a de-duplicated run list; settings back to recipe values for Remix; Node and browser |
 | Settings forms | `form-schema` → `getAgentFormSchema`, `listFormFields`, `getAgentFieldRoles`, `plainFormSchema` | JSON Schema 2020-12 per template with control, step, group and role hints; one source for builders, docs, MCP and host gates; Node and browser |

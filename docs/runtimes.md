@@ -711,6 +711,68 @@ Depth maps are `{ width, height, data: Float32Array }` with 0 = far and 1 = near
 
 **Limits.** The model sees at most 1024 px on the long side (`DEPTH_LIMITS.inputSide`) and the renderer works at the photo's own size up to 16 megapixels; in headless Chrome on a 10-core Mac a frame took about 20 ms at 640×384 and 50 ms at 1280×768 of CPU work, so preview at a smaller size and leave full size to export. A depth warp cannot see behind things: large camera moves smear the edges of uncovered areas, which is why the recipe strengths stay small.
 
+## Local asset search
+
+`@optimai/creative-agents/asset-search` finds a shot among a creator's own images by how it looks and what it is called, on the device, with no model and no upload: *the red car*, *dark and moody portrait*, *black and white, without sky*.
+
+| Step | Call | What it does |
+| --- | --- | --- |
+| Read a picture once | `readImageFeatures(image, width, height)` or `describeImage(rgba, w, h, { aspect })` | A small, storable signature from a ≤ 64 px thumbnail: each of 12 plain color families' share of the picture (per pixel in OKLab) and how light it is there, plus lightness, contrast, colorfulness, warmth and shape. `null` when pixels can't be read (a cross-origin image), so the asset is still found by name |
+| Understand the words | `parseAssetQuery(text)` | Color words and their synonyms (*crimson*, *navy*, *golden*), *light*/*dark* before a color, tones (*dark*, *bright*, *black and white*, *vibrant*, *muted*, *warm*, *cool*, *high contrast*) and shapes (*portrait*, *landscape*, *square*, *panorama*); everything else is a word to match in names, tags and captions |
+| Keep and rank | `createAssetIndex()` → `add`, `search`, `remove`, `toJSON`; `loadAssetIndex(saved)` | Ranked results with the labels each asset matched (`['red', 'car']`) and the words nothing matched (`unmatched`), so a UI can say what it could not use instead of pretending |
+
+```js
+import { createAssetIndex, readImageFeatures } from '@optimai/creative-agents/asset-search';
+
+const index = createAssetIndex();
+for (const file of files) {
+  const bitmap = await createImageBitmap(file);
+  index.add({ id: file.name, name: file.name, features: readImageFeatures(bitmap, bitmap.width, bitmap.height) });
+  bitmap.close();
+}
+const { results, unmatched } = index.search('the red car');
+// results: [{ id, name, score, matches: ['red'] }, …]; unmatched: ['car'] unless a name or tag says "car"
+```
+
+**How it ranks.** Each color, tone and shape hint and each matched word scores 0–1 and the asset's score is their mean, so an asset that fits everything asked ranks first. A color counts from 1% of the picture and is full strength at 20%, so a small red car still counts. *no red* scores pictures with little or no red; *-garden* and *without garden* leave out every asset whose name, tags or caption has the word. A word that no asset has is reported in `unmatched` and does not lower anyone's score. An empty query lists every asset in the order added.
+
+**Embeddings.** The same index takes vectors from any image–text embedding model (CLIP-style: one vector per image, one per query). Name the model (`createAssetIndex({ model: 'name@revision' })`), add each image's `vector`, and search with the query's: `index.search('a cat asleep', { vector })`. Cosine similarity is blended with the hints (`vectorWeight`, default 0.7, or 0.4 for searches made only of look words), results gain `similarity`, and nothing is `unmatched`. Vectors are normalized and must all have one length. `toJSON()` stores them as base64 float32; `loadAssetIndex(saved, { model })` drops vectors made by any other model, so they are never compared with new ones, and those assets stay searchable by look and name.
+
+**Limits.** At most 5,000 assets per index, 2,048-number vectors, 200-character queries and 16 hints and words. Signatures are about 0.5 KB each as JSON. Look search understands color, tone and shape only; it cannot tell a car from a tomato. For that, add meaning.
+
+### Search by meaning
+
+`@optimai/creative-agents/asset-embedder` adds what look search cannot do: *a fox carrying a lantern*, *a train station platform in summer*, *a sneaker*. It runs Google's SigLIP base model (patch 16, 224 px, Apache-2.0) on the device through the same optional `onnxruntime-web@1.31.1` peer as depth.
+
+```js
+import * as ort from 'onnxruntime-web';
+import { createAssetIndex } from '@optimai/creative-agents/asset-search';
+import { createAssetEmbedder, siglipMatchChance } from '@optimai/creative-agents/asset-embedder';
+
+const embedder = createAssetEmbedder({ ort, onProgress: ({ part, loaded, total }) => show(part, loaded / total) });
+const index = createAssetIndex({ model: embedder.index });
+index.add({ id: 'p1', name: file.name, features, vector: await embedder.embedImage(pixels) });   // pixels: { width, height, data }
+const query = 'the shot with the red car';
+const { results } = index.search(query, { vector: await embedder.embedText(query), calibrate: siglipMatchChance });
+```
+
+| Piece | Call | What it does |
+| --- | --- | --- |
+| Pinned model | `SIGLIP_MODEL` | One commit of the ONNX export `Xenova/siglip-base-patch16-224`, with the size and SHA-256 of each encoder file and the Git blob id of `tokenizer.json`; `index` names its vectors in an asset index |
+| Download plan | `assetEmbedderPlan()`, `isAssetEmbedderCached()` | Pictures on WebGPU with q4f16 weights when the browser has it (54.6 MB), otherwise WebAssembly with q8 (99.5 MB); searches on WebAssembly with q8 (111.5 MB + 2.4 MB tokenizer). 168 MB in all with WebGPU, 213 MB without |
+| The embedder | `createAssetEmbedder({ ort })` → `prepare`, `embedImage`, `embedText`, `ready`, `plan`, `dispose` | Lazy: nothing downloads until `prepare('vision' \| 'text')` or the first embed, and each half downloads on its own, so indexing pictures never fetches the text half. Unit-length 768-number vectors |
+| Text | `createSiglipTokenizer`, `canonicalSiglipText` | SentencePiece Unigram (Viterbi) with UTF-8 byte fallback, SigLIP's lowercase/no-punctuation canonicalization and fixed 64-token padding; searches are written into `a photo of {}` |
+| Pictures | `siglipImageTensor` | Squashes to 224 × 224 and scales to −1…1 |
+| Scores | `siglipMatchChance` | SigLIP's own sigmoid match probability for a cosine, `sigmoid(117.33 × cosine − 12.93)` |
+
+**How meaning and looks combine.** Pass `calibrate: siglipMatchChance` to `search`. Each picture's match chance counts relative to the best one in the index, blended with the look and name hints (`vectorWeight`: 0.7 by default, 0.4 when every word is a color, tone or shape word, because those are measured exactly from the pixels). So the best match by meaning leads even when no picture is a strong match, and a hint such as *night* (dark) only reorders pictures that mean about the same. `similarity` on each result is the raw cosine; `siglipMatchChance(similarity)` is a 0–1 chance a UI can show.
+
+**The weights are pinned and verified** by `createVerifiedModelCache`, exactly as for depth: other revisions or unlisted ONNX files never run, and verified copies are stored by hash in Cache Storage. If a half fails to start on WebGPU it moves once to WebAssembly with q8 weights, unless you asked for that half's `device: 'webgpu'`. `assetEmbedderPlan` refuses q8 on WebGPU: in ONNX Runtime Web 1.31.1 it returned the same vector for every picture. Calls queue one at a time across both halves, so a search typed while pictures are still being read waits a moment instead of failing: ONNX Runtime Web's WebGPU backend refuses overlapping runs of different sessions ("Session mismatch"). Errors are `AssetEmbedderError` with a stable `code`.
+
+**Measured.** In headless Chrome on a 10-core Mac, 20 illustrated scenes indexed with their names hidden and 12 plain searches. The right picture came first for 12 of 12 with the default plan (pictures on WebGPU, 108 ms each; searches on one-thread WebAssembly, about 0.3 s each) and 12 of 12 on WebAssembly only (0.9 s per picture). First downloads: 13 s for the WebGPU image encoder, 32 s for the WebAssembly one and 21 s for the text encoder on that connection; stored copies were re-verified and started in about 0.4 s. The q4f16 text encoder found the right picture first only 8 of 12 times, which is why searches use q8. The tokenizer matched SentencePiece's own output on 514 of 514 test phrases.
+
+**License.** SigLIP's weights are Apache-2.0 (Google). The ONNX export repository states no licence of its own; credit Google's Apache-2.0 notice wherever you list third-party models.
+
 ## Run a standalone agent from the command line
 
 Choose an eligible model already installed in your Ollama service. These commands perform real local inference and print the validated artifact as JSON. `--agent` and `--manifest` are mutually exclusive; `--model` is always explicit. A manifest supplies its own approved settings and creative brief, with optional additional direction from `--brief`.

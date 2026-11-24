@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash, webcrypto } from 'node:crypto';
 import test from 'node:test';
 import {
-  DEPTH_CAMERAS, DEPTH_MODEL, DEPTH_ORT_RUNTIME, DEPTH_RUNTIME, depthInputSize, isDepthModelCached, depthInputTensor, DepthError, createDepthEstimator, createDepthMotionClip, createParallaxRenderer, createVerifiedModelCache,
+  DEPTH_CAMERAS, DEPTH_MODEL, DEPTH_ORT_RUNTIME, DEPTH_RUNTIME, depthInputSize, isDepthModelCached, isModelFileCached, depthInputTensor, DepthError, createDepthEstimator, createDepthMotionClip, createParallaxRenderer, createVerifiedModelCache,
   depthCameraAt, depthModelFile, depthModelPlan, depthModelUrl, depthMotionSettings, depthOverscan, depthToPixels, guessDepth, normalizeDepth, shrinkPixels, verifyDepthFile,
 } from '../src/depth.mjs';
 
@@ -121,6 +121,8 @@ test('tampered, oversized, failed and cancelled downloads never reach the runtim
   const big = { ...files, 'onnx/model_quantized.onnx': Buffer.concat([files['onnx/model_quantized.onnx'], Buffer.from('x')]) };
   await assert.rejects(createVerifiedModelCache({ model, fetch: hub(big).fetch, subtle: webcrypto.subtle }).match(url), { code: 'unverified-model' });
   await assert.rejects(createVerifiedModelCache({ model, fetch: hub({}).fetch, subtle: webcrypto.subtle }).match(url), { code: 'download-failed' });
+  await assert.rejects(createVerifiedModelCache({ model, label: 'search model', fetch: hub({}).fetch, subtle: webcrypto.subtle }).match(url), /The search model could not be downloaded/);
+  await assert.rejects(createVerifiedModelCache({ model, fetch: hub({}).fetch, subtle: webcrypto.subtle }).match(url), /The model could not be downloaded/, 'another model is not called a depth model');
   await assert.rejects(createVerifiedModelCache({ model, fetch: async () => { throw new TypeError('offline'); }, subtle: webcrypto.subtle }).match(url), error => error.code === 'download-failed' && error.cause.message === 'offline');
   const controller = new AbortController(); controller.abort();
   await assert.rejects(createVerifiedModelCache({ model, fetch: hub(files).fetch, subtle: webcrypto.subtle, signal: controller.signal }).match(url), { name: 'AbortError' });
@@ -141,6 +143,8 @@ test('isDepthModelCached looks for the planned weights by hash and never throws'
   assert.equal(await isDepthModelCached({ gpu: true, caches }), false, 'WebGPU plans the fp16 file');
   assert.equal(await isDepthModelCached({ caches: { open: async () => { throw new Error('blocked'); } } }), false);
   assert.equal(await isDepthModelCached({ caches: undefined, gpu: false }), false);
+  assert.equal(await isModelFileCached(DEPTH_MODEL.weights.q8, { caches }), true, 'any pinned file can be checked');
+  assert.equal(await isModelFileCached({ bytes: 1 }, { caches }), false);
 });
 
 test('depthModelPlan picks fp16 on WebGPU and q8 on WebAssembly', () => {
