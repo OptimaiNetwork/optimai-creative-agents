@@ -558,6 +558,26 @@ The controller supports `update(settings)`, `demo('sculpture'|'product'|'archite
 
 The renderer caps pixel density, renders manual previews only on change, and suspends turntable motion when hidden, offscreen or reduced motion is requested. Exports render the current camera immediately before PNG readback. The scene recipe contains settings and camera state; imported GLB geometry is not included. Keep the original model with it. `dispose()` releases geometry, material, textures, decoded bitmaps, environment/shadow targets, renderer and listeners. These ownership choices follow the [Three glTF loader's bitmap guidance](https://threejs.org/docs/pages/GLTFLoader.html); interaction uses [OrbitControls](https://threejs.org/docs/pages/OrbitControls.html).
 
+### Gaussian splats
+
+`@optimai/creative-agents/splat` opens a captured 3D scene, a Gaussian splat, on the device with no dependency, model or upload. It reads the `.ply` a 3D Gaussian Splatting trainer writes (binary little-endian; colour from the first spherical-harmonic term, opacity through a sigmoid, scales from their logs, rotations normalised), a coloured point-cloud `.ply` (drawn as small round splats sized from the cloud's own spacing) and the compact 32-byte `.splat` layout most web viewers read.
+
+```js
+import { readSplatFile, reduceSplats, splatBounds, splatOrbitCamera, renderSplats, writeSplatFile } from '@optimai/creative-agents/splat';
+
+const splats = readSplatFile(await fileInput.files[0].arrayBuffer());
+const preview = reduceSplats(splats, 150_000);           // the most visible splats, in their original order
+const camera = splatOrbitCamera(splatBounds(preview), { yaw: 30, pitch: 15, up: '-y' });
+const pixels = context.createImageData(640, 400);
+renderSplats(preview, pixels, camera, { background: '#151719', signal });
+context.putImageData(pixels, 0, 0);
+const smaller = new Blob([writeSplatFile(splats)]);     // 32 bytes a splat; a full trainer .ply holds 248
+```
+
+Every number is checked before anything is drawn: at most 256 MB and 2,000,000 splats, a 16 KB PLY header with no list properties, finite positions within ±1,000,000 and the vertex element first. Errors say what to export instead. `splatBounds` returns the 2nd–98th percentile box, so a few stray floaters do not shrink the scene to a dot. `splatOrbitCamera` orbits that box; `up: '-y'` (the default) is the usual trainer convention, and yaw 0 then looks along +z like the capture camera. Use `'y'`, `'z'` or `'-z'` for other tools.
+
+`renderSplats` is a CPU preview for thumbnails, cards, poster frames and Node: it projects each splat's 3D covariance to a screen ellipse, sorts by depth in one 16-bit bucket pass and composites front to back, stopping per pixel once it is opaque. It returns how many splats it drew and skipped (behind the camera or invisible). It draws the base colour only; view-dependent colour (`harmonics` says how many coefficients a file carried) is dropped, and `.splat` files never carry it. For live orbiting at full resolution, hand the same file to a WebGL splat viewer.
+
 ## Camera effects and face-driven avatars
 
 `camera-runtime`, `camera-renderer`, `camera-tracking` and `camera-worker` are reusable public modules. They do not import Studio services. The host owns camera permission, selected media decoding, its render loop, snapshot/recording UI and any subsequent handoff. Basic clean/neon/prism/duotone/film canvas effects and the original avatar demo do not require a face-model download. Halo anchoring and face-driven avatar controls use a local Face Landmarker worker.

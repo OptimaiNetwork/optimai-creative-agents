@@ -25,6 +25,7 @@ import { FRAME_SCULPTURE_TURNTABLE, type FrameSculptureController } from '@optim
 import { paletteFiles, readAse, buildPalette, type Palette } from '@optimai/creative-agents/palette';
 import { createAssetIndex, loadAssetIndex, readImageFeatures, type AssetSearchResult } from '@optimai/creative-agents/asset-search';
 import { createAssetEmbedder, siglipMatchChance, assetEmbedderPlan, type AssetEmbedderOrt } from '@optimai/creative-agents/asset-embedder';
+import { readSplatFile, renderSplats, splatBounds, splatOrbitCamera, writeSplatFile, type Splats } from '@optimai/creative-agents/splat';
 import { runCanvasLab } from '@optimai/creative-agents/canvas-lab';
 import { prepareCreativeAgentTask } from '@optimai/creative-agents/agent-runtime';
 import { checkConstrainedSchema, maxJsonLength, writingFormat } from '@optimai/creative-agents/writing-schema';
@@ -150,4 +151,13 @@ export async function searchByMeaning(ort: AssetEmbedderOrt, pixels: ImageData, 
   const { bytes } = assetEmbedderPlan({ gpu: true });
   void bytes;
   return index.search(words, { vector: await embedder.embedText(words), calibrate: siglipMatchChance }).results;
+}
+
+export function previewSplat(file: ArrayBuffer, pixels: ImageData): { splats: Splats; small: ArrayBuffer } {
+  const splats = readSplatFile(file);
+  const camera = splatOrbitCamera(splatBounds(splats), { yaw: 30, up: '-y' });
+  renderSplats(splats, pixels, camera, { background: '#151719' });
+  // @ts-expect-error up must be a named axis
+  splatOrbitCamera(splatBounds(splats), { up: 'x' });
+  return { splats, small: writeSplatFile(splats) };
 }

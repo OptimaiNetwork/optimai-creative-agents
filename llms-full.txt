@@ -1449,6 +1449,44 @@ export declare function createAssetEmbedder(options: {
 }): AssetEmbedder;
 ```
 
+### `@optimai/creative-agents/splat`
+
+Declared in `src/splat.d.mts`, implemented in `src/splat.mjs`.
+
+```ts
+/** Gaussian splats on the device: bounded .ply/.splat reading, compact .splat writing and a dependency-free software preview. */
+export const SPLAT_LIMITS: Readonly<{ bytes: number; splats: number; headerBytes: number; preview: number; side: number }>;
+export type SplatFormat = 'ply' | 'splat';
+export type Splats = {
+    count: number;
+    /** x, y, z per splat. */
+    positions: Float32Array;
+    /** Linear scale on each local axis. */
+    scales: Float32Array;
+    /** Unit quaternion w, x, y, z per splat. */
+    rotations: Float32Array;
+    /** sRGB red, green, blue and opacity per splat, 0–255. */
+    colors: Uint8Array;
+    format: SplatFormat;
+    /** 'points' when a coloured point cloud was read as small round splats. */
+    shade: 'gaussian' | 'points';
+    /** View-dependent colour coefficients the file carried (not drawn by the preview, not kept by .splat). */
+    harmonics: number;
+    /** Splat count before reduceSplats, when it reduced. */
+    reducedFrom?: number;
+};
+export type SplatBounds = { min: number[]; max: number[]; center: number[]; radius: number };
+export type SplatCamera = { eye: number[]; target: number[]; up: number[]; fov: number };
+export type SplatUp = 'y' | '-y' | 'z' | '-z';
+export function detectSplatFormat(bytes: ArrayBuffer | ArrayBufferView): SplatFormat | null;
+export function readSplatFile(bytes: ArrayBuffer | ArrayBufferView, options?: { format?: SplatFormat }): Splats;
+export function writeSplatFile(splats: Splats): ArrayBuffer;
+export function reduceSplats(splats: Splats, budget?: number): Splats;
+export function splatBounds(splats: Splats, options?: { trim?: number }): SplatBounds;
+export function splatOrbitCamera(bounds: SplatBounds, options?: { yaw?: number; pitch?: number; fov?: number; distance?: number; up?: SplatUp }): SplatCamera;
+export function renderSplats(splats: Splats, target: { width: number; height: number; data: Uint8ClampedArray | Uint8Array }, camera: SplatCamera, options?: { background?: string; maxRadius?: number; signal?: AbortSignal }): { drawn: number; skipped: number; splats: number };
+```
+
 ### `@optimai/creative-agents/depth`
 
 Declared in `src/depth.d.mts`, implemented in `src/depth.mjs`.
@@ -3304,6 +3342,26 @@ The controller supports `update(settings)`, `demo('sculpture'|'product'|'archite
 
 The renderer caps pixel density, renders manual previews only on change, and suspends turntable motion when hidden, offscreen or reduced motion is requested. Exports render the current camera immediately before PNG readback. The scene recipe contains settings and camera state; imported GLB geometry is not included. Keep the original model with it. `dispose()` releases geometry, material, textures, decoded bitmaps, environment/shadow targets, renderer and listeners. These ownership choices follow the [Three glTF loader's bitmap guidance](https://threejs.org/docs/pages/GLTFLoader.html); interaction uses [OrbitControls](https://threejs.org/docs/pages/OrbitControls.html).
 
+##### Gaussian splats
+
+`@optimai/creative-agents/splat` opens a captured 3D scene, a Gaussian splat, on the device with no dependency, model or upload. It reads the `.ply` a 3D Gaussian Splatting trainer writes (binary little-endian; colour from the first spherical-harmonic term, opacity through a sigmoid, scales from their logs, rotations normalised), a coloured point-cloud `.ply` (drawn as small round splats sized from the cloud's own spacing) and the compact 32-byte `.splat` layout most web viewers read.
+
+```js
+import { readSplatFile, reduceSplats, splatBounds, splatOrbitCamera, renderSplats, writeSplatFile } from '@optimai/creative-agents/splat';
+
+const splats = readSplatFile(await fileInput.files[0].arrayBuffer());
+const preview = reduceSplats(splats, 150_000);           // the most visible splats, in their original order
+const camera = splatOrbitCamera(splatBounds(preview), { yaw: 30, pitch: 15, up: '-y' });
+const pixels = context.createImageData(640, 400);
+renderSplats(preview, pixels, camera, { background: '#151719', signal });
+context.putImageData(pixels, 0, 0);
+const smaller = new Blob([writeSplatFile(splats)]);     // 32 bytes a splat; a full trainer .ply holds 248
+```
+
+Every number is checked before anything is drawn: at most 256 MB and 2,000,000 splats, a 16 KB PLY header with no list properties, finite positions within ±1,000,000 and the vertex element first. Errors say what to export instead. `splatBounds` returns the 2nd–98th percentile box, so a few stray floaters do not shrink the scene to a dot. `splatOrbitCamera` orbits that box; `up: '-y'` (the default) is the usual trainer convention, and yaw 0 then looks along +z like the capture camera. Use `'y'`, `'z'` or `'-z'` for other tools.
+
+`renderSplats` is a CPU preview for thumbnails, cards, poster frames and Node: it projects each splat's 3D covariance to a screen ellipse, sorts by depth in one 16-bit bucket pass and composites front to back, stopping per pixel once it is opaque. It returns how many splats it drew and skipped (behind the camera or invisible). It draws the base colour only; view-dependent colour (`harmonics` says how many coefficients a file carried) is dropped, and `.splat` files never carry it. For live orbiting at full resolution, hand the same file to a WebGL splat viewer.
+
 #### Camera effects and face-driven avatars
 
 `camera-runtime`, `camera-renderer`, `camera-tracking` and `camera-worker` are reusable public modules. They do not import Studio services. The host owns camera permission, selected media decoding, its render loop, snapshot/recording UI and any subsequent handoff. Basic clean/neon/prism/duotone/film canvas effects and the original avatar demo do not require a face-model download. Halo anchoring and face-driven avatar controls use a local Face Landmarker worker.
@@ -3702,6 +3760,7 @@ A broader host can add these reviewed runtime adapters:
 | Browser vision | `vision-runtime` → `downloadVisionModel`, `runBrowserVision` | PNG and analysis; selected-agent setup policy, reviewed local worker and WASM assets |
 | Browser writing | `browser-writing-runtime` → `createBrowserAgentRuntime` | Validated written artifact; selected-agent setup policy, supported WebGPU device and local worker |
 | 3D scene | `scene-3d` → `scene3DRecipeSettings`; `scene-3d-runtime` → `createScene3DStage` | Procedural/local GLB WebGL stage, PNG and scene recipe; optional reviewed Three peer |
+| Gaussian splats | `splat` → `readSplatFile`, `writeSplatFile`, `reduceSplats`, `splatBounds`, `splatOrbitCamera`, `renderSplats`, `detectSplatFormat` | Bounded reading of trainer `.ply`, point-cloud `.ply` and `.splat` captures, a compact `.splat` writer, a budgeted reduction and a CPU preview into any RGBA pixels; Node and browser, no dependency |
 | Camera effects/avatar | `camera-runtime`, `camera-renderer`, `camera-tracking`, `camera-worker`, `landmark-filter` | Canvas effects and original face-driven avatar; explicit permission and local verified tracking worker |
 | Music visuals | `music-reactive` → `createMusicReactiveRenderer`, `beat-tracker`; `offline-analyser` → `createOfflineAnalyser` | Measured spectrum looks with an optional flash-limited beat pulse; the host owns the audio graph, playback and recording. The offline analyser reads a decoded song at any time with live `AnalyserNode` bytes, for frame-by-frame export; Node and browser |
 | Depth parallax | `depth` → `createDepthEstimator`, `guessDepth`, `createParallaxRenderer`, `depthCameraAt`, `createDepthMotionClip`, `createVerifiedModelCache`, `DEPTH_MODEL` | A relative depth map from pinned, verified Depth Anything V2 Small weights (optional `onnxruntime-web@1.31.1` peer, or `@huggingface/transformers@4.3.2`) or a model-free guess, and the Depth Motion camera move as frames for video export |
