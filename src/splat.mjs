@@ -245,3 +245,20 @@ export function renderSplats(splats, target, camera, { background = '#151719', m
     }
     return { drawn, skipped: count - shown, splats: count };
 }
+/** Named turntable views for splat previews (degrees), matching the 3D stage's camera buttons. */
+export const SPLAT_VIEWS = Object.freeze({ isometric: Object.freeze({ yaw: 35, pitch: 20 }), front: Object.freeze({ yaw: 0, pitch: 0 }), side: Object.freeze({ yaw: 90, pitch: 0 }), top: Object.freeze({ yaw: 0, pitch: 85 }) });
+/** Read, budget and frame a splat file once, ready for an interactive still preview. */
+export function prepareSplatPreview(value, { budget = SPLAT_LIMITS.preview, trim, format } = {}) {
+    const full = readSplatFile(value, { format }), splats = reduceSplats(full, budget);
+    return { splats, bounds: splatBounds(splats, { trim }), count: full.count, shown: splats.count, format: full.format, shade: full.shade, harmonics: full.harmonics };
+}
+/** Draw a prepared splat into a 2D canvas at a turntable view, at the canvas's own size (shrink the canvas for quick drafts while a slider moves). */
+export function drawSplatPreview(canvas, preview, { yaw = SPLAT_VIEWS.isometric.yaw, pitch = SPLAT_VIEWS.isometric.pitch, distance = 1.6, fov = 50, up = '-y', background, signal } = {}) {
+    const context = canvas?.getContext?.('2d');
+    if (!context || typeof context.createImageData !== 'function') fail('Pass a canvas that can draw in 2D.');
+    if (!preview?.splats || !preview.bounds) fail('Pass a preview from prepareSplatPreview.');
+    const started = Date.now(), image = context.createImageData(canvas.width, canvas.height);
+    const stats = renderSplats(preview.splats, image, splatOrbitCamera(preview.bounds, { yaw, pitch, fov, distance, up }), { background, signal });
+    context.putImageData(image, 0, 0);
+    return { ...stats, ms: Date.now() - started };
+}

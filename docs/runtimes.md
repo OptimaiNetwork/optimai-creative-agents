@@ -578,6 +578,17 @@ Every number is checked before anything is drawn: at most 256 MB and 2,000,000 s
 
 `renderSplats` is a CPU preview for thumbnails, cards, poster frames and Node: it projects each splat's 3D covariance to a screen ellipse, sorts by depth in one 16-bit bucket pass and composites front to back, stopping per pixel once it is opaque. It returns how many splats it drew and skipped (behind the camera or invisible). It draws the base colour only; view-dependent colour (`harmonics` says how many coefficients a file carried) is dropped, and `.splat` files never carry it. For live orbiting at full resolution, hand the same file to a WebGL splat viewer.
 
+For a viewer with a yaw slider, read the file once and redraw from the prepared splats:
+
+```js
+import { prepareSplatPreview, drawSplatPreview, SPLAT_VIEWS } from '@optimai/creative-agents/splat';
+
+const preview = prepareSplatPreview(bytes, { budget: 120_000 }); // read + reduce + floater-proof bounds, once
+drawSplatPreview(canvas, preview, { ...SPLAT_VIEWS.isometric, yaw: slider.valueAsNumber, up: '-y', background: '#151719' });
+```
+
+`prepareSplatPreview` returns the reduced `splats`, their `bounds`, the file's `count`, how many are `shown`, and its `format`, `shade` and `harmonics`. `drawSplatPreview` draws at the canvas's own size into any 2D canvas (an `OffscreenCanvas` works too) and returns the render counts plus `ms`. Shrink the canvas for a quick draft while a slider moves, then redraw at full size when it stops. `SPLAT_VIEWS` names the four turntable views (`isometric`, `front`, `side`, `top`) that match the 3D stage's camera buttons.
+
 ## Camera effects and face-driven avatars
 
 `camera-runtime`, `camera-renderer`, `camera-tracking` and `camera-worker` are reusable public modules. They do not import Studio services. The host owns camera permission, selected media decoding, its render loop, snapshot/recording UI and any subsequent handoff. Basic clean/neon/prism/duotone/film canvas effects and the original avatar demo do not require a face-model download. Halo anchoring and face-driven avatar controls use a local Face Landmarker worker.

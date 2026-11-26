@@ -114,3 +114,21 @@ test('rendering checks its target, camera and colour, and stops when asked', () 
   const controller = new AbortController(); controller.abort();
   assert.throws(() => renderSplats(s, image(), cam, { signal: controller.signal }), { name: 'AbortError' });
 });
+test('prepareSplatPreview reads, budgets and frames once; drawSplatPreview paints a 2D canvas at a named view', () => {
+  const rows = [gaussian({ at: [0, 0, .5], color: [0, 0, 1], opacity: .95, scale: .12 }), gaussian({ at: [0, 0, -.5], color: [1, 0, 0], opacity: .95, scale: .12 }), gaussian({ at: [0, 0, 0], opacity: .05, scale: .01 })];
+  const preview = splat.prepareSplatPreview(ply(rows), { budget: 2 });
+  assert.equal(preview.count, 3); assert.equal(preview.shown, 2); assert.equal(preview.splats.reducedFrom, 3); assert.equal(preview.format, 'ply'); assert.equal(preview.shade, 'gaussian');
+  assert.ok(preview.bounds.radius > 0);
+  let painted = null;
+  const canvas = { width: 64, height: 48, getContext: kind => kind === '2d' ? { createImageData: (width, height) => image(width, height), putImageData: (pixels, x, y) => { painted = { pixels, x, y }; } } : null };
+  const front = splat.drawSplatPreview(canvas, preview, { ...splat.SPLAT_VIEWS.front, up: 'y', background: '#000000' });
+  assert.equal(front.drawn, 2); assert.equal(typeof front.ms, 'number'); assert.equal(painted.x, 0);
+  assert.ok(pixel(painted.pixels, 32, 24)[2] > 200, 'the front view sees the blue splat first');
+  splat.drawSplatPreview(canvas, preview, { yaw: 180, pitch: 0, up: 'y', background: '#000000' });
+  assert.ok(pixel(painted.pixels, 32, 24)[0] > 200, 'turning the yaw slider half way shows the red side');
+  assert.deepEqual(Object.keys(splat.SPLAT_VIEWS), ['isometric', 'front', 'side', 'top']);
+  assert.ok(Object.isFrozen(splat.SPLAT_VIEWS.top));
+  assert.throws(() => splat.drawSplatPreview({ width: 1, height: 1, getContext: () => null }, preview), /2D/);
+  assert.throws(() => splat.drawSplatPreview(canvas, {}), /prepareSplatPreview/);
+  assert.throws(() => splat.drawSplatPreview(canvas, preview, { pitch: 120 }), /pitch/);
+});

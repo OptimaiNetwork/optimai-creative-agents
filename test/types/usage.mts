@@ -25,7 +25,7 @@ import { FRAME_SCULPTURE_TURNTABLE, type FrameSculptureController } from '@optim
 import { paletteFiles, readAse, buildPalette, type Palette } from '@optimai/creative-agents/palette';
 import { createAssetIndex, loadAssetIndex, readImageFeatures, type AssetSearchResult } from '@optimai/creative-agents/asset-search';
 import { createAssetEmbedder, siglipMatchChance, assetEmbedderPlan, type AssetEmbedderOrt } from '@optimai/creative-agents/asset-embedder';
-import { readSplatFile, renderSplats, splatBounds, splatOrbitCamera, writeSplatFile, type Splats } from '@optimai/creative-agents/splat';
+import { drawSplatPreview, prepareSplatPreview, readSplatFile, renderSplats, splatBounds, splatOrbitCamera, writeSplatFile, SPLAT_VIEWS, type Splats } from '@optimai/creative-agents/splat';
 import { runCanvasLab } from '@optimai/creative-agents/canvas-lab';
 import { prepareCreativeAgentTask } from '@optimai/creative-agents/agent-runtime';
 import { checkConstrainedSchema, maxJsonLength, writingFormat } from '@optimai/creative-agents/writing-schema';
@@ -160,4 +160,12 @@ export function previewSplat(file: ArrayBuffer, pixels: ImageData): { splats: Sp
   // @ts-expect-error up must be a named axis
   splatOrbitCamera(splatBounds(splats), { up: 'x' });
   return { splats, small: writeSplatFile(splats) };
+}
+
+export function splatStill(file: ArrayBuffer, canvas: HTMLCanvasElement, yaw: number): number {
+  const preview = prepareSplatPreview(file, { budget: 120_000 });
+  const { ms } = drawSplatPreview(canvas, preview, { ...SPLAT_VIEWS.isometric, yaw, up: preview.shade === 'points' ? 'y' : '-y' });
+  // @ts-expect-error views are named, not numbered
+  void SPLAT_VIEWS.back;
+  return ms + preview.shown;
 }

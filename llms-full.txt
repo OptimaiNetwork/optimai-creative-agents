@@ -1485,6 +1485,12 @@ export function reduceSplats(splats: Splats, budget?: number): Splats;
 export function splatBounds(splats: Splats, options?: { trim?: number }): SplatBounds;
 export function splatOrbitCamera(bounds: SplatBounds, options?: { yaw?: number; pitch?: number; fov?: number; distance?: number; up?: SplatUp }): SplatCamera;
 export function renderSplats(splats: Splats, target: { width: number; height: number; data: Uint8ClampedArray | Uint8Array }, camera: SplatCamera, options?: { background?: string; maxRadius?: number; signal?: AbortSignal }): { drawn: number; skipped: number; splats: number };
+export type SplatView = { yaw: number; pitch: number };
+export const SPLAT_VIEWS: Readonly<{ isometric: Readonly<SplatView>; front: Readonly<SplatView>; side: Readonly<SplatView>; top: Readonly<SplatView> }>;
+export type SplatPreview = { splats: Splats; bounds: SplatBounds; count: number; shown: number; format: SplatFormat; shade: Splats['shade']; harmonics: number };
+export type SplatCanvas = { width: number; height: number; getContext(kind: '2d'): { createImageData(width: number, height: number): ImageData; putImageData(image: ImageData, x: number, y: number): void } | null };
+export function prepareSplatPreview(bytes: ArrayBuffer | ArrayBufferView, options?: { budget?: number; trim?: number; format?: SplatFormat }): SplatPreview;
+export function drawSplatPreview(canvas: SplatCanvas, preview: SplatPreview, options?: { yaw?: number; pitch?: number; distance?: number; fov?: number; up?: SplatUp; background?: string; signal?: AbortSignal }): { drawn: number; skipped: number; splats: number; ms: number };
 ```
 
 ### `@optimai/creative-agents/depth`
@@ -3362,6 +3368,17 @@ Every number is checked before anything is drawn: at most 256 MB and 2,000,000 s
 
 `renderSplats` is a CPU preview for thumbnails, cards, poster frames and Node: it projects each splat's 3D covariance to a screen ellipse, sorts by depth in one 16-bit bucket pass and composites front to back, stopping per pixel once it is opaque. It returns how many splats it drew and skipped (behind the camera or invisible). It draws the base colour only; view-dependent colour (`harmonics` says how many coefficients a file carried) is dropped, and `.splat` files never carry it. For live orbiting at full resolution, hand the same file to a WebGL splat viewer.
 
+For a viewer with a yaw slider, read the file once and redraw from the prepared splats:
+
+```js
+import { prepareSplatPreview, drawSplatPreview, SPLAT_VIEWS } from '@optimai/creative-agents/splat';
+
+const preview = prepareSplatPreview(bytes, { budget: 120_000 }); // read + reduce + floater-proof bounds, once
+drawSplatPreview(canvas, preview, { ...SPLAT_VIEWS.isometric, yaw: slider.valueAsNumber, up: '-y', background: '#151719' });
+```
+
+`prepareSplatPreview` returns the reduced `splats`, their `bounds`, the file's `count`, how many are `shown`, and its `format`, `shade` and `harmonics`. `drawSplatPreview` draws at the canvas's own size into any 2D canvas (an `OffscreenCanvas` works too) and returns the render counts plus `ms`. Shrink the canvas for a quick draft while a slider moves, then redraw at full size when it stops. `SPLAT_VIEWS` names the four turntable views (`isometric`, `front`, `side`, `top`) that match the 3D stage's camera buttons.
+
 #### Camera effects and face-driven avatars
 
 `camera-runtime`, `camera-renderer`, `camera-tracking` and `camera-worker` are reusable public modules. They do not import Studio services. The host owns camera permission, selected media decoding, its render loop, snapshot/recording UI and any subsequent handoff. Basic clean/neon/prism/duotone/film canvas effects and the original avatar demo do not require a face-model download. Halo anchoring and face-driven avatar controls use a local Face Landmarker worker.
@@ -3760,7 +3777,7 @@ A broader host can add these reviewed runtime adapters:
 | Browser vision | `vision-runtime` → `downloadVisionModel`, `runBrowserVision` | PNG and analysis; selected-agent setup policy, reviewed local worker and WASM assets |
 | Browser writing | `browser-writing-runtime` → `createBrowserAgentRuntime` | Validated written artifact; selected-agent setup policy, supported WebGPU device and local worker |
 | 3D scene | `scene-3d` → `scene3DRecipeSettings`; `scene-3d-runtime` → `createScene3DStage` | Procedural/local GLB WebGL stage, PNG and scene recipe; optional reviewed Three peer |
-| Gaussian splats | `splat` → `readSplatFile`, `writeSplatFile`, `reduceSplats`, `splatBounds`, `splatOrbitCamera`, `renderSplats`, `detectSplatFormat` | Bounded reading of trainer `.ply`, point-cloud `.ply` and `.splat` captures, a compact `.splat` writer, a budgeted reduction and a CPU preview into any RGBA pixels; Node and browser, no dependency |
+| Gaussian splats | `splat` → `readSplatFile`, `writeSplatFile`, `reduceSplats`, `splatBounds`, `splatOrbitCamera`, `renderSplats`, `detectSplatFormat`, `prepareSplatPreview`, `drawSplatPreview`, `SPLAT_VIEWS` | Bounded reading of trainer `.ply`, point-cloud `.ply` and `.splat` captures, a compact `.splat` writer, a budgeted reduction and a CPU preview into any RGBA pixels, and a read-once still viewer for a 2D canvas with named turntable views; Node and browser, no dependency |
 | Camera effects/avatar | `camera-runtime`, `camera-renderer`, `camera-tracking`, `camera-worker`, `landmark-filter` | Canvas effects and original face-driven avatar; explicit permission and local verified tracking worker |
 | Music visuals | `music-reactive` → `createMusicReactiveRenderer`, `beat-tracker`; `offline-analyser` → `createOfflineAnalyser` | Measured spectrum looks with an optional flash-limited beat pulse; the host owns the audio graph, playback and recording. The offline analyser reads a decoded song at any time with live `AnalyserNode` bytes, for frame-by-frame export; Node and browser |
 | Depth parallax | `depth` → `createDepthEstimator`, `guessDepth`, `createParallaxRenderer`, `depthCameraAt`, `createDepthMotionClip`, `createVerifiedModelCache`, `DEPTH_MODEL` | A relative depth map from pinned, verified Depth Anything V2 Small weights (optional `onnxruntime-web@1.31.1` peer, or `@huggingface/transformers@4.3.2`) or a model-free guess, and the Depth Motion camera move as frames for video export |
