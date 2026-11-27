@@ -184,6 +184,11 @@
       "import": "./src/depth.mjs",
       "default": "./src/depth.mjs"
     },
+    "./gpu-pixels": {
+      "types": "./src/gpu-pixels.d.mts",
+      "import": "./src/gpu-pixels.mjs",
+      "default": "./src/gpu-pixels.mjs"
+    },
     "./writing-schema": {
       "types": "./src/writing-schema.d.mts",
       "import": "./src/writing-schema.mjs",

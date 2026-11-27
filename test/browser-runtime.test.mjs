@@ -345,6 +345,31 @@ test('Image Finish applies a film look or a creator .cube after the grade, scale
     }, { context: pixelContext({ tainted: true }) });
 });
 
+test('Image Finish hands grade and LUT to a pixel processor in one pass and reports where it ran', async () => {
+    const { gradePixels, resolveGrade } = await import('../src/color-grade.mjs');
+    const { applyLut, filmLut } = await import('../src/lut.mjs');
+    const { createGpuPixelProcessor } = await import('../src/gpu-pixels.mjs');
+    await browserHarness(async h => {
+        const runs = [];
+        const fake = { backend: 'webgpu', run: async (data, width, height, options) => { runs.push({ width, height, ...options }); data[0] = 7; return data; } };
+        const output = await runtime.runLocalTool('image-filter', [image()], { preset: 'cool', intensity: 50, film: 'matte', seed: 4 }, undefined, { pixels: fake });
+        assert.equal(output.pixelBackend, 'webgpu');
+        assert.equal(runs.length, 1, 'One call for the whole image.');
+        assert.equal(runs[0].grade.temperature, resolveGrade('cool', 0.5).temperature);
+        assert.equal(runs[0].lut, filmLut('matte'));
+        assert.equal(runs[0].amount, 0.5);
+        assert.equal(runs[0].seed, 4);
+        assert.equal(h.calls.put.data[0], 7, 'The canvas receives what the processor wrote.');
+        assert.equal((await runtime.runLocalTool('image-filter', [image()], { preset: 'original' }, undefined, { pixels: fake })).pixelBackend, 'webgpu');
+        assert.equal(runs.length, 1, 'original never calls the processor.');
+        assert.equal((await runtime.runLocalTool('image-filter', [image()], { preset: 'noir' })).pixelBackend, undefined, 'Without a processor nothing changes.');
+        const onCpu = await createGpuPixelProcessor({ gpu: null });
+        assert.equal((await runtime.runLocalTool('image-filter', [image()], { preset: 'warm', intensity: 80, film: 'golden' }, undefined, { pixels: onCpu })).pixelBackend, 'cpu');
+        const expected = applyLut(gradePixels(new Uint8ClampedArray([200, 140, 90, 255]), 1, 1, resolveGrade('warm', 0.8)), 1, 1, filmLut('golden'), { amount: 0.8 });
+        assert.deepEqual([...h.calls.put.data.slice(-4)], [...expected], 'The CPU fallback gives the plain path exactly.');
+    }, { context: pixelContext() });
+});
+
 test('Image Finish falls back to the CSS filter on request or when pixels cannot be read', async () => {
     await browserHarness(async h => {
         const output = await runtime.runLocalTool('image-filter', [image()], { preset: 'noir', intensity: 50, colorEngine: 'css' });

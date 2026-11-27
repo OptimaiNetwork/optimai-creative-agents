@@ -142,6 +142,26 @@ const cube = formatCubeLut(createLut(([r, g, b]) => [b, g, r], { size: 17, title
 
 `applyLut(rgba, width, height, lut, { amount, rows })` gives identical bytes whole or band by band, and an identity table is lossless. `FILM_LOOKS` holds each film as a few numbers (gains, saturation, split tone, contrast, black and white points); `filmLut(name)` bakes it once into a shared 33³ table.
 
+### Grade and LUT on the graphics card
+
+`@optimai/creative-agents/gpu-pixels` runs the same grade and LUT as one WebGPU compute pass, behind the same arguments. Where WebGPU is missing, refused or lost, the processor quietly runs the CPU functions instead and says so, so a host never needs two code paths.
+
+```js
+import { createGpuPixelProcessor } from '@optimai/creative-agents/gpu-pixels';
+import { filmLut } from '@optimai/creative-agents/lut';
+
+const pixels = await createGpuPixelProcessor();             // navigator.gpu, or pass { device } to share one
+await pixels.run(image.data, width, height, { grade: 'cool', seed: 2, lut: filmLut('teal-amber'), amount: 0.8 });
+pixels.backend;                                              // 'webgpu', or 'cpu' with pixels.reason saying why
+await pixels.gradePixels(image.data, width, height, 'noir'); // the CPU signatures, as promises
+await pixels.applyLut(image.data, width, height, lut, { amount: 0.5, rows: [0, 200] });
+pixels.destroy();
+```
+
+`run` grades and then applies the LUT, the order Image Finish uses. Pixels change in place, alpha is never touched, and runs are queued in call order. The shader reads the CPU's own sRGB decode and encode tables and hashes grain from the same integers, so a WebGPU result matches the CPU result to within one level per channel. In headless Chrome on an Apple GPU, about 0.005% of channels differed, by exactly one level. A 12-megapixel grade plus LUT took about 35 ms there, against about 1.5 s on the CPU. Arguments are checked exactly as on the CPU, with the same messages, and bad ones reject the promise. A pass the GPU refuses is redone on the CPU from the untouched pixels. Pass `fallback: false` to get the error instead. The CPU functions stay the reference: use them when you need identical bytes on every device.
+
+`runLocalTool('image-filter', files, values, signal, { pixels })` hands Image Finish's grade and LUT to such a processor in one call, and reports `output.pixelBackend`.
+
 ### Readable titles and image palettes
 
 A title color that reads on a dark photo can vanish on a bright one. Poster Lab, Letter Pose and Title Frame sample the composition behind the title block (a thumbnail of at most 64 pixels), find its dominant colors, and check the ink against every color that covers at least 5% of that area. The `ink` setting chooses what happens:

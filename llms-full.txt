@@ -252,10 +252,11 @@ Declared in `src/browser-runtime.d.mts`, implemented in `src/browser-runtime.mjs
 
 ```ts
 import type { TextScrim, TitlePlacement } from './text-placement.mjs';
+import type { GpuPixelProcessor } from './gpu-pixels.mjs';
 export type LocalToolOperation = 'image-filter' | 'image-resize' | 'image-grid' | 'type-overlay';
 export type LocalToolValues = Record<string, string | number>;
 export type LocalImageSize = { width: number; height: number };
-export type LocalToolOutput = LocalImageSize & { blob: Blob; filename: string; /** Title color actually drawn by type-overlay. */ ink?: string; /** Lines of the title as drawn by type-overlay. */ lines?: string[]; /** Where type-overlay drew the title block. */ placement?: TitlePlacement; /** Scrim type-overlay drew behind the title, or null. */ scrim?: TextScrim | null; /** How image-filter graded: `pixel` (OKLab engine) or the `css` filter fallback. */ colorEngine?: 'pixel' | 'css'; /** Title of the film look or `.cube` LUT image-filter applied. */ lut?: string };
+export type LocalToolOutput = LocalImageSize & { blob: Blob; filename: string; /** Title color actually drawn by type-overlay. */ ink?: string; /** Lines of the title as drawn by type-overlay. */ lines?: string[]; /** Where type-overlay drew the title block. */ placement?: TitlePlacement; /** Scrim type-overlay drew behind the title, or null. */ scrim?: TextScrim | null; /** How image-filter graded: `pixel` (OKLab engine) or the `css` filter fallback. */ colorEngine?: 'pixel' | 'css'; /** Where the pixel grade ran when `options.pixels` was given. */ pixelBackend?: 'webgpu' | 'cpu'; /** Title of the film look or `.cube` LUT image-filter applied. */ lut?: string };
 
 export declare const LOCAL_IMAGE_LIMITS: Readonly<{
     files: 8;
@@ -279,12 +280,14 @@ export declare function getToolOutputSize(
  * Cover fits (resize and grid) use focus-aware cropping by default; pass `crop: 'center'` to opt out.
  * image-filter grades per pixel in OKLab (`colorEngine: 'pixel'`, optional `seed` for grain); `colorEngine: 'css'` keeps the legacy filter.
  * After the grade it applies `film` (none, golden, teal-amber or matte) or `lut` (`.cube` text, which wins), both scaled by `intensity`.
+ * `options.pixels`, a processor from `gpu-pixels`, runs that grade and LUT in one pass on the graphics card (within one level of the CPU).
  */
 export declare function runLocalTool(
     operation: LocalToolOperation,
     files: File[],
     values: LocalToolValues,
     signal?: AbortSignal,
+    options?: { pixels?: GpuPixelProcessor | null },
 ): Promise<LocalToolOutput>;
 ```
 
@@ -1629,6 +1632,58 @@ export type DepthMotionClip = Readonly<{
 export function createDepthMotionClip(options: { image: DepthPixels; depth: DepthMap; values?: DepthMotionSettings | { camera?: DepthCamera; depth?: DepthStrength | number }; seconds?: number; canvas?: HTMLCanvasElement | OffscreenCanvas }): DepthMotionClip;
 ```
 
+### `@optimai/creative-agents/gpu-pixels`
+
+Declared in `src/gpu-pixels.d.mts`, implemented in `src/gpu-pixels.mjs`.
+
+```ts
+import type { GradePreset, GradeSettings, ResolvedGrade } from './color-grade.mjs';
+import type { CubeLut } from './lut.mjs';
+
+export declare const GPU_PIXEL_LIMITS: Readonly<{ pixels: 16000000; workgroup: 64; dispatch: 65535 }>;
+/** The WGSL compute shader: bindings 0 pixels (RGBA8 as u32), 1 settings, 2 decode table then LUT, 3 encode table. */
+export declare const GPU_PIXEL_SHADER: string;
+
+export type GpuPixelRun = {
+  /** A preset name, partial settings or a `resolveGrade` result; omit (or null) for a LUT only. */
+  grade?: GradePreset | Partial<GradeSettings> | ResolvedGrade | null;
+  /** Grain seed, 0–4294967295 (0). */
+  seed?: number;
+  /** Applied after the grade; omit (or null) for a grade only. */
+  lut?: CubeLut | null;
+  /** LUT mix from the graded pixels, 0–1 (1). */
+  amount?: number;
+  /** `[start, end)` rows; the rest of the image is untouched. */
+  rows?: [number, number];
+  /** Stops a run still waiting in the queue. */
+  signal?: AbortSignal;
+};
+export type GpuPixelProcessor = Readonly<{
+  /** Where runs go now: `webgpu`, or `cpu` after WebGPU was missing, refused or lost. */
+  readonly backend: 'webgpu' | 'cpu';
+  /** Why the processor is on the CPU (empty on the graphics card). */
+  readonly reason: string;
+  /** Grade, then LUT, in place in one pass; resolves to the same array. Runs are queued in call order. */
+  run<T extends Uint8ClampedArray | Uint8Array>(rgba: T, width: number, height: number, options?: GpuPixelRun): Promise<T>;
+  /** `gradePixels` with the same arguments, resolved when done. */
+  gradePixels<T extends Uint8ClampedArray | Uint8Array>(rgba: T, width: number, height: number, grade?: GradePreset | Partial<GradeSettings> | ResolvedGrade, options?: { seed?: number; rows?: [number, number]; signal?: AbortSignal }): Promise<T>;
+  /** `applyLut` with the same arguments, resolved when done. */
+  applyLut<T extends Uint8ClampedArray | Uint8Array>(rgba: T, width: number, height: number, lut: CubeLut, options?: { amount?: number; rows?: [number, number]; signal?: AbortSignal }): Promise<T>;
+  /** Free the graphics buffers (and the device, unless it was passed in). */
+  destroy(): void;
+}>;
+
+/**
+ * A grade-and-LUT processor on WebGPU (`gpu` defaults to `navigator.gpu`; pass `device` to share one) that falls back to
+ * the CPU functions, with the same results to within one level per channel. `fallback: false` throws instead.
+ */
+export declare function createGpuPixelProcessor(options?: { gpu?: { requestAdapter(options?: object): Promise<any> } | null; device?: any; powerPreference?: 'high-performance' | 'low-power'; fallback?: boolean; signal?: AbortSignal }): Promise<GpuPixelProcessor>;
+/** The shader's 128-byte settings block for one run, and its flags (1 grade, 2 LUT, 4 grain). */
+export declare function gpuPixelSettings(options: { width: number; start?: number; count: number; grade?: ResolvedGrade | null; seed?: number; lut?: CubeLut | null; amount?: number }): { buffer: ArrayBuffer; flags: number };
+/** The `[x, y]` workgroup grid for a pixel count, within the per-dimension dispatch limit. */
+export declare function gpuPixelDispatch(count: number): [number, number];
+```
+
 ### `@optimai/creative-agents/writing-schema`
 
 Declared in `src/writing-schema.d.mts`, implemented in `src/writing-schema.mjs`.
@@ -2932,6 +2987,26 @@ const cube = formatCubeLut(createLut(([r, g, b]) => [b, g, r], { size: 17, title
 
 `applyLut(rgba, width, height, lut, { amount, rows })` gives identical bytes whole or band by band, and an identity table is lossless. `FILM_LOOKS` holds each film as a few numbers (gains, saturation, split tone, contrast, black and white points); `filmLut(name)` bakes it once into a shared 33³ table.
 
+##### Grade and LUT on the graphics card
+
+`@optimai/creative-agents/gpu-pixels` runs the same grade and LUT as one WebGPU compute pass, behind the same arguments. Where WebGPU is missing, refused or lost, the processor quietly runs the CPU functions instead and says so, so a host never needs two code paths.
+
+```js
+import { createGpuPixelProcessor } from '@optimai/creative-agents/gpu-pixels';
+import { filmLut } from '@optimai/creative-agents/lut';
+
+const pixels = await createGpuPixelProcessor();             // navigator.gpu, or pass { device } to share one
+await pixels.run(image.data, width, height, { grade: 'cool', seed: 2, lut: filmLut('teal-amber'), amount: 0.8 });
+pixels.backend;                                              // 'webgpu', or 'cpu' with pixels.reason saying why
+await pixels.gradePixels(image.data, width, height, 'noir'); // the CPU signatures, as promises
+await pixels.applyLut(image.data, width, height, lut, { amount: 0.5, rows: [0, 200] });
+pixels.destroy();
+```
+
+`run` grades and then applies the LUT, the order Image Finish uses. Pixels change in place, alpha is never touched, and runs are queued in call order. The shader reads the CPU's own sRGB decode and encode tables and hashes grain from the same integers, so a WebGPU result matches the CPU result to within one level per channel. In headless Chrome on an Apple GPU, about 0.005% of channels differed, by exactly one level. A 12-megapixel grade plus LUT took about 35 ms there, against about 1.5 s on the CPU. Arguments are checked exactly as on the CPU, with the same messages, and bad ones reject the promise. A pass the GPU refuses is redone on the CPU from the untouched pixels. Pass `fallback: false` to get the error instead. The CPU functions stay the reference: use them when you need identical bytes on every device.
+
+`runLocalTool('image-filter', files, values, signal, { pixels })` hands Image Finish's grade and LUT to such a processor in one call, and reports `output.pixelBackend`.
+
 ##### Readable titles and image palettes
 
 A title color that reads on a dark photo can vanish on a bright one. Poster Lab, Letter Pose and Title Frame sample the composition behind the title block (a thumbnail of at most 64 pixels), find its dominant colors, and check the ink against every color that covers at least 5% of that area. The `ink` setting chooses what happens:
@@ -3768,7 +3843,7 @@ A broader host can add these reviewed runtime adapters:
 | --- | --- | --- |
 | Original image processing | `browser-runtime` → `runLocalTool` | PNG; selected PNG/JPEG/WebP files and bounded settings |
 | Additional composition | `canvas-lab` → `canvasLabRecipeSettings`, `runCanvasLab` | PNG and the title ink, lines, placement and scrim, transition, glitch seed, print look or palette actually drawn; normalize defaults, canonical settings and saved v1 aliases |
-| Color | `color` → `pickLegibleColor`, `analyzeImageColors`, `dominantColors`, `mixColors`; `color-grade` → `gradePixels`, `resolveGrade`, `gradeColor`; `lut` → `parseCubeLut`, `applyLut`, `filmLut`, `lutColor` | OKLab/OKLCH conversions, WCAG contrast, readable ink, deterministic image palettes, a per-pixel OKLab grade and strict `.cube` LUTs; Node and browser |
+| Color | `color` → `pickLegibleColor`, `analyzeImageColors`, `dominantColors`, `mixColors`; `color-grade` → `gradePixels`, `resolveGrade`, `gradeColor`; `lut` → `parseCubeLut`, `applyLut`, `filmLut`, `lutColor`; `gpu-pixels` → `createGpuPixelProcessor` | OKLab/OKLCH conversions, WCAG contrast, readable ink, deterministic image palettes, a per-pixel OKLab grade and strict `.cube` LUTs; Node and browser. `gpu-pixels` runs the grade and LUT on WebGPU (within one level of the CPU) and falls back to the CPU by itself |
 | Transitions | `transition` → `composeTransition`, `resolveTransition`, `transitionProgress`, `transitionTimes`, `transitionClipTime`; `canvas-lab` → `createTransitionClip` | Wipe, iris, light-key, push and dissolve frames between two RGBA buffers with eased time and feathered edges; a Transition Lab video clip that holds each shot and draws any frame; Node and browser |
 | Glitch | `glitch` → `glitchPixels`, `planGlitch`, `randomGlitchSeed`, `mulberry32` | Seeded block, colour-trail and echo glitches on an RGBA buffer, identical bytes for the same seed; Node and browser |
 | Color palettes | `palette` → `pullPalette`, `buildPalette`, `paletteFiles`, `paletteCss`, `paletteJson`, `paletteAse`, `paletteGpl`, `readAse`, `colorName` | Named OKLCH swatches with background, text and accent roles from RGBA pixels or any swatch list; CSS custom properties, JSON, Adobe Swatch Exchange and GIMP palette files, and `.ase` import; Node and browser |

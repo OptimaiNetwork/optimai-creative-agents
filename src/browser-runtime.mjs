@@ -270,7 +270,7 @@ function filterValue(preset, amount) {
  * Returns false, with nothing drawn, when the context cannot read pixels; the
  * caller then uses the CSS filter fallback.
  */
-async function gradeCanvas(context, image, size, grade, seed, signal, lut, amount) {
+async function gradeCanvas(context, image, size, grade, seed, signal, lut, amount, processor) {
     if (typeof context.getImageData !== 'function' || typeof context.putImageData !== 'function')
         return false;
     context.drawImage(image.source, 0, 0, size.width, size.height);
@@ -283,6 +283,13 @@ async function gradeCanvas(context, image, size, grade, seed, signal, lut, amoun
     catch {
         context.clearRect?.(0, 0, size.width, size.height);
         return false;
+    }
+    // A pixel processor (`gpu-pixels`) runs grade and LUT in one pass on the graphics card, or on the CPU when it must.
+    if (processor) {
+        await processor.run(pixels.data, size.width, size.height, { grade, seed, lut, amount, signal });
+        throwIfAborted(signal);
+        context.putImageData(pixels, 0, 0);
+        return true;
     }
     const band = Math.max(1, Math.floor(262_144 / size.width));
     for (let row = 0; row < size.height; row += band) {
@@ -376,8 +383,11 @@ function lookValue(values) {
     const film = optionValue(values, 'film', 'none', ['none', 'golden', 'teal-amber', 'matte']);
     return film === 'none' ? null : filmLut(film);
 }
-/** Run a reviewed, first-party local operation. This never executes plugin code. */
-export async function runLocalTool(operation, files, values, signal) {
+/**
+ * Run a reviewed, first-party local operation. This never executes plugin code.
+ * `options.pixels` (a `createGpuPixelProcessor` result) moves Image Finish's grade and LUT onto the graphics card.
+ */
+export async function runLocalTool(operation, files, values, signal, { pixels: processor = null } = {}) {
     checkOperation(operation);
     throwIfAborted(signal);
     if (!Array.isArray(files) || !files.length || files.length > LOCAL_IMAGE_LIMITS.files)
@@ -393,7 +403,7 @@ export async function runLocalTool(operation, files, values, signal) {
         await checkSignature(file, signal);
     }
     const images = [];
-    let canvas, ink, lines, placement, scrim, colorEngine, lut;
+    let canvas, ink, lines, placement, scrim, colorEngine, lut, pixelBackend;
     try {
         for (const file of files) {
             const image = await loadLocalImage(file, signal);
@@ -416,7 +426,9 @@ export async function runLocalTool(operation, files, values, signal) {
             const engine = optionValue(values, 'colorEngine', 'pixel', ['pixel', 'css']);
             const seed = numberValue(values, 'seed', 0, 0, 0xffffffff);
             const look = lookValue(values);
-            colorEngine = engine === 'pixel' && await gradeCanvas(context, images[0], size, resolveGrade(preset, intensity / 100), seed, signal, look, intensity / 100) ? 'pixel' : 'css';
+            colorEngine = engine === 'pixel' && await gradeCanvas(context, images[0], size, resolveGrade(preset, intensity / 100), seed, signal, look, intensity / 100, processor) ? 'pixel' : 'css';
+            if (colorEngine === 'pixel' && processor)
+                pixelBackend = processor.backend;
             if (look && colorEngine === 'css')
                 throw new Error('Film looks and .cube files need the pixel color engine, and this browser cannot read image pixels.');
             if (look && intensity)
@@ -451,7 +463,7 @@ export async function runLocalTool(operation, files, values, signal) {
         if (blob.size > LOCAL_IMAGE_LIMITS.bytes)
             throw new Error('The result exceeds 20 MB. Choose smaller dimensions.');
         const base = files[0].name.replace(/\.[^.]*$/, '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'optimai';
-        return { ...size, blob, filename: `${base}-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}), ...(colorEngine ? { colorEngine } : {}), ...(lut ? { lut } : {}) };
+        return { ...size, blob, filename: `${base}-${operation}.png`, ...(ink ? { ink, lines, placement, scrim } : {}), ...(colorEngine ? { colorEngine } : {}), ...(pixelBackend ? { pixelBackend } : {}), ...(lut ? { lut } : {}) };
     }
     finally {
         images.forEach(image => image.release());
